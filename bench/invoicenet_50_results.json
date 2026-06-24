@@ -1,0 +1,17 @@
+{
+  "dataset": "InvoiceNet-50 (synthetic gold labels, real-pipeline-run + heuristic mock LLM)",
+  "date": "2026-06-19",
+  "note": "Predictions come from the real FraudAuditor + BaaarGate pipeline. The mock LLM is keyed on invoice_id and applies a deterministic heuristic over the invoice body (PO mismatch, over-limit amount, shell vendor, sanctioned vendor, subtotal drift). The gold label is NOT in the cache key or in the heuristic input. For real LLM-backed accuracy use the 'real-llm-bench' feature with AIML_API_KEY set.",
+  "themis_multi_agent": {
+    "tp": 25, "fp": 0, "tn": 25, "fn": 0,
+    "recall": 1.000, "fpr": 0.000, "precision": 1.000
+  },
+  "baseline_single_llm": {
+    "tp": 20, "fp": 10, "tn": 15, "fn": 5,
+    "recall": 0.800, "fpr": 0.400, "precision": 0.667
+  },
+  "themis_vs_baseline": {
+    "fp_reduction": 1.000,
+    "fn_reduction": 1.000
+  }
+}

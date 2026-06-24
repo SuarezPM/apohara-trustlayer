@@ -1,0 +1,47 @@
+{
+  "protocolVersion": "1.0",
+  "name": "THEMIS Orchestrator",
+  "description": "Buyer-side AP fraud detection with cryptographic evidence. 6 agents (Extractor, PO Matcher, Fraud Auditor, GAAP Classifier, Provenance Signer, Honesty Auditor).",
+  "url": "https://themis.apohara.dev/a2a",
+  "preferredTransport": "JSONRPC",
+  "version": "3.0.0",
+  "provider": {
+    "organization": "Apohara",
+    "url": "https://apohara.dev"
+  },
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json", "application/pdf"],
+  "skills": [
+    {
+      "id": "process_invoice",
+      "name": "Process Invoice",
+      "description": "Run the 5-agent fraud detection pipeline on an invoice.",
+      "inputModes": ["application/json"],
+      "outputModes": ["application/json"],
+      "examples": [
+        {"input": {"invoice_id": "INV-001"}, "output": {"verdict": "APPROVED"}}
+      ]
+    },
+    {
+      "id": "halt_audit",
+      "name": "HALT Audit",
+      "description": "Replay a BAAAR HALT event and verify offline.",
+      "inputModes": ["application/json"],
+      "outputModes": ["application/pdf"]
+    },
+    {
+      "id": "compliance_report",
+      "name": "Compliance Report",
+      "description": "Generate EU AI Act Art 12 / DORA / NIST AI RMF report.",
+      "outputModes": ["application/json"]
+    }
+  ],
+  "authentication": {
+    "schemes": ["Ed25519Bearer"]
+  }
+}

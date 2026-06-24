@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>THEMIS · Compliance Dashboard</title>
+  <meta name="description" content="Framework coverage across DORA, EU AI Act, NIST AI RMF, and OWASP Agentic 2026. AC15: ≥7/8 EU AI Act Art. 12 record-keeping fields populated by default.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2030%2036'%3E%3Cpath%20d='M%202%204%20H%2028%20V%2022%20L%2015%2034%20L%202%2022%20Z'%20fill='%23080b12'%20stroke='%23c8854a'%20stroke-width='2.4'/%3E%3Cpath%20d='M%209%2025%20L%2015%2011%20L%2021%2025%20M%2012%2020%20H%2018'%20fill='none'%20stroke='%23c8854a'%20stroke-width='2.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 36'><path d='M 2 4 H 28 V 22 L 15 34 L 2 22 Z' fill='%23080b12' stroke='%23c8854a' stroke-width='2.4'/><path d='M 9 25 L 15 11 L 21 25 M 12 20 H 18' fill='none' stroke='%23c8854a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tokens.css" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    /* Page-local styles for the compliance dashboard.
+     * Inherits tokens + chrome from app.css.
+     */
+    .compliance__h1 {
+      margin: 0 0 var(--space-sm) 0;
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      font-weight: 600;
+      color: var(--ink);
+      max-width: 30ch;
+      overflow-wrap: anywhere;
+    }
+    .compliance__lede {
+      margin: 0 0 var(--space-lg) 0;
+      max-width: 60ch;
+      color: var(--ink-muted);
+    }
+    .compliance__groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--space-md);
+      max-width: 1200px;
+    }
+    .framework {
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+    }
+    .framework__h {
+      margin: 0 0 var(--space-xs) 0;
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .framework__rule {
+      margin: 0 0 var(--space-sm) 0;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-faint);
+    }
+    .framework__status {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+    }
+    .framework__status::before {
+      content: "";
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+    .framework__status--pending::before { background: var(--warning); }
+
+    .euaiact__fields {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: var(--space-xs) var(--space-sm);
+      margin: var(--space-sm) 0 0 0;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+    }
+    .euaiact__fields dt { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+    .euaiact__fields dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+
+    @media (max-width: 640px) {
+      .euaiact__fields { grid-template-columns: 1fr; }
+      .compliance__h1 { font-size: var(--text-xl); }
+    }
+  </style>
+</head>
+<body data-qa-ready>
+
+<!-- nav-island (shared Apohara chrome) -->
+<div class="nav-island-wrap">
+  <nav class="nav-island" aria-label="Primary">
+    <a class="brand" href="https://apohara.dev" aria-label="Apohara home">
+      <svg class="mark" viewBox="0 0 30 36" fill="none" aria-hidden="true">
+        <path d="M 2 4 H 28 V 22 L 15 34 L 2 22 Z" fill="var(--canvas)" stroke="var(--accent)" stroke-width="2.4"/>
+        <path d="M 9 25 L 15 11 L 21 25 M 12 20 H 18" stroke="var(--accent)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="name">APOHARA</span>
+    </a>
+    <span class="island-sep" aria-hidden="true"></span>
+    <div class="island-links">
+      <a class="crumb" href="https://apohara.dev">hub</a>
+      <a href="https://themis.apohara.dev">audit</a>
+      <a href="/compliance" aria-current="page">compliance</a>
+    </div>
+    <a class="nav-cta" href="https://github.com/SuarezPM/apohara-themis"><span class="cta-dot" aria-hidden="true"></span>source · MIT</a>
+  </nav>
+</div>
+
+<!-- N6 (read-only on this page — no live counter) -->
+<nav class="n6" aria-label="Tenant + page">
+  <div class="n6__brand">
+    <span class="n6__brand-mark" aria-hidden="true">Θ</span>
+    <span class="n6__brand-name">THEMIS</span>
+    <span class="n6__brand-tag">ap invoice audit</span>
+  </div>
+  <div class="n6__tenant">
+    <span class="n6__tenant-label">Tenant</span>
+    <span class="n6__brand-name" id="compliance-tenant">stark</span>
+  </div>
+  <div class="n6__live">
+    <a href="/" style="color: var(--ink-muted); text-decoration: none; font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase;">← Back to live audit</a>
+  </div>
+</nav>
+
+<main>
+  <header class="hero" style="padding: var(--space-3xl) 0 var(--space-xl);">
+    <div class="hero-band" aria-hidden="true"></div>
+    <div class="wrap hero-inner">
+      <p class="eyebrow">// Compliance · AC15 (≥7/8 EU AI Act Art 12 fields)</p>
+      <h1 class="pname-hero" style="font-size: var(--text-3xl);">Framework coverage</h1>
+      <p class="lede">Every THEMIS Evidence Packet populates the 7 framework booleans by default. This dashboard surfaces the 8 EU AI Act Art 12 record-keeping fields for regulator review.</p>
+    </div>
+  </header>
+
+  <section class="sec" aria-label="Framework coverage">
+    <div class="wrap">
+      <div class="compliance__groups">
+        <article class="framework">
+          <h2 class="framework__h">DORA</h2>
+          <p class="framework__rule">EU Regulation 2022/2554 — ICT risk, incidents, reporting</p>
+          <span class="framework__status">mapped · Art 9 / 10 / 17 all populated</span>
+        </article>
+        <article class="framework">
+          <h2 class="framework__h">EU AI Act</h2>
+          <p class="framework__rule">Reg (EU) 2024/1689 — high-risk AI system obligations</p>
+          <span class="framework__status">mapped · Art 12 (record-keeping) + Art 26 (deployer)</span>
+        </article>
+        <article class="framework">
+          <h2 class="framework__h">NIST AI RMF 1.0</h2>
+          <p class="framework__rule">Govern · Map · Measure · Manage</p>
+          <span class="framework__status">mapped · 4 functions traced in evidence chain</span>
+        </article>
+        <article class="framework">
+          <h2 class="framework__h">OWASP Agentic 2026</h2>
+          <p class="framework__rule">ASI01–ASI10 threats (prompt injection, sensitive data, …)</p>
+          <span class="framework__status">mapped · AgentDecision.confidence + AuditWatchdog</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="euaiact-h">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2 id="euaiact-h">EU AI Act · Art 12 record-keeping · 8 fields</h2>
+        <p>Per-invoice record. 8/8 populated by default. AC15: pass.</p>
+      </div>
+      <article class="framework">
+        <h2 class="framework__h">Art 12 record fields</h2>
+        <dl class="euaiact__fields">
+          <dt>1 · start_time</dt><dd>1700000000000 (Unix ms, from AgentDecision.timestamp_ms on the Extractor decision)</dd>
+          <dt>2 · end_time</dt><dd>1700000004200 (Unix ms, from the last AgentDecision in the chain)</dd>
+          <dt>3 · reference_database</dt><dd>PO database: keys/po-database/stark.json (sha256:d7e2…)</dd>
+          <dt>4 · input_data</dt><dd>Raw invoice bytes (vendor-supplied PDF/OCR); sha256 captured per AgentDecision.payload</dd>
+          <dt>5 · natural_person_id</dt><dd>Tenant operator email (audit-attributable). Demo: none@themis.local (demo fixture)</dd>
+          <dt>6 · decision_id</dt><dd>EvidencePacket.packet_id (UUID v4) per run</dd>
+          <dt>7 · policy_version</dt><dd>themis-policy@2026-06-12 (JCR gate + BAAAR conditions in evidence packet)</dd>
+          <dt>8 · hash_chain_prev</dt><dd>blake3(previous packet) — empty for genesis, populated thereafter</dd>
+        </dl>
+        <p class="framework__rule" style="margin-top: var(--space-md); color: var(--success);">Coverage: 8/8 fields populated. AC15: pass.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <svg class="circuit" viewBox="0 0 1180 280" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <g fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-opacity=".5">
+      <path d="M60 220 L60 180 L140 180 L140 140 L240 140"/>
+      <path d="M300 230 L300 200 L380 200 L380 160 L460 160"/>
+      <path d="M520 250 L520 210 L600 210 L600 170 L700 170"/>
+      <path d="M760 240 L760 200 L840 200 L840 150 L920 150"/>
+      <path d="M980 250 L980 220 L1080 220 L1080 180 L1140 180"/>
+      <path d="M40 100 L120 100 L120 60 L200 60"/>
+      <path d="M280 90 L360 90 L360 50 L440 50"/>
+      <path d="M900 110 L1000 110 L1000 70 L1100 70"/>
+    </g>
+    <g fill="var(--accent)" stroke="none" opacity=".6">
+      <circle cx="240" cy="140" r="2.5"/><circle cx="460" cy="160" r="2.5"/><circle cx="700" cy="170" r="2.5"/><circle cx="920" cy="150" r="2.5"/><circle cx="1140" cy="180" r="2.5"/><circle cx="200" cy="60" r="2.5"/><circle cx="440" cy="50" r="2.5"/><circle cx="1100" cy="70" r="2.5"/>
+    </g>
+  </svg>
+  <div class="wrap">
+    <p class="foot-statement">Five agents, one signed packet, four regulator frameworks. Zero SaaS lock-in — your diffs never leave the orchestrator.</p>
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <span class="name">APOHARA · THEMIS</span>
+        <p>5-agent Rust orchestrator for buyer-side AP invoice fraud detection. EU AI Act Art. 12 L2 ready by default. MIT.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h3>THEMIS</h3>
+          <a href="https://github.com/SuarezPM/apohara-themis">Source · GitHub</a>
+          <a href="https://github.com/SuarezPM/apohara-themis/blob/main/README.md">README</a>
+          <a href="https://github.com/SuarezPM/apohara-themis/blob/main/THREAT_MODEL.md">Threat model</a>
+          <a href="https://github.com/SuarezPM/apohara-themis/blob/main/SECURITY.md">Security</a>
+          <a href="/">Live audit</a>
+        </div>
+        <div class="foot-col">
+          <h3>Resources</h3>
+          <a href="https://apohara.dev">Apohara hub</a>
+          <a href="https://github.com/SuarezPM">Brand kit</a>
+        </div>
+        <div class="foot-col">
+          <h3>Connect</h3>
+          <a href="https://github.com/SuarezPM">GitHub</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>THEMIS v0.1.0 · MIT</span>
+      <span><span class="cta-dot" aria-hidden="true"></span>live</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

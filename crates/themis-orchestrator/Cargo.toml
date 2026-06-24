@@ -1,0 +1,98 @@
+[package]
+name = "themis-orchestrator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "THEMIS orchestrator — state machine, Band room lifecycle, LlmBackend router, BAAAR kill-switch, Evidence Packet assembly, multi-tenant registry."
+
+[dependencies]
+tokio = { workspace = true }
+sha2 = { workspace = true }
+async-trait = "0.1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "6"
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
+blake3 = "1"
+hex = "0.4"
+themis-agents = { workspace = true }
+themis-evidence = { workspace = true }
+themis-compliance = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+themis-frontend = { workspace = true }
+themis-band-client = { workspace = true }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors", "limit"] }
+hyper = "1"
+futures-util = "0.3"
+base64 = "0.22"
+tokio-stream = { version = "0.1", features = ["sync"] }
+printpdf = { version = "0.7", features = ["embedded_images"] }
+qrcode = "0.14"
+# Image rendering for QR code as PNG in the PDF (premium hero band).
+# Locked at the printpdf-recommended 0.25 series (image::DynamicImage
+# is the input type of printpdf::Image::from_dynamic_image).
+image = { version = "0.25", default-features = false, features = ["png"] }
+parking_lot = "0.12"
+# C-07 / G14 / AC7: redaction patterns for the Dual-LLM split
+# (privileged → quarantined). `regex` is already in the dep tree
+# transitively via axum; adding it as a direct dep here is a
+# declaration, not a new download.
+regex = "1"
+# C-13 / G16, G28 / AC13: HMAC-SHA512 master-seed derivation for the
+# per-tenant keyring. The hmac crate is the de-facto Rust HMAC
+# implementation; the 0.12 series is API-compatible with sha2 0.10
+# (workspace dep).
+hmac = "0.12"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+
+# apohara-agentguard (C-02 / G15,G18,G33): seccomp+Landlock sandbox + input
+# firewall + policy file evaluator. Local path dep; the agentguard crate
+# itself targets rust-version=1.85, so we pin the dependency on Linux
+# only via a target-specific section below. On non-Linux platforms the
+# integration code is gated with `#[cfg(target_os = "linux")]`.
+apohara-agentguard = { workspace = true }
+
+# Structured logging per the project coding-style.md rule
+# ("no println! in production code; use tracing"). THEMIS 3.0
+# converted all eprintln! callsites in src/ to tracing::{warn,
+# info, error} via the fix following this comment.
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { workspace = true }
+proptest = "1"
+wiremock = "=0.6.2"
+futures-util = "0.3"
+apohara-agentguard = { workspace = true }
+
+[features]
+# `bench` enables test_support for the bench binary and the
+# demo_data_loads integration test. It's a default feature so
+# `cargo test -p themis-orchestrator` Just Works without having
+# to remember `--features bench`; the bench binary is gated by
+# `required-features = ["bench"]` below.
+default = ["bench"]
+bench = []
+# US-09: gate the public-bench integration test (50-row
+# InvoiceNet sample) behind this feature so the default
+# `cargo test` doesn't pull the fixture into every CI run.
+# Run: `cargo test --release --features public-bench -p
+#        themis-orchestrator --test public_bench -- --nocapture`
+public-bench = []
+
+[[bin]]
+name = "themis-bench"
+path = "src/bin/bench.rs"
+required-features = ["bench"]
+
+[[bin]]
+name = "themis-orchestrator"
+path = "src/bin/themis-orchestrator.rs"

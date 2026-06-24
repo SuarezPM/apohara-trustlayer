@@ -1,0 +1,22 @@
+[package]
+name = "tl-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Apohara TrustLayer shared types — newtypes for OrgId, error enums, common newtype wrappers"
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+# `demo` enables OrgId::apohara() constructor (for the demo flow).
+# Production builds omit this feature; the constructor is only callable
+# from tests or with `--features demo` (per plan v3.1 ADR IC-4 / AC-33).
+demo = []

@@ -1,0 +1,28 @@
+{
+  "invoice_id": "wayne-002",
+  "tenant_id": "wayne",
+  "expected_verdict": "APPROVED",
+  "halt_reason_human": null,
+  "extracted": {
+    "vendor": "Globex Industrial LLC",
+    "vendor_tax_id": "TAX-GLOBEX-001",
+    "amount_cents": 5000000,
+    "line_items": [
+      { "description": "Industrial control units (qty 50)", "amount_cents": 4000000 },
+      { "description": "Installation labor (20 hrs)", "amount_cents": 800000 },
+      { "description": "Travel expenses", "amount_cents": 200000 }
+    ],
+    "date_iso": "2026-06-05",
+    "po_ref": "PO-2026-0100",
+    "currency": "USD"
+  },
+  "fraud_assessment": {
+    "risk_score": 0.18,
+    "coherence_score": 0.92,
+    "debate_rounds": 1,
+    "findings": [
+      { "kind": "other", "subkind": "clean_invoice", "severity": "info", "evidence": "All fields coherent, PO matches, vendor approved, amount within normal range" }
+    ],
+    "explicit_halt": false
+  }
+}

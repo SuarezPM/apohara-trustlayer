@@ -1,0 +1,92 @@
+[package]
+name = "themis-evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "THEMIS Evidence Packet — Ed25519 signing, BLAKE3 hash chain, RFC 3161 timestamp. Multi-tenant key isolation (chmod 600)."
+
+[lib]
+name = "themis_evidence"
+path = "src/lib.rs"
+
+[dependencies]
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+rand = "0.8"
+async-trait = "0.1"
+base64 = "0.22"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "time", "process"] }
+sigstore-verify = "0.8"
+sigstore-trust-root = "0.8"
+sigstore-types = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde_json_canonicalizer = "0.3"
+# Used by sealchain_wrap mock-fallback (SHA-256 fingerprint of the
+# payload bytes for the mock preimage hex). sha2 is already a
+# workspace-level dep, so this just references it directly.
+sha2 = "0.10"
+# RFC 3161 strict verification (FIX-2 → FIX-2b): full chain
+# check. The stack is layered:
+#
+# - `x509-tsp 0.1` parses TimeStampResp / TstInfo (replaces the
+#   hand-rolled TLV walker that lived in `timestamp.rs`). It uses
+#   `cms 0.2` + `cmpv2` + `der` internally.
+# - `cms 0.2` provides the SignedData / SignerInfo / CertificateSet
+#   types we walk to extract the signer certificate and the
+#   SigningCertificate ESS attribute (CVE-2026-33753 mitigation).
+# - `x509-cert 0.2` provides the X.509 Certificate parser and
+#   `PkiPath` for the [signer, root] chain we feed to chain
+#   validation.
+# - `p384` (secp384r1) — FreeTSA's signer cert uses this curve.
+# - `ecdsa 0.16` for ECDSA signature verification (Verifier trait).
+# - `sha2 0.10` is already a workspace dep; we re-use it for the
+#   SHA-256 / SHA-512 digests in the CMS signature check.
+# - `sha1 0.10` is needed for the ESS `SigningCertificate` v1
+#   `certHash` (FreeTSA uses the v1 form, SHA-1).
+x509-tsp = "0.1"
+cms = "0.2"
+der = "0.7"
+const-oid = "0.9"
+x509-cert = { version = "0.2", features = ["pem"] }
+p384 = { version = "0.13", features = ["ecdsa"] }
+ecdsa = { version = "0.16", features = ["der", "sha2", "pkcs8"] }
+signature = "2"
+sha1 = "0.10"
+elliptic-curve = "0.13"
+# RSA chain validation: FreeTSA's root is RSA-4096; the signer
+# cert (P-384) is signed by the root with rsa-pkcs1-sha512.
+# `pkcs1` provides the `RsaPublicKey::from_pkcs1_der` constructor
+# (and the PKCS#1 v1.5 signature format).
+rsa = { version = "0.9", features = ["sha2"] }
+pkcs1 = { version = "0.7", features = ["pem"] }
+# SaaS multi-tenant key derivation (FIX-6): HKDF-SHA256 derives a
+# deterministic 32-byte Ed25519 seed from MASTER_SEED + tenant_id.
+# `hkdf` 0.12 is paired with `sha2` 0.10 (already a workspace dep).
+hkdf = "0.12"
+# Rekor v2 gRPC stack (ADR 0010). Pinned to 0.14 for tonic/prost to
+# match the current stable on crates.io as of 2026-06-17. The
+# `transport` feature pulls in HTTP/2 connector + TLS roots;
+# `tonic-prost` is the runtime codec crate the generated client
+# references (`tonic_prost::ProstCodec`).
+tonic = { version = "0.14", features = ["transport"] }
+tonic-prost = "0.14"
+prost = "0.14"
+prost-types = "0.14"
+
+[build-dependencies]
+# tonic-prost-build 0.14 is the tonic 0.14 build helper (the
+# configure() API moved out of tonic-build in 0.14; tonic-build
+# 0.14 is now the manual-codegen crate only).
+tonic-prost-build = "0.14"
+
+[dev-dependencies]
+tempfile = "3"

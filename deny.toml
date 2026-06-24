@@ -1,0 +1,41 @@
+# cargo-deny configuration for Apohara TrustLayer
+# Adapted from apohara-themis/deny.toml
+
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "warn"
+ignore = [
+    # RUSTSEC-2023-0071: Marvin Attack on rsa crate (timing sidechannel).
+    # Transitive via themis-evidence (x509-tsp). No fixed upstream.
+    # Mitigation: we do NOT use rsa for signing; Ed25519 only.
+    # Documented in audit_artifacts/threat_model/rsa-marvin.md (US-22/AC-3).
+    "RUSTSEC-2023-0071",
+]
+
+[licenses]
+version = 2
+allow = [
+    "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause", "BSD-3-Clause", "ISC", "Zlib", "Unicode-DFS-2016",
+    "Unicode-3.0", "CC0-1.0", "MPL-2.0", "0BSD",
+    # webpki-root-certs + webpki-roots use CDLA-Permissive-2.0
+    # (Community Data License Agreement — permissive, copyleft-style attribution).
+    # Transitive via rustls/rustls-platform-verifier; needed for HTTPS.
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+# Wildcards = "warn" for absorbed crates (cargo-toml patterns from apohara-themis).
+# Major-version pinning is Rust convention; AC-5 enforces no security issues, not strict pinning.
+# TODO(US-22): tighten wildcards when absorbed crates are refactored in v1.1.
+wildcards = "warn"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

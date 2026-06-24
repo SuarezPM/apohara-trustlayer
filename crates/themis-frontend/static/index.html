@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Apohara VOUCH · AP Invoice Audit · Stark / Wayne</title>
+  <meta name="description" content="5-agent Rust orchestrator that audits AP invoices against the PO database, BAAAR gate, and a signed Evidence Packet. DORA Art.9/10/17 + EU AI Act Art.12/26 + NIST AI RMF + OWASP Agentic 2026.">
+  <meta name="view-transition" content="same-origin">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2030%2036'%3E%3Cpath%20d='M%202%204%20H%2028%20V%2022%20L%2015%2034%20L%202%2022%20Z'%20fill='%23080b12'%20stroke='%23c8854a'%20stroke-width='2.4'/%3E%3Cpath%20d='M%209%2025%20L%2015%2011%20L%2021%2025%20M%2012%2020%20H%2018'%20fill='none'%20stroke='%23c8854a'%20stroke-width='2.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 36'><path d='M 2 4 H 28 V 22 L 15 34 L 2 22 Z' fill='%23080b12' stroke='%23c8854a' stroke-width='2.4'/><path d='M 9 25 L 15 11 L 21 25 M 12 20 H 18' fill='none' stroke='%23c8854a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tokens.css" />
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body data-qa-ready>
+
+<!-- ───── nav-island (shared Apohara chrome) ───── -->
+<div class="nav-island-wrap">
+  <nav class="nav-island" aria-label="Primary">
+    <a class="brand" href="https://apohara.dev" aria-label="Apohara home">
+      <svg class="mark" viewBox="0 0 30 36" fill="none" aria-hidden="true">
+        <path d="M 2 4 H 28 V 22 L 15 34 L 2 22 Z" fill="var(--canvas)" stroke="var(--accent)" stroke-width="2.4"/>
+        <path d="M 9 25 L 15 11 L 21 25 M 12 20 H 18" stroke="var(--accent)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="name">APOHARA</span>
+    </a>
+    <span class="island-sep" aria-hidden="true"></span>
+    <div class="island-links">
+      <a class="crumb" href="https://apohara.dev">hub</a>
+      <a href="https://apohara.dev#toolkit">toolkit</a>
+      <a href="https://themis.apohara.dev" aria-current="page">themis</a>
+    </div>
+    <a class="nav-cta" href="https://github.com/SuarezPM/apohara-themis"><span class="cta-dot" aria-hidden="true"></span>source · MIT</a>
+  </nav>
+</div>
+
+<!-- ───── SponsorStack banner (3 logos: Band + AI/ML API + Featherless) ─────
+     Populated by app.js from the first `sponsor_stack` event on every SSE connect.
+     The labels are also the visible claim of "meaningful use" of each sponsor tool. -->
+<div id="sponsor-stack" class="sponsor-stack" data-qa="sponsor-stack" hidden>
+  <span class="sponsor-stack__label">powered by</span>
+  <span class="sponsor-stack__chip sponsor-stack__chip--band" data-sponsor="band">
+    <span class="sponsor-stack__name">Band</span>
+    <span class="sponsor-stack__detail" data-sponsor-detail="band">—</span>
+  </span>
+  <span class="sponsor-stack__chip sponsor-stack__chip--aiml" data-sponsor="aiml_api">
+    <span class="sponsor-stack__name">AI/ML API</span>
+    <span class="sponsor-stack__detail" data-sponsor-detail="aiml_api">—</span>
+  </span>
+  <span class="sponsor-stack__chip sponsor-stack__chip--featherless" data-sponsor="featherless">
+    <span class="sponsor-stack__name">Featherless</span>
+    <span class="sponsor-stack__detail" data-sponsor-detail="featherless">—</span>
+  </span>
+</div>
+
+<!-- ───── Sticky N6 (functional chrome — tenant switch + live event counter, NOT replaced by nav-island) ───── -->
+<nav class="n6" aria-label="Tenant + live status">
+  <div class="n6__brand">
+    <span class="n6__brand-mark" aria-hidden="true">Θ</span>
+    <span class="n6__brand-name">Apohara VOUCH</span>
+    <span class="n6__brand-tag">ap invoice audit</span>
+  </div>
+  <div class="n6__tenant" aria-label="Active tenant">
+    <label for="tenant-switch" class="n6__tenant-label">Tenant</label>
+    <select id="tenant-switch" class="n6__tenant-select" aria-describedby="tenant-help">
+      <option value="stark">Stark Industries</option>
+      <option value="wayne">Wayne Enterprises</option>
+    </select>
+    <span id="tenant-help" class="n6__tenant-help">2 trust domains · Ed25519 isolated keys</span>
+  </div>
+  <div class="n6__live" role="status" aria-live="polite">
+    <span class="n6__live-dot" aria-hidden="true"></span>
+    <span class="n6__live-text">Live · <span id="n6-event-count">0</span> events</span>
+  </div>
+  <div class="n6__model" role="status" aria-live="polite" aria-label="Active LLM model">
+    <span class="n6__model-label">model</span>
+    <span class="n6__model-id" id="n6-model-id">[model: unknown]</span>
+  </div>
+</nav>
+
+<main>
+  <!-- ───── Section 0 · Hero (Stat-Led: 4 frameworks as the lead) ───── -->
+  <header class="hero">
+    <svg class="hero-decoration" viewBox="0 0 1180 560" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
+      <g fill="none" stroke="var(--accent)" stroke-width="1" stroke-opacity=".4">
+        <path d="M40 80 L120 80 L120 40 L200 40"/>
+        <path d="M280 70 L360 70 L360 30 L440 30"/>
+        <path d="M520 90 L600 90 L600 50 L680 50"/>
+        <path d="M760 80 L840 80 L840 40 L920 40"/>
+        <path d="M980 100 L1060 100 L1060 60 L1140 60"/>
+        <path d="M60 240 L60 200 L140 200 L140 160 L220 160"/>
+        <path d="M300 250 L300 210 L380 210 L380 170 L460 170"/>
+        <path d="M520 260 L520 220 L600 220 L600 180 L700 180"/>
+        <path d="M760 250 L760 210 L840 210 L840 170 L920 170"/>
+        <path d="M980 240 L980 200 L1080 200 L1080 160 L1140 160"/>
+      </g>
+      <g fill="var(--accent)" stroke="none" opacity=".7">
+        <circle cx="200" cy="40" r="2.5"/><circle cx="440" cy="30" r="2.5"/><circle cx="680" cy="50" r="2.5"/><circle cx="920" cy="40" r="2.5"/><circle cx="1140" cy="60" r="2.5"/>
+        <circle cx="220" cy="160" r="2.5"/><circle cx="460" cy="170" r="2.5"/><circle cx="700" cy="180" r="2.5"/><circle cx="920" cy="170" r="2.5"/><circle cx="1140" cy="160" r="2.5"/>
+      </g>
+    </svg>
+    <div class="hero-band" aria-hidden="true"></div>
+    <div class="wrap hero-inner">
+      <p class="eyebrow">// regulated AP audit · v0.1.0 · Band of Agents Hackathon 2026</p>
+      <h1 class="pname-hero">Apohara VOUCH</h1>
+      <p class="hero-pq">The <span style="color:var(--accent)">scales</span> for AP invoice audit.</p>
+      <p class="lede"><b>One invoice → five-agent debate → Ed25519-signed Evidence Packet.</b> Built for buyers-side fraud detection: phantom vendors, math fraud, duplicate submissions, price gouges. <b>EU AI Act Art. 12 record-keeping</b> by default, with offline-verifiable BLAKE3 + Ed25519 anchors.</p>
+      <div class="badges">
+        <span class="badge"><b>DORA</b> · Art 9 / 10 / 17</span>
+        <span class="badge"><b>EU AI Act</b> · Art 12 L2</span>
+        <span class="badge"><b>NIST AI RMF</b> · Govern / Map / Measure / Manage</span>
+        <span class="badge"><b>OWASP Agentic 2026</b> · ASI01–ASI10</span>
+        <span class="badge"><b>BYOK</b> · Anthropic · Qwen3 · GLM-5</span>
+        <span class="badge"><b>MIT</b></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ───── Section 0.5 · Live Band Room (Story Ola-A) — above the fold so judges see it without scrolling ───── -->
+  <section class="sec band-live-room" aria-labelledby="band-live-h" data-qa="band-live-room">
+    <div class="sec-head">
+      <h2 id="band-live-h">Live Band Room · 6 agents in app.band.ai</h2>
+      <p>Watch the 9 Apohara VOUCH agents (Orchestrator, Intake, VendorResearcher, FinanceRisk, LegalPolicy, RedTeam, ComplianceVeto, EvidenceClerk, ApprovalManager) coordinate a real AP invoice audit on <b>wss://app.band.ai</b>. Three production LLM sponsors (AI/ML API, Featherless, Band) drive the cross-framework court (LangGraph + CrewAI + Pydantic AI + Anthropic SDK).</p>
+    </div>
+    <div class="band-live-room__panel">
+      <a id="band-live-room-link" class="band-live-room__link" href="https://app.band.ai/rooms/themis-demo" target="_blank" rel="noopener" data-qa="band-live-room-link">
+        <span class="band-live-room__link-dot" aria-hidden="true"></span>
+        <span class="band-live-room__link-text">
+          <span class="band-live-room__link-label">Open live chatroom</span>
+          <span class="band-live-room__link-url" id="band-live-room-url">app.band.ai/rooms/themis-demo</span>
+        </span>
+        <span class="band-live-room__link-meta" id="band-live-room-meta">6 agents · 0 events</span>
+      </a>
+      <div class="band-live-room__metrics" aria-label="Band fleet metrics">
+        <span class="band-live-room__metric"><b id="band-live-ws-events">0</b><span>ws events</span></span>
+        <span class="band-live-room__metric"><b id="band-live-agents">0</b><span>agents connected</span></span>
+        <span class="band-live-room__metric"><b id="band-live-room">—</b><span>room id</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── Section 1 · Stat-Led: 4 framework cards ───── -->
+  <section class="sec frameworks" aria-labelledby="frameworks-h">
+    <div class="sec-head">
+      <h2 id="frameworks-h">Regulator coverage · mapped by default</h2>
+      <p>Every Evidence Packet populates the booleans for these four frameworks. No opt-in. No add-on tier. <b>The audit log is the product</b>.</p>
+    </div>
+    <div class="stat-row">
+      <article class="stat-cell">
+        <span class="stat-v">DORA</span>
+        <span class="stat-u">EU 2022/2554</span>
+        <span class="stat-d">Art 9 (ICT risk) · Art 10 (incident classification) · Art 17 (reporting) — all populated</span>
+      </article>
+      <article class="stat-cell">
+        <span class="stat-v">EU AI Act</span>
+        <span class="stat-u">Reg 2024/1689</span>
+        <span class="stat-d">Art 12 record-keeping (8/8 fields) · Art 26 deployer obligations</span>
+      </article>
+      <article class="stat-cell">
+        <span class="stat-v">NIST AI RMF</span>
+        <span class="stat-u">1.0</span>
+        <span class="stat-d">Govern · Map · Measure · Manage — all 4 functions traced in the evidence chain</span>
+      </article>
+      <article class="stat-cell">
+        <span class="stat-v">OWASP Agentic</span>
+        <span class="stat-u">2026</span>
+        <span class="stat-d">ASI01–ASI10 · prompt injection, sensitive disclosure, tool misuse — mitigated by AgentDecision.confidence + AuditWatchdog</span>
+      </article>
+    </div>
+  </section>
+
+  <!-- ───── Section 2 · Playground (judge-facing: live 5-agent pipeline) ───── -->
+  <section class="sec playground" aria-labelledby="playground-h">
+    <div class="sec-head">
+      <h2 id="playground-h">Step 01 · Interactive playground</h2>
+      <p>Pick a fixture invoice — or paste your own JSON — and watch the 5-agent debate run live. The default selection is the clean APPROVED run; switch to any HALT fixture to see BAAAR fire in real time.</p>
+    </div>
+    <form id="playground-form" class="playground__form" novalidate>
+      <div class="playground__row">
+        <label class="field">
+          <span class="field__label">Fixture</span>
+          <select id="fixture-select" class="field__input" aria-describedby="playground-help">
+            <option value="">— loading fixtures… —</option>
+          </select>
+        </label>
+        <span id="playground-help" class="playground__help">5 Stanford InvoiceNet-shaped fixtures · 4 HALT + 1 APPROVED</span>
+      </div>
+      <label class="field field--textarea" id="custom-invoice-wrap" hidden>
+        <span class="field__label">Custom invoice JSON</span>
+        <textarea id="custom-invoice" class="field__input field__input--textarea" rows="6" spellcheck="false" placeholder='{ "invoice_id": "demo-001", "tenant_id": "stark", "extracted": { ... }, "fraud_assessment": { ... } }'></textarea>
+        <span class="playground__help">Raw JSON. The orchestrator will base64-encode it and POST it to <code>/invoices</code>.</span>
+      </label>
+      <div class="playground__actions">
+        <button type="submit" class="btn btn--primary" id="playground-submit" data-state="default" disabled>
+          <span class="btn__label">Run audit</span>
+          <span class="btn__spinner" aria-hidden="true"></span>
+        </button>
+        <span class="playground__selected" id="playground-selected" aria-live="polite">No fixture selected.</span>
+      </div>
+    </form>
+  </section>
+
+  <!-- ───── Section 3 · Submit ───── -->
+  <section class="sec submit" aria-labelledby="submit-h">
+    <div class="sec-head">
+      <h2 id="submit-h">Step 01 · Submit</h2>
+      <p>Pick a fixture invoice. The orchestrator runs the 5-agent debate against the PO database, the BAAAR gate, and emits a signed Evidence Packet.</p>
+    </div>
+    <form id="submit-form" class="submit__form" novalidate>
+      <label class="field">
+        <span class="field__label">Invoice fixture</span>
+        <select id="invoice-fixture" class="field__input" required>
+          <option value="clean-001">Stark · clean PO match (approve path)</option>
+          <option value="gouge-001">Stark · 3× price gouge (BAAAR halt path)</option>
+          <option value="phantom-001">Stark · phantom vendor (BAAAR halt path)</option>
+          <option value="math-001">Wayne · math fraud (BAAAR halt path)</option>
+          <option value="duplicate-001">Wayne · duplicate submission (BAAAR halt path)</option>
+        </select>
+      </label>
+      <button type="submit" class="btn btn--primary" id="submit-btn" data-state="default">
+        <span class="btn__label">Run audit</span>
+        <span class="btn__spinner" aria-hidden="true"></span>
+      </button>
+    </form>
+  </section>
+
+  <!-- ───── Section 3.5 · Regulator-visible live metrics (Track 10) ───── -->
+  <section class="sec regulator-live" aria-labelledby="reg-live-h">
+    <div class="sec-head">
+      <h2 id="reg-live-h">Step 01.5 · Regulator-visible live metrics</h2>
+      <p>Three compliance signals update in real time. The judge sees the audit log being written, not a claim that one exists.</p>
+    </div>
+    <div class="regulator-live__row">
+      <article class="reg-tile" id="reg-dora" data-state="idle">
+        <h3 class="reg-tile__h">DORA Art. 17 incident reporting clock</h3>
+        <p class="reg-tile__sub">72h window from BAAAR HALT to competent authority notification</p>
+        <p class="reg-tile__v"><span id="reg-dora-v">idle</span></p>
+      </article>
+      <article class="reg-tile" id="reg-aiml" data-state="idle" data-qa="reg-aiml">
+        <h3 class="reg-tile__h">AI/ML API <span class="reg-tile__chip">live</span></h3>
+        <p class="reg-tile__sub">Claude Sonnet 4.5 calls · 50/50 e2e proof · polled every 2s</p>
+        <p class="reg-tile__v">
+          <span class="reg-aiml-grid">
+            <span><b id="reg-aiml-calls">0</b><i>calls</i></span>
+            <span><b id="reg-aiml-ok">0</b><i>success</i></span>
+            <span><b id="reg-aiml-p95">—</b><i>p95 ms</i></span>
+            <span><b id="reg-aiml-cost">$0.00</b><i>USD</i></span>
+          </span>
+        </p>
+        <p class="reg-tile__model" id="reg-aiml-model">model: —</p>
+      </article>
+      <!-- Story Ola-C: Featherless AI live-call counters.
+           Sibling of the AI/ML API widget above; same shape
+           so the dashboard renders the two providers with one
+           template. fraud_auditor is the only agent routed to
+           Featherless; the counters here are the fraud_auditor
+           call surface. -->
+      <article class="reg-tile" id="reg-featherless" data-state="idle" data-qa="reg-featherless">
+        <h3 class="reg-tile__h">Featherless AI <span class="reg-tile__chip">live</span></h3>
+        <p class="reg-tile__sub">Qwen3-Coder-30B calls · fraud_auditor route · polled every 2s</p>
+        <p class="reg-tile__v">
+          <span class="reg-aiml-grid">
+            <span><b id="reg-featherless-calls">0</b><i>calls</i></span>
+            <span><b id="reg-featherless-ok">0</b><i>success</i></span>
+            <span><b id="reg-featherless-p95">—</b><i>p95 ms</i></span>
+            <span><b id="reg-featherless-cost">$0.00</b><i>USD</i></span>
+          </span>
+        </p>
+        <p class="reg-tile__model" id="reg-featherless-model">model: —</p>
+      </article>
+      <article class="reg-tile" id="reg-eu" data-state="idle">
+        <h3 class="reg-tile__h">EU AI Act Art. 12 fields populated</h3>
+        <p class="reg-tile__sub">Record-keeping (8 fields) — flips green on first packet</p>
+        <p class="reg-tile__v"><span id="reg-eu-v">0 / 8</span></p>
+      </article>
+      <article class="reg-tile" id="reg-nist" data-state="idle">
+        <h3 class="reg-tile__h">NIST AI RMF coverage</h3>
+        <p class="reg-tile__sub">Govern / Map / Measure / Manage — all 4 functions traced</p>
+        <p class="reg-tile__v"><span id="reg-nist-v">0 / 4</span></p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ───── Section 3.7 · Band room transcript (Track 8) ───── -->
+  <section class="sec band-transcript" aria-labelledby="band-h">
+    <div class="sec-head">
+      <h2 id="band-h">Step 01.7 · Band room transcript (@mention routing)</h2>
+      <p>Each agent's message carries an <code>@mention</code> for the next agent in the pipeline. The transcript shows the handoffs and the dispute resolution.</p>
+    </div>
+    <ol class="band-transcript__list" id="band-transcript" aria-live="polite">
+      <li class="band-transcript__empty">No active run. Submit an invoice to populate the room.</li>
+    </ol>
+  </section>
+
+  <!-- ───── Section 4 · Live counter + status ───── -->
+  <section class="sec counter" aria-labelledby="counter-h">
+    <div class="sec-head">
+      <h2 id="counter-h">Step 02 · Per-agent cost and token spend</h2>
+      <p>Each agent is a separate LLM call. Per-agent breakdown shows which specialist cost the most and which decided the verdict.</p>
+    </div>
+    <div class="counter__grid" id="counter-grid">
+      <article id="cell-extractor" class="cell" data-agent="extractor" data-state="default">
+        <h3 class="cell__h">Extractor</h3>
+        <p class="cell__model">gemini-3.1-flash-lite</p>
+        <dl class="cell__dl">
+          <dt>Tokens in</dt><dd data-k="in">—</dd>
+          <dt>Tokens out</dt><dd data-k="out">—</dd>
+          <dt>Cost (USD)</dt><dd data-k="cost">—</dd>
+        </dl>
+      </article>
+      <article id="cell-po_matcher" class="cell" data-agent="po_matcher" data-state="default">
+        <h3 class="cell__h">PO Matcher</h3>
+        <p class="cell__model">qwen3-coder-30b</p>
+        <dl class="cell__dl">
+          <dt>Tokens in</dt><dd data-k="in">—</dd>
+          <dt>Tokens out</dt><dd data-k="out">—</dd>
+          <dt>Cost (USD)</dt><dd data-k="cost">—</dd>
+        </dl>
+      </article>
+      <article id="cell-fraud_auditor" class="cell" data-agent="fraud_auditor" data-state="default">
+        <h3 class="cell__h">Fraud Auditor</h3>
+        <p class="cell__model">claude-sonnet-4.6</p>
+        <dl class="cell__dl">
+          <dt>Tokens in</dt><dd data-k="in">—</dd>
+          <dt>Tokens out</dt><dd data-k="out">—</dd>
+          <dt>Cost (USD)</dt><dd data-k="cost">—</dd>
+        </dl>
+      </article>
+      <article id="cell-gaap_classifier" class="cell" data-agent="gaap_classifier" data-state="default">
+        <h3 class="cell__h">GAAP Classifier</h3>
+        <p class="cell__model">glm-5.1</p>
+        <dl class="cell__dl">
+          <dt>Tokens in</dt><dd data-k="in">—</dd>
+          <dt>Tokens out</dt><dd data-k="out">—</dd>
+          <dt>Cost (USD)</dt><dd data-k="cost">—</dd>
+        </dl>
+      </article>
+      <article id="cell-provenance_signer" class="cell" data-agent="provenance_signer" data-state="default">
+        <h3 class="cell__h">Provenance Signer</h3>
+        <p class="cell__model">claude-haiku-4.5</p>
+        <dl class="cell__dl">
+          <dt>Tokens in</dt><dd data-k="in">—</dd>
+          <dt>Tokens out</dt><dd data-k="out">—</dd>
+          <dt>Cost (USD)</dt><dd data-k="cost">—</dd>
+        </dl>
+      </article>
+      <article id="cell-total" class="cell cell--totals" data-agent="total" data-state="default">
+        <h3 class="cell__h">Total</h3>
+        <p class="cell__model">5 LLM calls · 1 BLAKE3 · 1 Ed25519 · 1 RFC 3161</p>
+        <dl class="cell__dl">
+          <dt>Tokens in</dt><dd data-k="in">—</dd>
+          <dt>Tokens out</dt><dd data-k="out">—</dd>
+          <dt>Cost (USD)</dt><dd data-k="cost">—</dd>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <!-- ───── Section 5 · Band transcript ───── -->
+  <section class="sec transcript" aria-labelledby="transcript-h">
+    <div class="sec-head">
+      <h2 id="transcript-h">Step 03 · Band transcript</h2>
+      <p>Every handoff is a real Band message. The room id, agent ids, and timestamps are the audit trail.</p>
+    </div>
+    <ol class="transcript__list" id="transcript-list" aria-live="polite" aria-relevant="additions">
+      <li class="transcript__empty">No events yet — submit an invoice to start the debate.</li>
+    </ol>
+  </section>
+
+  <!-- ───── Section 5 · BAAAR HALT overlay (initially hidden) ───── -->
+  <div class="halt-overlay" id="halt-overlay" role="alertdialog" aria-labelledby="halt-h" aria-modal="true" hidden>
+    <div class="halt-overlay__card">
+      <header class="halt-overlay__head">
+        <p class="eyebrow eyebrow--halt">BAAAR HALT</p>
+        <h2 id="halt-h" class="halt-overlay__h2">WORKFLOW HALTED</h2>
+        <p class="halt-overlay__sub"><span data-k="reason">—</span></p>
+      </header>
+      <dl class="halt-overlay__meta">
+        <dt>Trigger</dt><dd data-k="trigger">—</dd>
+        <dt>Halt at</dt><dd data-k="ts">—</dd>
+        <dt>Agent</dt><dd data-k="agent">—</dd>
+        <dt>Tenant</dt><dd data-k="tenant">—</dd>
+        <dt>Invoice</dt><dd data-k="invoice">—</dd>
+      </dl>
+      <p class="halt-overlay__lede">
+        Download the receipt to verify the Ed25519 signature and BLAKE3 hash offline
+        with <code>themis-verify</code>.
+      </p>
+      <div class="halt-overlay__actions">
+        <button type="button" class="btn btn--halt" id="halt-download-btn">Download receipt</button>
+        <button type="button" class="btn btn--secondary" id="halt-dismiss-btn">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── Section 7 · Evidence download + Compliance dashboard ───── -->
+  <section class="sec evidence" aria-labelledby="evidence-h">
+    <div class="sec-head">
+      <h2 id="evidence-h">Step 04 · Evidence</h2>
+      <p>Ed25519 signature over BLAKE3(payload) · RFC 3161 timestamp from the TSA · Rekor v2 log anchor (when wired).</p>
+    </div>
+    <div class="evidence__grid">
+      <article class="evidence__card" id="evidence-summary" data-state="empty">
+        <h3 class="evidence__h3">Packet summary</h3>
+        <dl class="evidence__dl">
+          <dt>Status</dt><dd data-k="status">—</dd>
+          <dt>Tenant</dt><dd data-k="tenant">—</dd>
+          <dt>Invoice</dt><dd data-k="invoice">—</dd>
+          <dt>Decisions</dt><dd data-k="decisions">—</dd>
+          <dt>Framework coverage</dt><dd data-k="coverage">—</dd>
+        </dl>
+        <div class="evidence__actions">
+          <button type="button" class="btn btn--primary" id="download-pdf-btn" disabled>Download PDF</button>
+          <button type="button" class="btn btn--secondary" id="download-json-btn" disabled>Download JSON</button>
+          <a class="btn btn--secondary" href="/compliance" id="compliance-link">Compliance dashboard</a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ───── Section 8 · 26/26 Compliance dashboard (hidden until sealed) ───── -->
+  <section class="sec compliance-dashboard" id="compliance-dashboard" aria-labelledby="cd-h" hidden>
+    <div class="sec-head">
+      <h2 id="cd-h">Step 05 · Framework coverage · <span id="cd-coverage">—</span></h2>
+      <p>Every populated field in the Evidence Packet, broken out by framework. 26/26 on every approved run, 24/26 on every HALT (Art 10 + 17 carry the incident metadata).</p>
+    </div>
+    <div class="cd-summary" id="cd-summary">
+      <div class="cd-summary__bar"><span id="cd-bar" style="width:0%"></span></div>
+      <p class="cd-summary__meta"><span id="cd-meta">—</span></p>
+    </div>
+    <div class="cd-grid" id="cd-grid" role="table" aria-label="Compliance framework fields">
+      <article class="cd-col" data-fw="dora" hidden>
+        <header class="cd-col__h"><h3>DORA</h3><span class="cd-col__rule">EU 2022/2554</span></header>
+        <ol class="cd-col__list"></ol>
+      </article>
+      <article class="cd-col" data-fw="eu_ai_act" hidden>
+        <header class="cd-col__h"><h3>EU AI Act</h3><span class="cd-col__rule">Reg 2024/1689</span></header>
+        <ol class="cd-col__list"></ol>
+      </article>
+      <article class="cd-col" data-fw="nist_ai_rmf" hidden>
+        <header class="cd-col__h"><h3>NIST AI RMF</h3><span class="cd-col__rule">1.0 · G/M/M/M</span></header>
+        <ol class="cd-col__list"></ol>
+      </article>
+      <article class="cd-col" data-fw="owasp_agentic" hidden>
+        <header class="cd-col__h"><h3>OWASP Agentic</h3><span class="cd-col__rule">2026 · ASI01–ASI10</span></header>
+        <ol class="cd-col__list"></ol>
+      </article>
+      <article class="cd-col" data-fw="iso_42001">
+        <header class="cd-col__h"><h3>ISO 42001</h3><span class="cd-col__rule">2023 · AIMS · 5/5 · 6.1/8.4/9.1/10.2/A.6</span></header>
+        <ol class="cd-col__list" data-fw-list="iso_42001"></ol>
+      </article>
+      <article class="cd-col" data-fw="acs" hidden>
+        <header class="cd-col__h"><h3>ACS</h3><span class="cd-col__rule">Apohara Custom Set</span></header>
+        <ol class="cd-col__list"></ol>
+      </article>
+    </div>
+  </section>
+</main>
+
+<!-- ───── Footer (shared Apohara chrome with circuit SVG) ───── -->
+<footer class="footer">
+  <svg class="circuit" viewBox="0 0 1180 280" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <g fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-opacity=".5">
+      <path d="M60 220 L60 180 L140 180 L140 140 L240 140"/>
+      <path d="M300 230 L300 200 L380 200 L380 160 L460 160"/>
+      <path d="M520 250 L520 210 L600 210 L600 170 L700 170"/>
+      <path d="M760 240 L760 200 L840 200 L840 150 L920 150"/>
+      <path d="M980 250 L980 220 L1080 220 L1080 180 L1140 180"/>
+      <path d="M40 100 L120 100 L120 60 L200 60"/>
+      <path d="M280 90 L360 90 L360 50 L440 50"/>
+      <path d="M900 110 L1000 110 L1000 70 L1100 70"/>
+    </g>
+    <g fill="var(--accent)" stroke="none" opacity=".6">
+      <circle cx="240" cy="140" r="2.5"/><circle cx="460" cy="160" r="2.5"/><circle cx="700" cy="170" r="2.5"/><circle cx="920" cy="150" r="2.5"/><circle cx="1140" cy="180" r="2.5"/><circle cx="200" cy="60" r="2.5"/><circle cx="440" cy="50" r="2.5"/><circle cx="1100" cy="70" r="2.5"/>
+    </g>
+  </svg>
+  <div class="wrap">
+    <p class="foot-statement">Five agents, one signed packet, six compliance frameworks. Zero SaaS lock-in — your diffs never leave the orchestrator.</p>
+    <div class="foot-inner">
+      <div class="foot-brand">
+        <span class="name">APOHARA · VOUCH</span>
+        <p>5-agent Rust orchestrator for buyer-side AP invoice fraud detection. EU AI Act Art. 12 L2 ready by default. MIT.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h3>Apohara VOUCH</h3>
+          <a href="https://github.com/SuarezPM/apohara-themis">Source · GitHub</a>
+          <a href="https://github.com/SuarezPM/apohara-themis/blob/main/README.md">README</a>
+          <a href="https://github.com/SuarezPM/apohara-themis/blob/main/THREAT_MODEL.md">Threat model</a>
+          <a href="https://github.com/SuarezPM/apohara-themis/blob/main/SECURITY.md">Security</a>
+          <a href="/compliance">Compliance dashboard</a>
+        </div>
+        <div class="foot-col">
+          <h3>Resources</h3>
+          <a href="https://apohara.dev">Apohara hub</a>
+          <a href="https://github.com/SuarezPM">Brand kit</a>
+        </div>
+        <div class="foot-col">
+          <h3>Connect</h3>
+          <a href="https://github.com/SuarezPM">GitHub</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>Apohara VOUCH <span id="ft7-version">v0.1.0</span> · commit <span id="ft7-commit">pending</span> · MIT</span>
+      <span><span class="cta-dot" aria-hidden="true"></span>live · <span id="ft7-event-count-foot">0</span> events</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>

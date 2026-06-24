@@ -1,0 +1,29 @@
+{
+  "invoice_id": "stark-001",
+  "tenant_id": "stark",
+  "expected_verdict": "HALT",
+  "expected_halt_reason": "risk_score_exceeded",
+  "halt_reason_human": "Vendor 'Globex Industrial' (TAX-GLOBEX-001) has already been invoiced $50,000 by Wayne-002 within the last 7 days. Possible double-spend across trust domains. BAAAR risk_score = 0.92.",
+  "extracted": {
+    "vendor": "Globex Industrial LLC",
+    "vendor_tax_id": "TAX-GLOBEX-001",
+    "amount_cents": 5000000,
+    "line_items": [
+      { "description": "Server racks (qty 10)", "amount_cents": 4000000 },
+      { "description": "Fiber cabling installation", "amount_cents": 800000 },
+      { "description": "On-site configuration (40 hrs)", "amount_cents": 200000 }
+    ],
+    "date_iso": "2026-06-10",
+    "po_ref": "PO-2026-0042",
+    "currency": "USD"
+  },
+  "fraud_assessment": {
+    "risk_score": 0.92,
+    "coherence_score": 0.85,
+    "debate_rounds": 2,
+    "findings": [
+      { "kind": "duplicate", "severity": "high", "evidence": "Vendor TAX-GLOBEX-001 billed same amount to wayne-002 on 2026-06-05" }
+    ],
+    "explicit_halt": false
+  }
+}

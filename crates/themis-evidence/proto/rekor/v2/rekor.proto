@@ -1,0 +1,115 @@
+// Copyright 2025 The Sigstore Authors. Apache 2.0.
+// Minimal proto surface for THEMIS Rekor v2 client.
+//
+// We deliberately do NOT vendor the full sigstore/rekor-tiles .proto
+// tree (api/proto/rekor/v2/{dsse,entry,hashedrekord,verifier,
+// rekor_service}.proto) because the upstream package transitively
+// imports google/api/{annotations,httpbody,field_behavior}.proto and
+// protoc-gen-openapiv2/options/annotations.proto, which would require
+// vendoring the entire googleapis repository (~20 files) just to
+// compile the gRPC service definition we need.
+//
+// The body shapes below mirror the spec field names so the server
+// accepts them as JSON over gRPC (JSON mapping is the sigstore
+// convention; the same fields are accepted as JSON in HTTP REST).
+//
+// Source of truth for the wire schema: sigstore/rekor-tiles @ v2.2.x,
+// api/proto/rekor/v2/. Where the spec evolved, we keep the v0.5.1
+// protobuf-specs field set — the v0.5.1 body is a strict subset of
+// what the v2.2 server accepts, per the architecture-docs spec
+// (https://github.com/sigstore/architecture-docs/blob/main/rekor-v2-spec.md).
+//
+// What we DELIBERATELY omit:
+// - google.api.http annotations (HTTP gateway is not our transport)
+// - OpenAPI swagger options (we are not generating an OpenAPI doc)
+// - The full Sigstore common types (sigstore_common.proto) — we model
+//   the verifier key as a raw byte string + algorithm enum, which is
+//   what HashedRekordRequestV002 accepts at the wire level.
+// - DSSE entry support (deprecated in v2; we only do HashedRekord).
+
+syntax = "proto3";
+package dev.sigstore.rekor.v2;
+
+// Supported signature algorithms (subset of the sigstore spec).
+// THEMIS uses Ed25519; the other values are kept so a future
+// ECDSA-P256 SHA-256 verifier (the default for cosign) compiles too.
+enum SignatureAlgorithm {
+    SIGNATURE_ALGORITHM_UNSPECIFIED = 0;
+    SIGNATURE_ALGORITHM_ED25519 = 1;
+    SIGNATURE_ALGORITHM_ECDSA_P256_SHA_256 = 2;
+    SIGNATURE_ALGORITHM_RSA_PSS_SHA_256 = 3;
+}
+
+// Supported hash algorithms. THEMIS uses BLAKE3 (not in the upstream
+// enum — we add it here so the wire is honest about what we publish).
+enum HashAlgorithm {
+    HASH_ALGORITHM_UNSPECIFIED = 0;
+    HASH_ALGORITHM_BLAKE3 = 1;
+    HASH_ALGORITHM_SHA256 = 2;
+    HASH_ALGORITHM_SHA384 = 3;
+    HASH_ALGORITHM_SHA512 = 4;
+}
+
+// Public key for the verification side of the entry. Mirrors the
+// shape of the upstream `PublicKey` message but stripped of the
+// google.api.field_behavior annotations.
+message PublicKey {
+    bytes raw_bytes = 1;
+}
+
+// Verifier identifies the public key + algorithm used to sign the
+// hash. Mirrors upstream `Verifier`.
+message Verifier {
+    SignatureAlgorithm algorithm = 1;
+    PublicKey public_key = 2;
+}
+
+// Signature over the digest. The spec calls this `Signature` upstream;
+// we keep the same name to stay aligned.
+message Signature {
+    bytes content = 1;
+    Verifier verifier = 2;
+}
+
+// HashedRekordRequestV002 is the entry body we submit. Field numbers
+// match the upstream spec; field names are kept as snake_case to
+// match the JSON mapping the server expects.
+message HashedRekordRequestV002 {
+    // Base64-encoded digest of the artifact.
+    string digest = 1;
+    // Signature over the digest.
+    Signature signature = 2;
+}
+
+// CreateEntryRequest is the wire wrapper for an entry submission.
+// Mirrors upstream.
+message CreateEntryRequest {
+    // The body of the request. Only HashedRekord is supported.
+    HashedRekordRequestV002 hashed_rekord_request_v002 = 1;
+}
+
+// TransparencyLogEntry is the response shape. We model it as a flat
+// message with the fields THEMIS consumes; the upstream
+// `dev.sigstore.rekor.v1.TransparencyLogEntry` has more fields
+// (inclusion_proof, signed_entry_timestamp) which we represent here
+// as raw bytes so we can parse them later if needed.
+message TransparencyLogEntry {
+    // Log index assigned by the server.
+    uint64 log_index = 1;
+    // UUID v4 identifying the entry in the log.
+    string uuid = 2;
+    // Body that the log integrated (base64).
+    string body = 3;
+    // Integrated time (seconds since epoch).
+    int64 integrated_time = 4;
+    // Hex-encoded BLAKE3 hash of the body (the server may include this
+    // for convenience; clients should re-hash and verify).
+    string entry_hash_hex = 5;
+}
+
+// The Rekor v2 transparency log service. Only the methods THEMIS
+// uses are exposed.
+service Rekor {
+    // Create an entry in the log.
+    rpc CreateEntry (CreateEntryRequest) returns (TransparencyLogEntry);
+}

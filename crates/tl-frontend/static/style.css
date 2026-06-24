@@ -1,0 +1,309 @@
+/* VOUCH demo UI — 3-panel dark navy + gold + halt-red palette.
+ * Hallmark stamp: vanilla, no framework, inline-style only.
+ * Palette matches the Apohara VOUCH demo for cross-product consistency.
+ */
+
+:root {
+  --bg: #0a0e1a;
+  --bg-elev: #111827;
+  --bg-card: #1f2937;
+  --fg: #f9fafb;
+  --fg-dim: #9ca3af;
+  --gold: #d4a017;
+  --gold-bright: #f5c518;
+  --halt: #dc2626;
+  --halt-bright: #ef4444;
+  --approve: #10b981;
+  --review: #f59e0b;
+  --aiml: #6366f1;
+  --featherless: #14b8a6;
+  --border: #374151;
+  --mono: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- topbar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.brand { display: flex; align-items: baseline; gap: 0.5rem; }
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 4px;
+  background: var(--gold);
+  color: var(--bg);
+  font-weight: 800;
+  font-family: var(--mono);
+  font-size: 1rem;
+  line-height: 1;
+}
+.brand-name { font-weight: 700; letter-spacing: 0.04em; font-size: 1.1rem; color: var(--fg); }
+.brand-sub { color: var(--fg-dim); font-size: 0.85rem; }
+
+.status-strip { display: flex; gap: 0.5rem; align-items: center; }
+.status-pill {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+.status-pill--ok { background: rgba(16,185,129,0.12); border-color: var(--approve); color: var(--approve); }
+.status-pill--halt { background: rgba(220,38,38,0.15); border-color: var(--halt); color: var(--halt-bright); animation: pulse 1.4s infinite; }
+.status-pill--dim { color: var(--fg-dim); }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+}
+
+/* ---------- grid ---------- */
+.grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@media (max-width: 980px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.panel-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.panel-h h2 {
+  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  font-weight: 600;
+}
+.panel-h-meta {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+}
+.panel-f {
+  padding: 0.6rem 0.9rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- transcript ---------- */
+.transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.transcript li {
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--border);
+  display: grid;
+  grid-template-columns: 5.5rem 1fr auto;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+.transcript li:last-child { border-bottom: none; }
+.transcript .ts { color: var(--fg-dim); }
+.transcript .agent { color: var(--gold); font-weight: 600; }
+.transcript .msg { color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.transcript .cost { color: var(--fg-dim); }
+
+#case-input {
+  flex: 1 1 auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+#case-input:focus { outline: none; border-color: var(--gold); }
+button {
+  background: var(--gold);
+  color: var(--bg);
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+}
+button:hover { background: var(--gold-bright); }
+button:focus { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+/* ---------- cost ---------- */
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+.cost-table th, .cost-table td {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.cost-table th {
+  color: var(--fg-dim);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+}
+.cost-table .num { text-align: right; }
+.cost-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--fg-dim);
+  font-family: var(--mono);
+}
+.dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+}
+.dot--aiml { background: var(--aiml); }
+.dot--featherless { background: var(--featherless); }
+
+/* ---------- compliance ---------- */
+.compliance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+.compliance-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+.compliance-list li:last-child { border-bottom: none; }
+.compliance-list .name { color: var(--fg); }
+.compliance-list .mark {
+  font-weight: 700;
+  font-family: var(--mono);
+}
+.compliance-list .mark--ok { color: var(--approve); }
+.compliance-list .mark--missing { color: var(--halt); }
+
+.btn {
+  display: inline-block;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  background: transparent;
+  font-weight: 600;
+}
+.btn:hover { background: var(--gold); color: var(--bg); }
+
+/* ---------- halt modal ---------- */
+.halt-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.halt-modal[hidden] { display: none; }
+.halt-modal__inner {
+  background: var(--bg-elev);
+  border: 2px solid var(--halt);
+  border-radius: 8px;
+  padding: 1.5rem 2rem;
+  max-width: 480px;
+  text-align: center;
+  box-shadow: 0 0 0 4px rgba(220,38,38,0.25);
+}
+.halt-modal__inner h2 {
+  margin: 0 0 0.5rem;
+  color: var(--halt-bright);
+  letter-spacing: 0.08em;
+  font-size: 1.4rem;
+}
+.halt-modal__inner p { margin: 0.4rem 0; color: var(--fg); }
+.halt-modal__hint { font-size: 0.85rem; color: var(--fg-dim); }
+.halt-modal__inner code {
+  font-family: var(--mono);
+  background: var(--bg-card);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.halt-modal__inner button {
+  margin-top: 1rem;
+  background: var(--halt);
+  color: var(--fg);
+}
+.halt-modal__inner button:hover { background: var(--halt-bright); }
+
+/* flash the whole UI when halt fires (vanilla body class) */
+body.is-halted {
+  box-shadow: inset 0 0 0 4px var(--halt);
+  animation: halt-flash 0.6s ease-out 2;
+}
+@keyframes halt-flash {
+  0%, 100% { background-color: var(--bg); }
+  50% { background-color: rgba(220,38,38,0.25); }
+}

@@ -1,0 +1,91 @@
+# Apohara Themis — 6 Band agent credentials for themis-band-client
+# -------------------------------------------------------------------
+# Loaded by `crates/themis-band-client/src/socket.rs` at spawn time.
+# This file is the render target from `agent-config/agent_config.yaml.tmpl`.
+# NEVER commit the rendered file with real API keys; the renderer
+# strips secrets.
+#
+# The 6 production agents in THEMIS 3.0 (Story Ola-A):
+#   1. extractor            (multimodal PDF → structured JSON)
+#   2. po_matcher           (invoice vs PO database)
+#   3. fraud_auditor        (multimodal fraud detection, emits HALT)
+#   4. gaap_classifier      (expense categorization)
+#   5. provenance_signer    (Ed25519 + BLAKE3 + RFC 3161)
+#   6. demo_narrator        (judge-friendly prose for the live UI)
+#
+# (Other agents registered in Band — themis-orchestrator,
+#  audit-watchdog, regression-tester — are listed in
+#  `agent-config/agent_config.yaml.tmpl`; the 6 above are the ones
+#  that open a WebSocket per the Ola-A spec.)
+#
+# At deploy, every agent entry below is sourced from env vars
+# (BAND_AGENT_<NAME>_ID + BAND_AGENT_<NAME>_API_KEY) loaded from
+# `~/.config/apohara/secrets.env`. The Rust socket.rs reads them
+# via std::env::var at spawn time, NOT from this file.
+#
+# Format matches the Band SDK's expected agent auth envelope:
+#   {"agent_id": "<uuid>", "api_key": "<sk-...>", "handle": "<@...>"}
+
+agents:
+  - name: extractor
+    handle: "@apohara-themis/extractor"
+    agent_id: "${BAND_AGENT_EXTRACTOR_ID}"
+    api_key: "${BAND_AGENT_EXTRACTOR_API_KEY}"
+    role: worker
+    framework: band-sdk[langgraph]
+    llm_backend: aimlapi
+    llm_model: claude-sonnet-4-5
+    multimodal: true
+    ws_path: /api/v1/socket/websocket
+
+  - name: po_matcher
+    handle: "@apohara-themis/po-matcher"
+    agent_id: "${BAND_AGENT_PO_MATCHER_ID}"
+    api_key: "${BAND_AGENT_PO_MATCHER_API_KEY}"
+    role: worker
+    framework: band-sdk[langgraph]
+    llm_backend: featherless
+    llm_model: qwen3-coder-30b
+    ws_path: /api/v1/socket/websocket
+
+  - name: fraud_auditor
+    handle: "@apohara-themis/fraud-auditor"
+    agent_id: "${BAND_AGENT_FRAUD_AUDITOR_ID}"
+    api_key: "${BAND_AGENT_FRAUD_AUDITOR_API_KEY}"
+    role: worker
+    framework: band-sdk[langgraph]
+    llm_backend: aimlapi
+    llm_model: claude-sonnet-4-5
+    multimodal: true
+    emits_halt: true
+    ws_path: /api/v1/socket/websocket
+
+  - name: gaap_classifier
+    handle: "@apohara-themis/gaap-classifier"
+    agent_id: "${BAND_AGENT_GAAP_CLASSIFIER_ID}"
+    api_key: "${BAND_AGENT_GAAP_CLASSIFIER_API_KEY}"
+    role: worker
+    framework: band-sdk[langgraph]
+    llm_backend: aimlapi
+    llm_model: claude-sonnet-4-5
+    ws_path: /api/v1/socket/websocket
+
+  - name: provenance_signer
+    handle: "@apohara-themis/provenance-signer"
+    agent_id: "${BAND_AGENT_PROVENANCE_SIGNER_ID}"
+    api_key: "${BAND_AGENT_PROVENANCE_SIGNER_API_KEY}"
+    role: worker
+    framework: band-sdk[langgraph]
+    llm_backend: none
+    crypto: [ed25519, blake3, rfc3161]
+    ws_path: /api/v1/socket/websocket
+
+  - name: demo_narrator
+    handle: "@apohara-themis/demo-narrator"
+    agent_id: "${BAND_AGENT_DEMO_NARRATOR_ID}"
+    api_key: "${BAND_AGENT_DEMO_NARRATOR_API_KEY}"
+    role: shadow
+    framework: band-sdk[langgraph]
+    llm_backend: aimlapi
+    llm_model: claude-sonnet-4-5
+    ws_path: /api/v1/socket/websocket

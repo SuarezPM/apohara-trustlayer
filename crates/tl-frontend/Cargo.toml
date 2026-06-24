@@ -1,0 +1,48 @@
+[package]
+name = "tl-frontend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "VOUCH demo UI (vouch.apohara.dev) — Axum SSE + vanilla HTML/JS, 3-panel layout (transcript | cost | EU AI Act compliance). Parallel to themis-frontend; deliberately separate crates."
+
+[dependencies]
+tl-receipt = { path = "../tl-receipt" }
+
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util", "fs"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tower = "0.5"
+tower-http = { version = "0.5", features = ["trace", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+thiserror = "1"
+csv = "1"
+rust_decimal = { version = "1", features = ["serde"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4"] }
+futures-core = "0.3"
+futures-util = "0.3"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+anyhow = "1"
+
+[dev-dependencies]
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync"] }
+tempfile = "3"
+wiremock = "0.6"
+
+[[bin]]
+name = "tl-frontend"
+path = "src/main.rs"
+
+[lib]
+name = "tl_frontend"
+path = "src/lib.rs"

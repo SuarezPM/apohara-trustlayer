@@ -1,0 +1,14 @@
+[package]
+name = "themis-frontend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "THEMIS demo UI — vanilla HTML+JS for themis.apohara.dev. EventSource-driven live counter, BAAAR HALT overlay, compliance dashboard. Embedded into themis-orchestrator via include_dir!."
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"

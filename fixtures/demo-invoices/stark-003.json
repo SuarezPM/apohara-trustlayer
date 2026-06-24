@@ -1,0 +1,27 @@
+{
+  "invoice_id": "stark-003",
+  "tenant_id": "stark",
+  "expected_verdict": "HALT",
+  "expected_halt_reason": "secret_leak_detected",
+  "halt_reason_human": "Vendor name 'ACME HOLDINGS LLC' matches the OFAC sanctions list (sanctioned entity ID OFAC-ACM-2024-1138). Security severity CRITICAL. BAAAR finding = SecretLeak.",
+  "extracted": {
+    "vendor": "ACME HOLDINGS LLC",
+    "vendor_tax_id": "TAX-ACME-SANCTIONED",
+    "amount_cents": 99999999,
+    "line_items": [
+      { "description": "Bulk commodity purchase (unspecified)", "amount_cents": 99999999 }
+    ],
+    "date_iso": "2026-06-12",
+    "po_ref": "PO-2026-0099",
+    "currency": "USD"
+  },
+  "fraud_assessment": {
+    "risk_score": 0.78,
+    "coherence_score": 0.55,
+    "debate_rounds": 3,
+    "findings": [
+      { "kind": "secret_leak", "severity": "critical", "evidence": "Vendor matches OFAC sanctions list (OFAC-ACM-2024-1138). Compliance violation: sanctioned entity." }
+    ],
+    "explicit_halt": false
+  }
+}

@@ -1,0 +1,63 @@
+# Rust build artifacts
+target/
+**/target/
+
+# Cargo.lock for libraries (keep for binaries)
+# Cargo.lock
+
+# Environment files (NEVER commit secrets)
+.env
+.env.local
+**/.env
+**/.env.*
+
+# Node / TS / Python (when applicable)
+node_modules/
+**/node_modules/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# OMC operational state (planning artifacts are ephemeral)
+.omc/
+**/.omc/
+
+# Reference directory (scaffolding-only repos, not part of the auditor target)
+reference/
+**/reference/
+
+# Docs directory (internal dev/audit notes; auditor gets the curated ones via README)
+docs/
+**/docs/
+
+# CLAUDE.md (project-specific assistant context — not part of the auditor target)
+CLAUDE.md
+**/CLAUDE.md
+
+# IDE / editor
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# GitNexus / index caches
+.gitnexus/
+.cocoindex/
+
+# Logs and temp files
+*.log
+*.tmp
+.tmp/
+
+# GSD (Get-Shit-Done) operational state
+.gsd/
+
+# bg-shell (background shell state from prior sessions)
+.bg-shell/

@@ -1,0 +1,51 @@
+invoice_id,vendor,amount,po_id,line_items_json,fraud_label
+INV-0001,Globex,1299.29,PO-2026-0001,[{"desc":"item-1","qty":5,"unit_price":129.93},0
+INV-0002,Umbrella,11199.38,PO-2026-0002,[{"desc":"item-2","qty":2,"unit_price":1119.94},0
+INV-0003,Cyberdyne,4392.59,PO-2026-0003,[{"desc":"item-3","qty":7,"unit_price":439.26},0
+INV-0004,AcmeCorp,1538.37,PO-2026-0004,[{"desc":"item-4","qty":4,"unit_price":153.84},0
+INV-0005,Umbrella,25292.5,PO-2026-0005,[{"desc":"item-5","qty":1,"unit_price":2529.25},0
+INV-0006,Cyberdyne,9981.94,PO-2026-0006,[{"desc":"item-6","qty":9,"unit_price":998.19},0
+INV-0007,Soylent,11061.01,PO-2026-0007,[{"desc":"item-7","qty":10,"unit_price":1106.1},0
+INV-0008,Hooli,40481.05,PO-2026-0008,[{"desc":"item-8","qty":1,"unit_price":4048.11},0
+INV-0009,Initech,34922.06,PO-2026-0009,[{"desc":"item-9","qty":6,"unit_price":3492.21},0
+INV-0010,Hooli,7816.2,PO-2026-0010,[{"desc":"item-10","qty":6,"unit_price":781.62},0
+INV-0011,Globex,4682.65,PO-2026-0011,[{"desc":"item-11","qty":2,"unit_price":468.26},0
+INV-0012,Pied Piper,42382.34,PO-2026-0012,[{"desc":"item-12","qty":10,"unit_price":4238.23},0
+INV-0013,Hooli,40366.06,PO-2026-0013,[{"desc":"item-13","qty":8,"unit_price":4036.61},0
+INV-0014,Cyberdyne,6285.07,PO-2026-0014,[{"desc":"item-14","qty":7,"unit_price":628.51},0
+INV-0015,Globex,27624.43,PO-2026-0015,[{"desc":"item-15","qty":10,"unit_price":2762.44},0
+INV-0016,Pied Piper,28888.74,PO-2026-0016,[{"desc":"item-16","qty":2,"unit_price":2888.87},0
+INV-0017,AcmeCorp,33080.1,PO-2026-0017,[{"desc":"item-17","qty":5,"unit_price":3308.01},0
+INV-0018,Globex,42773.12,PO-2026-0018,[{"desc":"item-18","qty":2,"unit_price":4277.31},0
+INV-0019,Soylent,13934.78,PO-2026-0019,[{"desc":"item-19","qty":6,"unit_price":1393.48},0
+INV-0020,Initech,18540.54,PO-2026-0020,[{"desc":"item-20","qty":4,"unit_price":1854.05},0
+INV-0021,Hooli,35105.92,PO-2026-0021,[{"desc":"item-21","qty":2,"unit_price":3510.59},0
+INV-0022,Tyrell,31767.17,PO-2026-0022,[{"desc":"item-22","qty":9,"unit_price":3176.72},0
+INV-0023,Umbrella,8211.95,PO-2026-0023,[{"desc":"item-23","qty":7,"unit_price":821.2},0
+INV-0024,Hooli,49476.69,PO-2026-0024,[{"desc":"item-24","qty":9,"unit_price":4947.67},0
+INV-0025,Umbrella,34246.48,PO-2026-0025,[{"desc":"item-25","qty":1,"unit_price":3424.65},0
+INV-0026,Offshore Vendor,65762.03,PO-2026-0026,[{"desc":"suspicious-26","qty":255,"unit_price":657.62},1
+INV-0027,PO-MISMATCH-001,5388.47,PO-2026-0027,[{"desc":"suspicious-27","qty":340,"unit_price":53.88},1
+INV-0028,PO-MISMATCH-001,17088.86,PO-MISMATCH-0028,[{"desc":"suspicious-28","qty":379,"unit_price":170.89},1
+INV-0029,Cash-Only,11515.44,PO-MISMATCH-0029,[{"desc":"suspicious-29","qty":431,"unit_price":115.15},1
+INV-0030,Shell Co,43164.29,PO-MISMATCH-0030,[{"desc":"suspicious-30","qty":269,"unit_price":431.64},1
+INV-0031,Shell Co,32012.1,PO-MISMATCH-0031,[{"desc":"suspicious-31","qty":120,"unit_price":320.12},1
+INV-0032,Shell Co,39531.92,PO-MISMATCH-0032,[{"desc":"suspicious-32","qty":490,"unit_price":395.32},1
+INV-0033,Unknown LLC,12312.02,PO-MISMATCH-0033,[{"desc":"suspicious-33","qty":398,"unit_price":123.12},1
+INV-0034,Cash-Only,47753.08,PO-MISMATCH-0034,[{"desc":"suspicious-34","qty":355,"unit_price":477.53},1
+INV-0035,Cash-Only,42376.24,PO-2026-0035,[{"desc":"suspicious-35","qty":490,"unit_price":423.76},1
+INV-0036,Unknown LLC,54454.64,PO-MISMATCH-0036,[{"desc":"suspicious-36","qty":324,"unit_price":544.55},1
+INV-0037,PO-MISMATCH-001,61511.04,PO-MISMATCH-0037,[{"desc":"suspicious-37","qty":200,"unit_price":615.11},1
+INV-0038,Cash-Only,12736.8,PO-MISMATCH-0038,[{"desc":"suspicious-38","qty":419,"unit_price":127.37},1
+INV-0039,PO-MISMATCH-001,77753.86,PO-MISMATCH-0039,[{"desc":"suspicious-39","qty":309,"unit_price":777.54},1
+INV-0040,Unknown LLC,69654.43,PO-MISMATCH-0040,[{"desc":"suspicious-40","qty":377,"unit_price":696.54},1
+INV-0041,Shell Co,48756.72,PO-MISMATCH-0041,[{"desc":"suspicious-41","qty":440,"unit_price":487.57},1
+INV-0042,Offshore Vendor,43196.38,PO-MISMATCH-0042,[{"desc":"suspicious-42","qty":321,"unit_price":431.96},1
+INV-0043,Unknown LLC,47955.67,PO-MISMATCH-0043,[{"desc":"suspicious-43","qty":107,"unit_price":479.56},1
+INV-0044,PO-MISMATCH-001,70309.88,PO-2026-0044,[{"desc":"suspicious-44","qty":207,"unit_price":703.1},1
+INV-0045,Offshore Vendor,4728.22,PO-2026-0045,[{"desc":"suspicious-45","qty":90,"unit_price":47.28},1
+INV-0046,Unknown LLC,58579.42,PO-2026-0046,[{"desc":"suspicious-46","qty":439,"unit_price":585.79},1
+INV-0047,Shell Co,61290.17,PO-MISMATCH-0047,[{"desc":"suspicious-47","qty":293,"unit_price":612.9},1
+INV-0048,Shell Co,13293.64,PO-MISMATCH-0048,[{"desc":"suspicious-48","qty":360,"unit_price":132.94},1
+INV-0049,Cash-Only,77152.6,PO-2026-0049,[{"desc":"suspicious-49","qty":436,"unit_price":771.53},1
+INV-0050,Offshore Vendor,57064.62,PO-MISMATCH-0050,[{"desc":"suspicious-50","qty":393,"unit_price":570.65},1

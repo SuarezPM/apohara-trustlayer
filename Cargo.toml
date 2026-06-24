@@ -1,0 +1,125 @@
+[workspace]
+resolver = "2"
+members = [
+    # US-02 (completed): 8 vouch-* crates renamed to tl-*
+    "crates/tl-chain",
+    "crates/tl-evidence",
+    "crates/tl-receipt",
+    "crates/tl-gate",
+    "crates/tl-aibom",
+    "crates/tl-compliance",
+    "crates/tl-orchestrator",
+    "crates/tl-frontend",
+    # US-03 (completed): 5 themis substrate crates (no rename)
+    "crates/themis-evidence",
+    "crates/themis-compliance",
+    "crates/themis-orchestrator",
+    "crates/themis-agents",
+    "crates/themis-compressor",
+    # themis-band-client (absorbed — themis-orchestrator hard-depends on it)
+    # Plan v3.1 said exclude; reality says required. 15 crates total.
+    "crates/themis-band-client",
+    # themis-frontend (absorbed — themis-orchestrator hard-depends on it for PDF/QR rendering)
+    "crates/themis-frontend",
+    # apohara-agentguard (sandbox; absorbed per plan v3.1 §Plan absorption list)
+    "crates/apohara-agentguard",
+    # US-09 (Block 2): tl-ffi PyO3
+    "crates/tl-ffi",
+    # US-13 (Block 4): tl-mcp-server
+    "crates/tl-mcp-server",
+    # US-04 (Block 1, with greenfield types): tl-types, tl-errors
+    "crates/tl-types",
+    # "crates/tl-errors",
+    "bin/tl-verify",
+]
+exclude = [
+    # Out-of-scope themis crates NOT absorbed (per plan v3.1):
+    # themis-band-client (Band Protocol integration)
+    # themis-bench (load testing, separate crate)
+    # themis-frontend (UI, separate)
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/SuarezPM/apohara-trustlayer"
+authors = ["Pablo M. Suarez <suarezpm@csnat.unt.edu.ar>"]
+
+[workspace.dependencies]
+# Pinned exact versions per plan v3.1:
+coset = "=0.4.2"          # AC-20: pinned due to "under construction" status
+
+# Hashing (from themis)
+sha2 = "0.10"
+blake3 = "1.5"
+
+# Ed25519 + x509 for TSA + signing
+ed25519-dalek = "2"
+x509-parser = "0.16"
+
+# Async runtime (from themis)
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "time", "sync"] }
+
+# Errors
+thiserror = "1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# UUID (used by tl-evidence)
+uuid = { version = "1", features = ["v4"] }
+
+# Encoding helpers
+hex = "0.4"
+base64 = "0.22"
+
+# Time (used by bin/tl-verify)
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+
+# Internal crate paths (US-03 enabled themis-evidence, themis-compliance, themis-orchestrator, themis-agents, themis-compressor)
+# These match the apohara-themis workspace pattern: substrate crates declared
+# in workspace.dependencies so internal `workspace = true` references resolve.
+themis-evidence = { path = "crates/themis-evidence" }
+themis-compliance = { path = "crates/themis-compliance" }
+themis-orchestrator = { path = "crates/themis-orchestrator" }
+themis-agents = { path = "crates/themis-agents" }
+themis-compressor = { path = "crates/themis-compressor" }
+themis-band-client = { path = "crates/themis-band-client" }
+themis-frontend = { path = "crates/themis-frontend" }
+
+# apohara-agentguard (sandbox layer)
+apohara-agentguard = { path = "crates/apohara-agentguard" }
+
+# TrustLayer newtypes + greenfield (US-06, US-09)
+tl-types = { path = "crates/tl-types" }
+tl-evidence = { path = "crates/tl-evidence" }
+tl-chain = { path = "crates/tl-chain" }
+
+# Vouch-* moved (US-02) — also available as workspace deps
+tl-receipt = { path = "crates/tl-receipt" }
+tl-gate = { path = "crates/tl-gate" }
+tl-aibom = { path = "crates/tl-aibom" }
+tl-compliance = { path = "crates/tl-compliance" }
+tl-orchestrator = { path = "crates/tl-orchestrator" }
+tl-frontend = { path = "crates/tl-frontend" }
+
+# US-09 will add tl-ffi here.
+# US-13 will add tl-mcp-server here.
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = true
+strip = "debuginfo"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.bench]
+opt-level = 3
+debug = false

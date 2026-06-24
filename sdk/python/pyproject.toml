@@ -1,0 +1,43 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "apohara-trustlayer"
+version = "0.1.0"
+description = "Apohara TrustLayer Python SDK — full wheel with PyO3 in-process bindings for offline COSE_Sign1 + RFC 3161 verification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+authors = [
+    { name = "Pablo M. Suarez", email = "suarezpm@csnat.unt.edu.ar" },
+]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+]
+
+[project.urls]
+Homepage = "https://github.com/SuarezPM/apohara-trustlayer"
+Repository = "https://github.com/SuarezPM/apohara-trustlayer"
+
+[tool.maturin]
+# Build the tl-ffi crate (PyO3 module) into a Python extension.
+# Module name must match `[lib] name = "apohara_trustlayer"` in tl-ffi/Cargo.toml.
+python-source = "src"
+module-name = "apohara_trustlayer._apohara_trustlayer"
+features = ["pyo3/extension-module"]
+# Path to the tl-ffi crate.
+rust-toml = "../../crates/tl-ffi/Cargo.toml"
+
+[tool.maturin.sdist]
+include = ["src/**/*", "../../crates/tl-ffi/**/*", "../../crates/tl-types/**/*", "../../crates/tl-evidence/**/*", "../../crates/tl-chain/**/*", "../../Cargo.toml", "../../Cargo.lock"]

@@ -1,0 +1,93 @@
+name: Python wheels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/tl-ffi/**"
+      - "sdk/python/**"
+      - ".github/workflows/python-wheels.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+  pull_request:
+    paths:
+      - "crates/tl-ffi/**"
+      - "sdk/python/**"
+  workflow_dispatch:
+
+jobs:
+  build-wheels:
+    name: Build wheel (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            python_version: "3.12"
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            python_version: "3.12"
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            python_version: "3.12"
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            python_version: "3.12"
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            python_version: "3.12"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install Python ${{ matrix.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python_version }}
+
+      - name: Install maturin
+        run: pip install "maturin>=1.5,<2.0"
+
+      - name: Build wheel (maturin)
+        run: |
+          cd sdk/python
+          maturin build --release --out dist/wheels/
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: sdk/python/dist/wheels/*.whl
+
+  publish:
+    name: Publish to PyPI (on tag)
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/wheels
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/wheels
+          skip-existing: true

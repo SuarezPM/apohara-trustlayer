@@ -1,0 +1,32 @@
+[package]
+name = "tl-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Apohara TrustLayer Python FFI — PyO3 in-process bindings exposing sign/verify/hash/chain operations to Python SDK"
+
+[lib]
+name = "apohara_trustlayer"
+# PyO3 requires cdylib (Python loads as shared object) + rlib (internal linkage).
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# PyO3 in-process bindings (Architect IC-2: PyO3 not subprocess).
+pyo3 = { version = "0.29", features = ["auto-initialize"] }
+
+# TrustLayer workspace deps (the only Rust crates this depends on).
+tl-types = { workspace = true }
+tl-evidence = { workspace = true }
+tl-chain = { workspace = true }
+
+# Crypto deps used by the verify functions.
+ed25519-dalek = { workspace = true }
+coset = { workspace = true }
+hex = { workspace = true }
+blake3 = { workspace = true }
+
+# Internal deps used by tl-evidence (re-exported through tsa.rs).
+themis-evidence = { workspace = true }

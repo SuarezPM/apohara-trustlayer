@@ -1,0 +1,29 @@
+{
+  "invoice_id": "wayne-001",
+  "tenant_id": "wayne",
+  "expected_verdict": "HALT",
+  "expected_halt_reason": "coherence_too_low",
+  "halt_reason_human": "Invoice date 2027-01-01 is in the future (impossible). Coherence between invoice_date, due_date, and ledger_period is broken. BAAAR coherence_score = 0.15.",
+  "extracted": {
+    "vendor": "Wayne Logistics Partners",
+    "vendor_tax_id": "TAX-WLP-0420",
+    "amount_cents": 7500000,
+    "line_items": [
+      { "description": "Cross-dock handling (5000 pallets)", "amount_cents": 5000000 },
+      { "description": "GPS tracking integration", "amount_cents": 1500000 },
+      { "description": "Quarterly license fee", "amount_cents": 1000000 }
+    ],
+    "date_iso": "2027-01-01",
+    "po_ref": "PO-2026-0099",
+    "currency": "USD"
+  },
+  "fraud_assessment": {
+    "risk_score": 0.55,
+    "coherence_score": 0.15,
+    "debate_rounds": 1,
+    "findings": [
+      { "kind": "other", "subkind": "temporal_incoherence", "severity": "high", "evidence": "Invoice date 2027-01-01 is 6+ months in the future; current ledger period is Q2 2026" }
+    ],
+    "explicit_halt": false
+  }
+}

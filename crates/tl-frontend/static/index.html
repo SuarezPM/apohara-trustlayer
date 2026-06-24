@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VOUCH — Live Invoice Fraud Review (vouch.apohara.dev)</title>
+  <meta name="description" content="VOUCH — 5-agent buyer-side Accounts Payable invoice fraud detection. EU AI Act Art. 12 evidence packet. Live SSE stream of agent activity.">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">V</span>
+      <span class="brand-name">VOUCH</span>
+      <span class="brand-sub">5-agent invoice fraud review</span>
+    </div>
+    <nav class="status-strip" aria-label="Live status">
+      <span id="halt-flag" class="status-pill status-pill--ok" aria-live="polite">RUNNING</span>
+      <span id="case-id" class="status-pill status-pill--dim">no case loaded</span>
+    </nav>
+  </header>
+
+  <main class="grid">
+    <!-- Panel 1: Live transcript -->
+    <section id="transcript-panel" class="panel panel--transcript" aria-labelledby="transcript-h">
+      <header class="panel-h">
+        <h2 id="transcript-h">Live transcript</h2>
+        <span class="panel-h-meta" id="transcript-meta">0 events</span>
+      </header>
+      <ol id="transcript" class="transcript" aria-live="polite" aria-relevant="additions"></ol>
+      <footer class="panel-f">
+        <input id="case-input" type="text" placeholder="Case ID (e.g. case-2026-001)" aria-label="Case ID">
+        <button id="case-load" type="button">Load case</button>
+      </footer>
+    </section>
+
+    <!-- Panel 2: Cost panel -->
+    <section id="cost-panel" class="panel panel--cost" aria-labelledby="cost-h">
+      <header class="panel-h">
+        <h2 id="cost-h">Cost &amp; spend</h2>
+        <span class="panel-h-meta" id="cost-total">$0.000000</span>
+      </header>
+      <table class="cost-table" aria-label="Per-agent spend">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Provider</th>
+            <th>Model</th>
+            <th class="num">Tokens (in/out)</th>
+            <th class="num">Cost (USD)</th>
+          </tr>
+        </thead>
+        <tbody id="cost-rows"></tbody>
+      </table>
+      <footer class="panel-f">
+        <span class="legend"><span class="dot dot--aiml"></span>AIML API</span>
+        <span class="legend"><span class="dot dot--featherless"></span>Featherless</span>
+      </footer>
+    </section>
+
+    <!-- Panel 3: EU AI Act Art. 12 dashboard -->
+    <section id="compliance-panel" class="panel panel--compliance" aria-labelledby="compliance-h">
+      <header class="panel-h">
+        <h2 id="compliance-h">EU AI Act Art. 12</h2>
+        <span class="panel-h-meta" id="coverage-badge">0/8 fields populated</span>
+      </header>
+      <ul id="compliance" class="compliance-list" aria-label="EU AI Act Article 12 fields"></ul>
+      <footer class="panel-f">
+        <a id="download-pdf" class="btn btn--ghost" href="/evidence/case-2026-001" target="_blank" rel="noopener">Download Evidence Packet (PDF)</a>
+      </footer>
+    </section>
+  </main>
+
+  <div id="halt-modal" class="halt-modal" role="alertdialog" aria-modal="true" aria-labelledby="halt-modal-title" hidden>
+    <div class="halt-modal__inner">
+      <h2 id="halt-modal-title">WORKFLOW HALTED</h2>
+      <p id="halt-modal-reason">A critical risk was detected by the FraudAuditor.</p>
+      <p class="halt-modal__hint">Download the Evidence Packet to verify offline with <code>vouch-verify</code>.</p>
+      <button id="halt-modal-close" type="button">Acknowledge</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

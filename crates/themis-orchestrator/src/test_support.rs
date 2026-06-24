@@ -1,0 +1,501 @@
+//! Test support utilities shared by the demo_data_loads integration
+//! test and the themis-bench binary.
+//!
+//! Centralizes:
+//! - `expected_outcome_string(fixture) → "halt_*" | "approve"`
+//! - `fraud_auditor_payload(...) → JSON string for the mock LLM`
+//! - `LlmStubAgent` (LLM-mediated Agent impl that decodes the mock
+//!   response and re-emits it as an AgentDecision)
+//! - `DemoInvoice` / `ExtractedInvoice` / `LineItem` /
+//!   `FraudAssessmentShape` (the deserializable fixture shapes)
+//!
+//! Not part of the public API; only used by `#[cfg(test)]` modules
+//! and the bench binary. The `orchestrator.rs` test module uses a
+//! different (non-LLM) `StubAgent` and is not consolidated here.
+
+#![allow(missing_docs)]
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
+
+use crate::http::AppState;
+use crate::orchestrator::Orchestrator;
+use crate::room::MockBandRoom;
+use crate::tenants::TenantRegistry;
+use serde::{Deserialize, Serialize};
+use themis_agents::decision::{AgentDecision, AgentError, DecisionType};
+use themis_agents::llm::{LlmBackend, LlmRequest, LlmResponse, MockLlmProvider};
+use themis_agents::traits::{Agent, AgentContext};
+use themis_evidence::rekor::RekorClient;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DemoInvoice {
+    pub invoice_id: String,
+    pub tenant_id: String,
+    pub expected_verdict: String,
+    #[serde(default)]
+    pub expected_halt_reason: String,
+    #[serde(default)]
+    pub halt_reason_human: Option<String>,
+    pub extracted: ExtractedInvoice,
+    pub fraud_assessment: FraudAssessmentShape,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ExtractedInvoice {
+    pub vendor: String,
+    pub vendor_tax_id: String,
+    pub amount_cents: i64,
+    pub line_items: Vec<LineItem>,
+    pub date_iso: String,
+    pub po_ref: String,
+    #[serde(default = "default_currency")]
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LineItem {
+    pub description: String,
+    pub amount_cents: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FraudAssessmentShape {
+    pub risk_score: f32,
+    pub coherence_score: f32,
+    pub debate_rounds: u32,
+    #[serde(default)]
+    pub explicit_halt: bool,
+    #[serde(default)]
+    pub secret_leak: bool,
+}
+
+fn default_currency() -> String {
+    "USD".to_string()
+}
+
+/// Map a fixture's expected verdict + halt reason to the orchestrator's
+/// outcome string (see `orchestrator.rs` halt_* arms).
+pub fn expected_outcome_string(f: &DemoInvoice) -> &'static str {
+    match f.expected_verdict.as_str() {
+        "APPROVED" => "approve",
+        "HALT" => match f.expected_halt_reason.as_str() {
+            "risk_score_exceeded" => "halt_risk_score_exceeded",
+            "secret_leak_detected" => "halt_secret_leak_detected",
+            "coherence_too_low" => "halt_coherence_too_low",
+            "max_debate_rounds_reached" => "halt_max_debate_rounds_reached",
+            "explicit_halt_requested" => "halt_explicit_halt_requested",
+            other => panic!("unknown halt_reason in fixture: {other}"),
+        },
+        other => panic!("unknown expected_verdict: {other}"),
+    }
+}
+
+/// Build the `FraudAuditorOutput` JSON the mock LLM should return.
+/// This is the typed contract the orchestrator parses (see
+/// `orchestrator.rs` lines 218-240). The `kind` of the finding
+/// is derived from `expected_halt_reason` (the canonical "what
+/// should the gate halt on" signal), not from a fragile bool,
+/// because the `BaaarGate::check` reads the findings array
+/// directly — a wrong kind here means the gate never halts.
+pub fn fraud_auditor_payload(f: &DemoInvoice) -> String {
+    let finding_kind = match f.expected_halt_reason.as_str() {
+        "secret_leak_detected" => "secret_leak",
+        "risk_score_exceeded" => "price_anomaly",
+        "coherence_too_low" => "duplicate",
+        "max_debate_rounds_reached" => "math_fraud",
+        "explicit_halt_requested" => "phantom_vendor",
+        _ => "other",
+    };
+    serde_json::json!({
+        "assessment": {
+            "risk_score": f.fraud_assessment.risk_score,
+            "findings": [{
+                "kind": finding_kind,
+                "value": "fixture",
+                "description": f.halt_reason_human.clone().unwrap_or_default(),
+            }],
+            "coherence_score": f.fraud_assessment.coherence_score,
+            "debate_rounds": f.fraud_assessment.debate_rounds,
+            "explicit_halt": f.fraud_assessment.explicit_halt,
+        },
+        "outcome": expected_outcome_string(f),
+    })
+    .to_string()
+}
+
+/// Default response for non-extractor/non-fraud_auditor agents
+/// (po_matcher, gaap_classifier, etc.) — minimal valid JSON the
+/// StubAgent can parse.
+pub fn stub_default_response(model_id: &str) -> LlmResponse {
+    LlmResponse {
+        text: serde_json::json!({"stub": "ok"}).to_string(),
+        input_tokens: 64,
+        output_tokens: 32,
+        model_id: model_id.to_string(),
+        finish_reason: themis_agents::llm::FinishReason::Stop,
+    }
+}
+
+/// Path to the 5 demo invoice fixtures at the repo root.
+pub fn fixtures_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("repo root")
+        .join("fixtures")
+        .join("demo-invoices")
+}
+
+/// LLM-mediated StubAgent. Delegates every `process()` call to the
+/// mock LLM and re-emits the response as an `AgentDecision`. The
+/// optional `input_token_counter` is bumped on each LLM call (used
+/// by the bench to measure token economy).
+pub struct LlmStubAgent {
+    pub name: &'static str,
+    pub llm: Arc<dyn LlmBackend>,
+    pub input_token_counter: Option<Arc<AtomicU32>>,
+}
+
+#[async_trait::async_trait]
+impl Agent for LlmStubAgent {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    async fn process(&self, ctx: AgentContext) -> Result<AgentDecision, AgentError> {
+        let (system_prompt, user_prompt) = if self.name == "fraud_auditor" {
+            (
+                "fraud_auditor_agent".to_string(),
+                format!(
+                    "assess_fraud_risk:upstream_decisions={}",
+                    ctx.upstream_decisions.len()
+                ),
+            )
+        } else if self.name == "extractor" {
+            (
+                "extractor_agent".to_string(),
+                format!("parse_invoice:{}:{}", ctx.tenant_id, ctx.invoice_id),
+            )
+        } else {
+            (
+                format!("{}_agent", self.name),
+                format!("upstream_decisions={}", ctx.upstream_decisions.len()),
+            )
+        };
+
+        let req = LlmRequest {
+            system_prompt,
+            user_prompt,
+            max_tokens: 1024,
+            temperature: 0.0,
+            seed: Some(42),
+            response_schema: None,
+            response_schema_name: None,
+        };
+        let resp = self.llm.complete(req).await?;
+        if let Some(counter) = &self.input_token_counter {
+            counter.fetch_add(resp.input_tokens, Ordering::SeqCst);
+        }
+        let parsed: serde_json::Value = serde_json::from_str(&resp.text)
+            .map_err(|e| AgentError::LlmMalformedPayload(e.to_string()))?;
+        let decision_type = match self.name {
+            "extractor" => DecisionType::Extracted,
+            "po_matcher" => DecisionType::PoMatched,
+            "fraud_auditor" => DecisionType::FraudAssessed,
+            "gaap_classifier" => DecisionType::GaapClassified,
+            "provenance_signer" => DecisionType::ProvenanceSigned,
+            "demo_narrator" => DecisionType::Narrated,
+            "regression_tester" => DecisionType::RegressionResult,
+            "audit_watchdog" => DecisionType::WatchdogAlert,
+            _ => unreachable!(),
+        };
+        Ok(AgentDecision {
+            agent_id: self.name.to_string(),
+            tenant_id: ctx.tenant_id,
+            invoice_id: ctx.invoice_id,
+            decision_type,
+            confidence: 0.9,
+            reasoning: format!("{} stub: ok", self.name),
+            timestamp_ms: 0,
+            payload: parsed,
+        })
+    }
+}
+
+/// Build the standard 8-agent HashMap wired to a per-agent LLM
+/// backend. The map is `agent_name -> Arc<dyn LlmBackend>`, so
+/// different agents can hit different providers (Featherless
+/// for most, AIML API for FraudAuditor, deterministic for
+/// the signers). If `counter` is `Some`, all 8 agents bump it
+/// on every LLM call. Use [`build_default_dispatch`] for the
+/// canonical THEMIS multi-model mapping.
+#[allow(unused_variables)]
+pub fn build_stub_agents(
+    backends: HashMap<String, Arc<dyn LlmBackend>>,
+    counter: Option<Arc<AtomicU32>>,
+) -> HashMap<String, Arc<dyn Agent>> {
+    let names = [
+        "extractor",
+        "po_matcher",
+        "fraud_auditor",
+        "gaap_classifier",
+        "provenance_signer",
+        "demo_narrator",
+        "regression_tester",
+        "audit_watchdog",
+    ];
+    let mut agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
+    for name in names {
+        // Per-agent LLM: fall back to a MockLlmProvider if the
+        // dispatch map doesn't include this agent (e.g. tests
+        // that wire only one mock).
+        let llm = backends.get(name).cloned().unwrap_or_else(|| {
+            themis_agents::llm::shared(themis_agents::llm::MockLlmProvider::new("mock-fallback"))
+        });
+        agents.insert(
+            name.to_string(),
+            Arc::new(LlmStubAgent {
+                name,
+                llm,
+                input_token_counter: counter.clone(),
+            }),
+        );
+    }
+    agents
+}
+
+/// Convenience: tests that wire a single mock LLM use this
+/// to get a per-agent dispatch map where every agent points at
+/// the same backend. The full multi-model dispatch is
+/// [`build_default_dispatch`].
+pub fn build_stub_agents_with_mock(
+    mock_llm: Arc<dyn LlmBackend>,
+    counter: Option<Arc<AtomicU32>>,
+) -> HashMap<String, Arc<dyn Agent>> {
+    let mut dispatch: HashMap<String, Arc<dyn LlmBackend>> = HashMap::new();
+    for name in [
+        "extractor",
+        "po_matcher",
+        "fraud_auditor",
+        "gaap_classifier",
+        "provenance_signer",
+        "demo_narrator",
+        "regression_tester",
+        "audit_watchdog",
+    ] {
+        dispatch.insert(name.to_string(), mock_llm.clone());
+    }
+    build_stub_agents(dispatch, counter)
+}
+
+/// Canonical THEMIS multi-model dispatch. Honors the sponsor
+/// claims:
+///
+/// - AIML API kickoff (Valerie, 12 jun 2026): "different agents
+///   want different brains". `fraud_auditor` hits AIML API for
+///   reasoning quality.
+/// - Featherless kickoff (Isaac, 12 jun 2026): "30,000+ open
+///   source models". All other LLM-driven agents hit Featherless
+///   with open-source models.
+/// - "switch models is changing just one string": the model
+///   per-agent is overridable via the `THEMIS_LLM_MODEL_<AGENT>`
+///   env vars (Track 23).
+///
+/// If `AIML_API_KEY` is unset, the FraudAuditor falls back to
+/// the Featherless dispatch (graceful degradation). If both are
+/// unset, all LLM-driven agents fall back to `MockLlmProvider`
+/// (test mode / no-cost demo).
+pub fn build_default_dispatch() -> HashMap<String, Arc<dyn LlmBackend>> {
+    use themis_agents::llm::{shared, AIMLAPIBackend, FeatherlessBackend, MockLlmProvider};
+    let mut m: HashMap<String, Arc<dyn LlmBackend>> = HashMap::new();
+
+    // --- 5 Featherless (open source) agents ---
+    // Extractor: Qwen2.5-Coder-32B is the canonical JSON-extraction
+    // model (schema-constrained output, open weights, $0 marginal
+    // with the Featherless flat-rate plan).
+    m.insert(
+        "extractor".into(),
+        FeatherlessBackend::from_env("Qwen/Qwen2.5-Coder-32B-Instruct")
+            .map(shared)
+            .unwrap_or_else(|| shared(MockLlmProvider::new("featherless-extractor"))),
+    );
+    // GAAP Classifier: Qwen3-32B has the strongest multilingual
+    // + accounting reasoning among the open-source models on
+    // Featherless (Qwen3 generation, April 2026).
+    m.insert(
+        "gaap_classifier".into(),
+        FeatherlessBackend::from_env("Qwen/Qwen3-32B")
+            .map(shared)
+            .unwrap_or_else(|| shared(MockLlmProvider::new("featherless-gaap"))),
+    );
+    // AuditWatchdog + RegressionTester: Qwen3-Coder-30B-A3B
+    // is the workhorse code-analysis model.
+    m.insert(
+        "audit_watchdog".into(),
+        FeatherlessBackend::from_env("Qwen/Qwen3-Coder-30B-A3B-Instruct")
+            .map(shared)
+            .unwrap_or_else(|| shared(MockLlmProvider::new("featherless-watchdog"))),
+    );
+    m.insert(
+        "regression_tester".into(),
+        FeatherlessBackend::from_env("Qwen/Qwen3-Coder-30B-A3B-Instruct")
+            .map(shared)
+            .unwrap_or_else(|| shared(MockLlmProvider::new("featherless-regression"))),
+    );
+    // DemoNarrator: Qwen2.5-1.5B is the cheapest open-source
+    // model for prose summary. Ultra-low token cost.
+    m.insert(
+        "demo_narrator".into(),
+        FeatherlessBackend::from_env("Qwen/Qwen2.5-1.5B-Instruct")
+            .map(shared)
+            .unwrap_or_else(|| shared(MockLlmProvider::new("featherless-narrator"))),
+    );
+
+    // --- 1 AIML API (closed source) agent ---
+    // FraudAuditor: claude-sonnet-4.5 via AIML API gateway.
+    // Reasoning quality matters most here. Falls back to
+    // Featherless Qwen3-32B if AIML_API_KEY is unset.
+    m.insert(
+        "fraud_auditor".into(),
+        AIMLAPIBackend::from_env("anthropic/claude-sonnet-4.5")
+            .map(shared)
+            .or_else(|| FeatherlessBackend::from_env("Qwen/Qwen3-32B").map(shared))
+            .unwrap_or_else(|| shared(MockLlmProvider::new("aimlapi-or-featherless-fraud"))),
+    );
+
+    // --- 2 deterministic agents (no LLM) ---
+    // po_matcher + provenance_signer don't fire LLM calls
+    // (deterministic PO lookup + Ed25519 sign). They get a
+    // MockLlmProvider that the LlmStubAgent will never call.
+    m.insert(
+        "po_matcher".into(),
+        shared(MockLlmProvider::new("deterministic-po-matcher")),
+    );
+    m.insert(
+        "provenance_signer".into(),
+        shared(MockLlmProvider::new("deterministic-provenance-signer")),
+    );
+
+    m
+}
+
+/// Build a fully-wired orchestrator with the 5-fixture mock LLM
+/// and an optional Rekor client. Centralized for the integration
+/// test (`tests/demo_data_loads.rs`) and the bench binary.
+pub fn build_orchestrator(
+    f: &DemoInvoice,
+    counter: Option<Arc<AtomicU32>>,
+    rekor: Option<Arc<dyn RekorClient>>,
+) -> Orchestrator {
+    let mock_llm: Arc<dyn LlmBackend> = Arc::new(
+        MockLlmProvider::new("mock-test")
+            .with_response(
+                &f.invoice_id,
+                LlmResponse {
+                    text: serde_json::to_string(&f.extracted).unwrap(),
+                    input_tokens: 256,
+                    output_tokens: 128,
+                    model_id: "mock-test".to_string(),
+                    finish_reason: themis_agents::llm::FinishReason::Stop,
+                },
+            )
+            .with_response(
+                "assess_fraud_risk",
+                LlmResponse {
+                    text: fraud_auditor_payload(f),
+                    input_tokens: 256,
+                    output_tokens: 64,
+                    model_id: "mock-test".to_string(),
+                    finish_reason: themis_agents::llm::FinishReason::Stop,
+                },
+            )
+            .with_default(stub_default_response("mock-test")),
+    );
+    // Tests use a single mock LLM shared across all agents.
+    // The new build_stub_agents takes a per-agent dispatch map;
+    // we wrap the mock as the catch-all for every agent.
+    let mut dispatch = HashMap::new();
+    for name in [
+        "extractor",
+        "po_matcher",
+        "fraud_auditor",
+        "gaap_classifier",
+        "provenance_signer",
+        "demo_narrator",
+        "regression_tester",
+        "audit_watchdog",
+    ] {
+        dispatch.insert(name.to_string(), mock_llm.clone());
+    }
+    let agents = build_stub_agents(dispatch, counter);
+    let rooms: Arc<dyn crate::room::BandRoom> = MockBandRoom::new().into_arc();
+    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    Orchestrator::new_with_rekor(rooms, agents, tenants, rekor)
+}
+
+/// Build a fully-wired orchestrator with the 5-fixture mock LLM,
+/// an optional Rekor client, AND a per-tenant evidence service
+/// map. Used by US-A5 integration tests to exercise
+/// `process_invoice_sealed` (the path that emits `SealedPacket`).
+pub fn build_orchestrator_with_evidence(
+    f: &DemoInvoice,
+    counter: Option<Arc<AtomicU32>>,
+    rekor: Option<Arc<dyn RekorClient>>,
+    evidence: HashMap<String, themis_evidence::packet::EvidenceService>,
+) -> Orchestrator {
+    let mock_llm: Arc<dyn LlmBackend> = Arc::new(
+        MockLlmProvider::new("mock-test")
+            .with_response(
+                &f.invoice_id,
+                LlmResponse {
+                    text: serde_json::to_string(&f.extracted).unwrap(),
+                    input_tokens: 256,
+                    output_tokens: 128,
+                    model_id: "mock-test".to_string(),
+                    finish_reason: themis_agents::llm::FinishReason::Stop,
+                },
+            )
+            .with_response(
+                "assess_fraud_risk",
+                LlmResponse {
+                    text: fraud_auditor_payload(f),
+                    input_tokens: 256,
+                    output_tokens: 64,
+                    model_id: "mock-test".to_string(),
+                    finish_reason: themis_agents::llm::FinishReason::Stop,
+                },
+            )
+            .with_default(stub_default_response("mock-test")),
+    );
+    let mut dispatch = HashMap::new();
+    for name in [
+        "extractor",
+        "po_matcher",
+        "fraud_auditor",
+        "gaap_classifier",
+        "provenance_signer",
+        "demo_narrator",
+        "regression_tester",
+        "audit_watchdog",
+    ] {
+        dispatch.insert(name.to_string(), mock_llm.clone());
+    }
+    let agents = build_stub_agents(dispatch, counter);
+    let rooms: Arc<dyn crate::room::BandRoom> = MockBandRoom::new().into_arc();
+    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    Orchestrator::with_evidence(rooms, agents, tenants, rekor, evidence)
+}
+
+/// Build the production-shaped `AppState` (alias for the
+/// `http::build_default_state` helper). Re-exported here so the
+/// integration test in `tests/aiml_wiremock_e2e.rs` doesn't need
+/// to import from a different module.
+pub fn build_default_state(
+    orch: Orchestrator,
+    room_concrete: Arc<crate::room::ScriptedBandRoom>,
+    model_id: String,
+) -> AppState {
+    crate::http::build_default_state(orch, room_concrete, model_id)
+}

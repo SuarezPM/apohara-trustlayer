@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "registry": "https://themis.apohara.dev",
+  "agents": [
+    {
+      "id": "themis-orchestrator",
+      "kind": "coordinator",
+      "url": "https://themis.apohara.dev/a2a",
+      "card": "https://themis.apohara.dev/.well-known/agent-card.json"
+    },
+    {
+      "id": "extractor",
+      "kind": "agent",
+      "url": "https://themis.apohara.dev/agents/extractor/a2a"
+    },
+    {
+      "id": "po-matcher",
+      "kind": "agent",
+      "url": "https://themis.apohara.dev/agents/po-matcher/a2a"
+    },
+    {
+      "id": "fraud-auditor",
+      "kind": "agent",
+      "url": "https://themis.apohara.dev/agents/fraud-auditor/a2a"
+    },
+    {
+      "id": "gaap-classifier",
+      "kind": "agent",
+      "url": "https://themis.apohara.dev/agents/gaap-classifier/a2a"
+    },
+    {
+      "id": "provenance-signer",
+      "kind": "agent",
+      "url": "https://themis.apohara.dev/agents/provenance-signer/a2a"
+    },
+    {
+      "id": "honesty-auditor",
+      "kind": "agent",
+      "url": "https://themis.apohara.dev/agents/honesty-auditor/a2a",
+      "added_in": "3.0.0"
+    }
+  ]
+}

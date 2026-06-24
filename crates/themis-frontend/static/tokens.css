@@ -1,0 +1,132 @@
+/* Hallmark · macrostructure: Stat-Led · tone: technical-regulator
+ * Workbench · v0.1.0 (N6 command-bar, 5-agent counter, BAAAR HALT overlay)
+ * theme: Quiet-dark · anchor hue: copper 50° (THEMIS — the trust/audit hue)
+ * studied: yes · DNA-source: themis-frontend v0.1.0 (N6 command-bar, 5-agent counter, BAAAR HALT overlay)
+ * differs from argus (also Stat-Led) on accent hue (copper vs emerald) + paper band
+ * sections: Hero (Stat-Led 4-framework) · Submit · Live Counter · Band Transcript · BAAAR HALT · Evidence + Download · Footer
+ * states: default · hover · focus-visible · active · disabled · loading · error · success
+ * contrast: pass (46–50) · mobile: pass (320/375/414/768)
+ */
+
+:root {
+  /* === primitives: gris (shared with apohara hub) === */
+  --g-0: oklch(8%  0.01  260);
+  --g-1: oklch(12% 0.012 260);
+  --g-2: oklch(16% 0.014 260);
+  --g-3: oklch(22% 0.016 260);
+  --g-4: oklch(88% 0.01  95);
+
+  /* === primitives: per-product accent (THEMIS) === */
+  --accent-themis:       oklch(65% 0.15  50);   /* copper — auditor/scale hue */
+  --complement-themis:   oklch(72% 0.14 230);   /* cool blue, ~180° Δ  */
+
+  /* === semantic: surfaces === */
+  --canvas: var(--g-0);
+  --panel:  var(--g-1);
+  --raised: var(--g-2);
+  --well:   var(--g-3);
+
+  /* === semantic: text === */
+  --ink:        var(--g-4);
+  --ink-muted:  oklch(80% 0.01  95);
+  --ink-faint:  oklch(70% 0.012 95);
+
+  /* === semantic: lines === */
+  --hairline: oklch(28% 0.01 260 / 50%);
+
+  /* === semantic: accent (per-page override — THEMIS) === */
+  --accent:            var(--accent-themis);
+  --accent-complement: var(--complement-themis);
+  --on-accent:         oklch(15% 0.01 95);
+
+  /* === semantic: focus + status === */
+  --focus:   oklch(82% 0.18 230);   /* cool focus ring (cyan), high-contrast on dark */
+  --success: oklch(72% 0.18 150);
+  --warning: oklch(80% 0.15  80);
+  --danger:  oklch(64% 0.22  27);   /* BAAAR red — functional, not brand */
+  --danger-soft: oklch(28% 0.10 27);
+  --scrim:   oklch(0%  0     0  / 60%);
+  --shadow:  oklch(0%  0.02 260 / 60%);
+  --glow:    oklch(65% 0.15  50 / 18%);
+
+  /* === type families (2 + 1: display + mono + Geist for UI labels) === */
+  --font-display: 'Chakra Petch', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --font-ui:      'Geist', 'Geist Sans', system-ui, sans-serif;
+
+  /* === type scale === */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-md: 18px;
+  --text-lg: 20px;
+  --text-xl: clamp(22px, 3vw,   32px);
+  --text-2xl: clamp(24px, 3.4vw, 36px);
+  --text-3xl: clamp(32px, 5vw,   56px);
+  --text-display-s: clamp(36px, 5.4vw, 60px);
+  --text-display:  clamp(40px, 6.4vw, 80px);
+
+  /* === 8pt spacing scale (semantic) === */
+  --space-2xs:  4px;
+  --space-xs:   8px;
+  --space-sm:  12px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 40px;
+  --space-3xl: 56px;
+  --space-4xl: 72px;
+  --space-5xl: 96px;
+
+  /* === radii (sharp, technical — auditor feel) === */
+  --radius-sm:   6px;
+  --radius-md:   9px;
+  --radius-lg:  14px;
+  --radius-pill: 999px;
+
+  /* === easings (3 named, never browser default) === */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* === durations === */
+  --dur:        200ms;
+  --dur-fast:   120ms;
+  --dur-flash:  600ms;
+
+  /* === z-stack === */
+  --z-sticky:    200;
+  --z-sticky-nav:300;
+  --z-overlay:   400;
+}
+
+/* === reset (mobile non-negotiable: no horizontal scroll) === */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  overflow-x: clip;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+html { min-width: 320px; scroll-behavior: smooth; }
+body { min-height: 100vh; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--ink); }
+code { font-family: var(--font-mono); color: var(--accent); }
+
+/* === focus ring (instant, no animation) === */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+:focus:not(:focus-visible) { outline: none; }
+
+/* === reduced motion === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
