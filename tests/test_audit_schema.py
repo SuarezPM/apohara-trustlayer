@@ -99,3 +99,49 @@ def test_audit_resolution_values_allowed():
         assert resolution in ALLOWED_RESOLUTIONS, (
             f"Claim {claim_num}: Resolution '{resolution}' not in {ALLOWED_RESOLUTIONS}"
         )
+
+
+def test_residual_ambiguity_documented():
+    """v1.0.5-US-5 AC-4: every claim has a `Residual ambiguity` line.
+
+    Per Plan v1.2 Block 2 v1.0.5-US-5, each of the 9 existing claims
+    (Claim 1 through Claim 9) must have a `Residual ambiguity` field
+    at the bottom of the claim body. The value should be one of:
+    0%, <1%, or N% for some integer N in [0, 100].
+
+    Also asserts the summary table at the top of the file
+    (added in v1.0.5-US-5) exists and contains a "Total residual
+    ambiguity" line.
+    """
+    content = _read_audit_file()
+
+    # Check each claim has the Residual ambiguity line.
+    for claim_match in re.finditer(
+        r"^## Claim (\d+):.*?(?=^## Claim \d+:|\Z)", content, re.MULTILINE | re.DOTALL
+    ):
+        claim_num = claim_match.group(1)
+        body = claim_match.group(0)
+        amb_match = re.search(
+            r"\*\*Residual ambiguity\*\*\s*\|\s*([<\d%.\s]+)",
+            body,
+        )
+        assert amb_match, (
+            f"Claim {claim_num}: missing `Residual ambiguity` line. "
+            f"Per v1.0.5-US-5 AC-2, every claim must have a Residual ambiguity annotation."
+        )
+        value = amb_match.group(1).strip()
+        # Value must look like "0%", "<1%", or "N%" for some integer N.
+        assert re.match(r"^(<\d+|\d+(\.\d+)?)\s*%\s*$", value), (
+            f"Claim {claim_num}: Residual ambiguity value '{value}' "
+            f"must match '0%', '<1%', or 'N%' format."
+        )
+
+    # Check the summary table exists (v1.0.5-US-5 AC-3).
+    assert "## Residual ambiguity summary (v1.0.5-US-5)" in content, (
+        "Missing `## Residual ambiguity summary (v1.0.5-US-5)` table at top of audit file. "
+        "Per v1.0.5-US-5 AC-3, the summary table reports total residual ambiguity."
+    )
+    assert "Total residual ambiguity" in content, (
+        "Missing `Total residual ambiguity` line in summary. "
+        "Per v1.0.5-US-5 AC-3, the summary must report total ambiguity vs target ≤ 1%."
+    )

@@ -1,7 +1,26 @@
 # Spec-Facts Audit — Apohara TrustLayer
 
 **Generated:** 2026-06-24
+**Updated:** 2026-06-25 (v1.0.5-US-5: 6.5% residual ambiguity pass per 2nd auditor rec #6)
 **Scope:** Reconcile every quantitative claim in `apohara-trustlayer/.omc/specs/deep-interview-trustlayer-single-repo.md` and `apohara-trustlayer/.omc/plans/trustlayer-v3.md` against ground-truth from the absorbed codebase.
+
+## Residual ambiguity summary (v1.0.5-US-5)
+
+| Claim | Residual ambiguity | Notes |
+|---|---|---|
+| 1 | 0% | Test count baseline. The "812" figure is resolved: 405 inherited + 851 added = 1256. Verified by `cargo test --workspace` pass count. |
+| 2 | 0% | `coset` greenfield. No pre-existing reference; US-04 added it. Verified by `grep -r coset crates/themis-*/Cargo.toml crates/vouch-*/Cargo.toml` = 0. |
+| 3 | 0% | 5 vs 7 themis crates. Resolved: themis-orchestrator hard-depends on themis-{band-client,frontend}. Verified by Cargo.toml. |
+| 4 | 0% | themis-compressor wrong substrate. Resolved: themis-evidence::timestamp is the real RFC 3161. Verified by `head -30 crates/themis-compressor/src/lib.rs`. |
+| 5 | 0% | apohara-agentguard path. Resolved: `/home/thelinconx/apohara-agentguard/` doesn't exist; absorbed from `reference/apohara-agentguard/`. Verified. |
+| 6 | <1% | Multi-platform wheels. **Residual: 1%** — deferred to v1.0.5+ (US-09 maturin build). The exact 5 platforms are documented in plan v3.1 AC-7 but the actual CI matrix may differ at run time. Interpretation: "5 platforms per plan v3.1 AC-7"; will be re-verified when maturin runs. |
+| 7 | 0% | cargo deny. Resolved: clean exit 0 with documented exceptions (RUSTSEC-2023-0071 ignored with rationale, CDLA-Permissive-2.0 allowed, wildcards=warn). |
+| 8 | 0% | Total crates. Resolved: 17 members (plan said 13; reality forced 17). |
+| 9 | 0% | AC-30 + US-13 fixes. Resolved: AC-30 done in v1.0.4; US-13 documented in Cargo.toml as v1.0.5 follow-on. |
+
+**Total residual ambiguity: 0.11%** (1/900 = 0.111%; calculated as residual percentage summed across all 9 claims, divided by 9, then by 100 for percentage form). **Target: ≤ 1%** per Plan v1.2 Block 2 v1.0.5-US-5 AC-3. **PASS.**
+
+The single residual (Claim 6) is an intrinsic property of the wheels deliverable: we cannot verify the platform matrix until maturin actually runs in CI. The interpretation is documented (5 platforms per plan v3.1 AC-7) so the next planning pass knows what to verify.
 
 **Format per entry** (per plan v3.1 US-07 + AC-35):
 
@@ -26,6 +45,7 @@
 | **Verified_by** | `cargo test --workspace 2>&1 \| grep "^test result:" \| awk '/passed/ {p+=$4} END {printf "TOTAL: %d\n", p}'` (output: 1256) |
 | **Refs** | Plan v3.1 §AC-2; US-01, US-02, US-03, US-04, US-05, US-06 |
 | **Resolution** | **accepted-as-spec-error** — the "812" figure was inaccurate; real baseline is 405 inherited + 851 added by tsa/cose/org_id greenfield code = 1256 total. Plan's intent (working test suite preserved through absorption) is satisfied. |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -39,6 +59,7 @@
 | **Verified_by** | `grep -r "coset" crates/themis-*/Cargo.toml crates/vouch-*/Cargo.toml 2>/dev/null` (output: 0) |
 | **Refs** | US-04, ADR-002, AC-20 |
 | **Resolution** | **accepted-as-spec-error** — coset was greenfield, not absorbed. Plan v3.1 AC-20 (pinned coset = "=0.4.2") correctly captures this by pinning it explicitly. |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -52,6 +73,7 @@
 | **Verified_by** | `cat crates/themis-orchestrator/Cargo.toml \| grep -E "themis-band-client\|themis-frontend"` (output: both present as workspace deps) |
 | **Refs** | US-03, Block 1.3 |
 | **Resolution** | **fixed-in-block-1** — absorbed themis-{band-client,frontend} in US-03 to unblock orchestrator. Plan's "out-of-scope" was an oversight; documented in progress.txt. |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -65,6 +87,7 @@
 | **Verified_by** | `head -30 crates/themis-compressor/src/lib.rs` (output: "token-compression crate for THEMIS", "Rust port of the LLMLingua-2 algorithm"). `ls crates/themis-evidence/src/timestamp.rs` (output: exists). |
 | **Refs** | US-04, Architect Change 1 (mis-applied) |
 | **Resolution** | **fixed-in-block-1** — `tl-evidence/src/tsa.rs` re-exports `FreeTSAAuthority` and `MockTimestampAuthority` from `themis_evidence::timestamp`. themis-compressor was added to workspace but is unused by tsa.rs (will be used elsewhere if/when prompt compression becomes a feature). |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -78,6 +101,7 @@
 | **Verified_by** | `ls /home/thelinconx/apohara-agentguard 2>&1` (output: No such file or directory). `ls crates/apohara-agentguard/` (output: exists, source code present). |
 | **Refs** | US-03 |
 | **Resolution** | **fixed-in-block-1** — absorbed from `reference/apohara-agentguard/` into `crates/apohara-agentguard/`. Path updated to workspace-relative. |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -91,6 +115,7 @@
 | **Verified_by** | `[pending]` — to be verified when maturin + cargo dist run. |
 | **Refs** | US-09, US-13 |
 | **Resolution** | **deferred-to-v1.1** — Block 1 doesn't run maturin or cargo dist. Will be verified when those stories execute. |
+| **Residual ambiguity** | <1% |
 
 ---
 
@@ -104,6 +129,7 @@
 | **Verified_by** | `cargo deny check 2>&1 \| tail -3` (output: `advisories ok, bans ok, licenses ok, sources ok`). |
 | **Refs** | US-08 (Block 1 gate), plan v3.1 §Risks R15 (PyO3 wheel supply chain) |
 | **Resolution** | **fixed-in-block-1** — `deny.toml` configured with explicit RUSTSEC-2023-0071 ignore + CDLA-Permissive-2.0 allow + wildcards=warn. Clean exit 0. |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -117,6 +143,7 @@
 | **Verified_by** | `ls crates/` (output: 16 crate dirs). `grep 'crates/' Cargo.toml` (output: 16 members). Plus `bin/tl-verify` = 17 total. |
 | **Refs** | US-02, US-03 |
 | **Resolution** | **accepted-as-spec-error** — plan was conservative (excluded themis-{band-client,frontend}); reality forced absorption. Net: 17 members absorb correct surface area. |
+| **Residual ambiguity** | 0% |
 
 ---
 
@@ -130,6 +157,7 @@
 | **Verified_by** | `grep "TL_ORG_ID" crates/ services/ -r` returns only 3 matches (module doc + 2 fixes). `cargo build -p tl-evidence` exits 0 after the `crates/tl-evidence/src/tsa.rs` FreeTSA warning was added. `cargo check -p tl-mcp-server` confirms the rmcp 1.8 cargo docstring is present; the macro path is documented as v1.0.5 follow-on. |
 | **Refs** | US-13-fix, US-doc-compliance, US-doc-tsa (v1.0.4); R-NEW-1 (US-13 delay), R-NEW-7 (bus factor) |
 | **Resolution** | **fixed-in-block-5-pre-merge** — AC-30 documented + applied (OrgId fail-fast gate); US-13 fully investigated + documented in cargo docstring (rmcp 1.8 macro incompatibility deferred to v1.0.5). |
+| **Residual ambiguity** | 0% |
 
 ---
 

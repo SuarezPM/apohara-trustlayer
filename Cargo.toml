@@ -27,6 +27,8 @@ members = [
     "crates/tl-ffi",
     # US-13 (Block 4): tl-mcp-server
     "crates/tl-mcp-server",
+    # v1.0.5 (Plan v1.2 Block 2 US-1): tl-scitt — SCITT-native receipts
+    "crates/tl-scitt",
     # US-04 (Block 1, with greenfield types): tl-types, tl-errors
     "crates/tl-types",
     # "crates/tl-errors",
