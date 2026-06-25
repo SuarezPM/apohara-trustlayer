@@ -125,6 +125,43 @@ pub struct DORAContext {
 /// ships in v1.2.
 pub struct DORAEvidenceStrategy;
 
+impl Strategy for DORAEvidenceStrategy {
+    fn name(&self) -> &'static str {
+        "dora_evidence_strategy"
+    }
+
+    fn evaluate(&self, ctx: &DORAContext) -> (Status, String, Vec<String>) {
+        // Adapt the 6-check DORAReport into the (Status, reason, refs) tuple.
+        let report = DORAEvidenceStrategy::evaluate(self, ctx);
+        let pass_count = report.pass_count();
+        let fail_count = report.fail_count();
+        let mut refs: Vec<String> = report
+            .checks
+            .iter()
+            .flat_map(|c| c.evidence_refs.clone())
+            .collect();
+        refs.push(format!("DORAReport for {}", ctx.disclosure_id));
+        let status = if fail_count == 0 {
+            Status::Covered
+        } else if pass_count >= 5 {
+            // v1.1.x reality: 5 of 6 DORA checks pass; the 6th
+            // (multi_tenant_isolation) fails with "ships in v1.2".
+            // Honest-fail is loud; framework status is "Partial".
+            Status::Partial
+        } else if pass_count >= 1 {
+            Status::Partial
+        } else {
+            Status::NotImplemented
+        };
+        let reason = format!(
+            "DORA Art. 19-20: {pass_count} of 6 checks pass; \
+             multi_tenant_isolation ships in v1.2 — see \
+             tl-policy::multi_tenant_isolation_stub"
+        );
+        (status, reason, refs)
+    }
+}
+
 impl DORAEvidenceStrategy {
     /// Create a new strategy.
     pub fn new() -> Self {
@@ -201,15 +238,18 @@ impl DORAEvidenceStrategy {
         }
     }
 
-    fn check_multi_tenant_isolation(&self, _ctx: &DORAContext) -> CheckResult {
-        // Per Plan v1.2 Block 3 v1.1.0-US-3 AC-6: this check explicitly
-        // returns pass=false with a documented "N/A — ships in v1.2"
-        // reason. The single-tenant v1.0.4 base means we cannot
-        // honestly report multi-tenant isolation. The flag is loud
-        // and traceable; not a silent skip.
+    pub fn check_multi_tenant_isolation(&self, _ctx: &DORAContext) -> CheckResult {
+        // Per Plan v1.2 Block 3 v1.1.0-US-3 AC-6 + Plan v1.2 Block 4
+        // v1.1.0.x+1+5: this check explicitly returns pass=false in
+        // v1.1.x with a documented "ships in v1.2 — see
+        // tl-policy::multi_tenant_isolation_stub" reason. The
+        // single-tenant v1.0.4 base means we cannot honestly report
+        // multi-tenant isolation. The flag is loud and traceable;
+        // not a silent skip.
         CheckResult::fail(
-            "N/A in v1.1.0 — multi-tenant ships in v1.2 (single-tenant v1.0.4 base; \
-             chain_id namespace at org_id level not yet implemented)",
+            "ships in v1.2 — see tl-policy::multi_tenant_isolation_stub \
+             (single-tenant v1.0.4 base; chain_id namespace at org_id level \
+             not yet implemented; spec requires JWT-resolved org_id)",
         )
     }
 
@@ -330,13 +370,14 @@ mod tests {
 
     #[test]
     fn test_multi_tenant_isolation_always_fails_in_v1_1_0() {
-        // Per AC-6: this check explicitly returns pass=false in v1.1.0
-        // with a documented "N/A — ships in v1.2" reason. Not a
-        // silent skip; a loud flag.
+        // Per AC-6 + Plan v1.2 Block 4 v1.1.0.x+1+5: this check
+        // explicitly returns pass=false in v1.1.x with a documented
+        // "ships in v1.2 — see tl-policy::multi_tenant_isolation_stub"
+        // reason. Not a silent skip; a loud flag.
         let r = DORAEvidenceStrategy::new().check_multi_tenant_isolation(&ctx_ok());
         assert!(!r.pass);
         assert!(r.reason.contains("v1.2"));
-        assert!(r.reason.contains("N/A"));
+        assert!(r.reason.contains("ships in"));
     }
 
     #[test]
@@ -375,5 +416,258 @@ mod tests {
         let r = DORAEvidenceStrategy::new().evaluate(&ctx_chain_only());
         assert_eq!(r.pass_count(), 2);
         assert_eq!(r.fail_count(), 4);
+    }
+}
+
+// =============================================================================
+// ComplianceStrategy dispatcher (Plan v1.2 Block 4 v1.1.0.x+1+5)
+// =============================================================================
+
+use std::collections::BTreeMap;
+
+/// A regulatory framework that the system asserts coverage for.
+///
+/// Order matters: the canonical iteration order matches the
+/// README's compliance map table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum Framework {
+    /// EU AI Act Art. 50 (transparency obligations).
+    EuAiAct,
+    /// DORA Art. 19-20 (evidence pack / ICT resilience).
+    Dora,
+    /// ISO/IEC 42001:2023 AI Management System (AIMS).
+    Iso42001,
+    /// NIST AI Risk Management Framework (Govern/Map/Measure/Manage).
+    NistAiRmf,
+    /// NIST SP 800-53 (security and privacy controls).
+    NistSp80053,
+    /// SOC 2 (AICPA Trust Services Criteria).
+    Soc2,
+    /// ISO/IEC 27001 (Information Security Management System).
+    Iso27001,
+    /// OWASP Top-10 for LLM Applications 2026.
+    OwaspLlm2026,
+}
+
+impl Framework {
+    /// Stable string identifier (used in serialized JSON and stable
+    /// across enum reordering). Format: lowercase + underscores.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Framework::EuAiAct => "eu_ai_act",
+            Framework::Dora => "dora",
+            Framework::Iso42001 => "iso_42001",
+            Framework::NistAiRmf => "nist_ai_rmf",
+            Framework::NistSp80053 => "nist_sp_800_53",
+            Framework::Soc2 => "soc_2",
+            Framework::Iso27001 => "iso_27001",
+            Framework::OwaspLlm2026 => "owasp_llm_2026",
+        }
+    }
+}
+
+/// Compliance status against a framework.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Status {
+    /// Fully covered.
+    Covered,
+    /// Partially covered (some checks pass, some fail or some N/A).
+    Partial,
+    /// Coverage planned for a future release; not implemented in this version.
+    NotImplemented,
+}
+
+/// A per-framework compliance report.
+///
+/// `status` is the headline; `reason` documents the evidence (e.g.
+/// "5/6 DORA checks pass; multi_tenant_isolation ships in v1.2");
+/// `evidence_refs` points at the underlying strategy output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComplianceReport {
+    pub framework: Framework,
+    pub status: Status,
+    pub reason: String,
+    pub evidence_refs: Vec<String>,
+}
+
+/// A pluggable compliance strategy.
+///
+/// Any strategy that maps a `DORAContext` to a `Status` can be plugged
+/// into `ComplianceStrategy` via the `register` method. This is
+/// the open-closed point — adding ISO 42001 or NIST AI RMF in v1.2
+/// only adds a new strategy impl; no existing strategy needs to change.
+pub trait Strategy: Send + Sync + 'static {
+    /// Stable name used in registry / logs.
+    fn name(&self) -> &'static str;
+    /// Evaluate the strategy against the context; return the
+    /// framework-level Status + reason + evidence refs.
+    fn evaluate(&self, ctx: &DORAContext) -> (Status, String, Vec<String>);
+}
+
+/// Dispatcher for compliance strategies.
+///
+/// The dispatcher owns the mapping `Framework -> Box<dyn Strategy>`.
+/// The v1.1.x wiring has:
+/// - `EuAiAct`     -> `EuAiActStrategy`  (Covered; v1.0.5 truthfulness)
+/// - `Dora`        -> `DORAEvidenceStrategy` (Partial; 5/6 checks pass)
+/// - the other 6  -> `NotImplementedStrategy` (NotImplemented; ships in v1.2)
+pub struct ComplianceStrategy {
+    strategies: BTreeMap<Framework, Box<dyn Strategy>>,
+}
+
+impl ComplianceStrategy {
+    /// Build the v1.1.x dispatcher with the production wiring.
+    pub fn new() -> Self {
+        let mut s = Self {
+            strategies: BTreeMap::new(),
+        };
+        // Production wiring:
+        s.strategies.insert(Framework::Dora, Box::new(DORAEvidenceStrategy::new()));
+        s.strategies.insert(Framework::EuAiAct, Box::new(EuAiActStrategy));
+        for framework in [
+            Framework::Iso42001,
+            Framework::NistAiRmf,
+            Framework::NistSp80053,
+            Framework::Soc2,
+            Framework::Iso27001,
+            Framework::OwaspLlm2026,
+        ] {
+            s.strategies
+                .insert(framework, Box::new(NotImplementedStrategy::new(framework)));
+        }
+        s
+    }
+
+    /// Register a custom strategy for a framework (open-closed).
+    pub fn register(&mut self, framework: Framework, strategy: Box<dyn Strategy>) {
+        self.strategies.insert(framework, strategy);
+    }
+
+    /// Evaluate ALL frameworks against the given context.
+    ///
+    /// Returns a `BTreeMap<Framework, ComplianceReport>` with one entry
+    /// per framework in the registry. BTreeMap (not HashMap) for
+    /// deterministic iteration order — useful for JSON serialization
+    /// and snapshot tests.
+    pub fn evaluate_all(
+        &self,
+        _primary: &DORAEvidenceStrategy,
+        ctx: &DORAContext,
+    ) -> BTreeMap<Framework, ComplianceReport> {
+        self.strategies
+            .iter()
+            .map(|(framework, strategy)| {
+                let (status, reason, evidence_refs) = strategy.evaluate(ctx);
+                (
+                    *framework,
+                    ComplianceReport {
+                        framework: *framework,
+                        status,
+                        reason,
+                        evidence_refs,
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
+impl Default for ComplianceStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// EU AI Act Art. 50 strategy: v1.0.5 truthfulness coverage.
+///
+/// The v1.0.5 release documented coverage of Art. 50(1)(a), (2), (4) as
+/// "Covered" and Art. 50(3) watermark as "NotApplicable" (image/audio
+/// not in scope). v1.1.x adds the v1.1.1 watermark roadmap. The
+/// dispatcher maps this framework to "Covered" with the explicit
+/// NotApplicable caveat for Art. 50(3).
+pub struct EuAiActStrategy;
+
+impl Strategy for EuAiActStrategy {
+    fn name(&self) -> &'static str {
+        "eu_ai_act_art_50"
+    }
+
+    fn evaluate(&self, _ctx: &DORAContext) -> (Status, String, Vec<String>) {
+        (
+            Status::Covered,
+            "Art. 50(1)(a)+(2)+(4) Covered; Art. 50(3) watermark NotApplicable in v1.1.x — ships in v1.1.1".to_string(),
+            vec![
+                "README.md:## Scope of Compliance".to_string(),
+                "crates/tl-evidence/src/tsa/cms_verify.rs (CRÍTICO 1 closure evidence)".to_string(),
+            ],
+        )
+    }
+}
+
+/// NotImplemented strategy for the 6 frameworks we haven't built yet.
+///
+/// Per Plan v1.2 Block 4 v1.1.0.x+1+5, the v1.1.x state honestly
+/// reports these as NotImplemented. The reason string is the
+/// single source of truth for "when does this ship?".
+pub struct NotImplementedStrategy {
+    framework: Framework,
+}
+
+impl NotImplementedStrategy {
+    /// Build a NotImplemented strategy for the given framework.
+    pub fn new(framework: Framework) -> Self {
+        Self { framework }
+    }
+}
+
+impl Strategy for NotImplementedStrategy {
+    fn name(&self) -> &'static str {
+        match self.framework {
+            Framework::Iso42001 => "iso_42001_stub",
+            Framework::NistAiRmf => "nist_ai_rmf_stub",
+            Framework::NistSp80053 => "nist_sp_800_53_stub",
+            Framework::Soc2 => "soc_2_stub",
+            Framework::Iso27001 => "iso_27001_stub",
+            Framework::OwaspLlm2026 => "owasp_llm_2026_stub",
+            _ => "unknown_stub",
+        }
+    }
+
+    fn evaluate(&self, _ctx: &DORAContext) -> (Status, String, Vec<String>) {
+        let (reason, when) = match self.framework {
+            Framework::Iso42001 => (
+                "ISO 42001 AIMS mapper not yet implemented in v1.1.x".to_string(),
+                "ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2)",
+            ),
+            Framework::NistAiRmf => (
+                "NIST AI RMF Govern/Map/Measure/Manage mapper not yet implemented in v1.1.x".to_string(),
+                "ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2)",
+            ),
+            Framework::NistSp80053 => (
+                "NIST SP 800-53 control mapper not yet implemented in v1.1.x".to_string(),
+                "ships in v1.2",
+            ),
+            Framework::Soc2 => (
+                "SOC 2 Trust Services Criteria mapper not yet implemented in v1.1.x".to_string(),
+                "ships in v1.2",
+            ),
+            Framework::Iso27001 => (
+                "ISO 27001 ISMS mapper not yet implemented in v1.1.x".to_string(),
+                "ships in v1.2",
+            ),
+            Framework::OwaspLlm2026 => (
+                "OWASP LLM 2026 Top-10 mapper not yet implemented in v1.1.x".to_string(),
+                "ships in v1.2",
+            ),
+            _ => (
+                format!("{:?} strategy not implemented", self.framework),
+                "TBD",
+            ),
+        };
+        (
+            Status::NotImplemented,
+            format!("{reason} — {when}"),
+            vec!["crates/tl-policy/src/lib.rs (this stub)".to_string()],
+        )
     }
 }

@@ -227,15 +227,19 @@ this section states **honestly** which subclauses TrustLayer v1.0 covers and whi
 it does NOT. **Deployers using v1.0 for image, audio, or video content are NOT
 compliant with Art. 50(3) until v1.1.1 ships.**
 
-| Regulation | Article | TrustLayer v1.0 status | Notes |
+| Regulation | Article | TrustLayer v1.1.x status | Notes |
 |---|---|---|---|
 | EU AI Act | Art. 50(1)(a) (visible disclosure) | **Covered** | `disclosure_text` + `disclosure_html_widget` |
-| EU AI Act | Art. 50(2) (machine-readable provenance) | **Covered** (dev + production path) | COSE_Sign1 envelope + RFC 3161 timestamp via FreeTSA (dev) or DigiCert/Sectigo qualified TSP (production). **Full CMS signature verification per RFC 5652 §5.6 implemented** in `tl-evidence::cms_verify::verify_strict_with_certs` (closes auditor's CRÍTICO 1). |
-| EU AI Act | Art. 50(3) (watermark) | **NotApplicable** | Watermark hooks deferred to v1.1.1 (c2patool + AudioSeal). See "What TrustLayer v1.0 is NOT" below. |
+| EU AI Act | Art. 50(2) (machine-readable provenance) | **Covered** (dev + production path) | COSE_Sign1 envelope + RFC 3161 timestamp via FreeTSA (dev) or DigiCert/Sectigo qualified TSP (production, default = Sectigo per v1.1.0.x+1+6). **Full CMS signature verification per RFC 5652 §5.6 implemented** in `tl-evidence::cms_verify::verify_strict_with_certs` (closes auditor-3 CRÍTICO 1 + auditor-4 BRECHA 1). |
+| EU AI Act | Art. 50(3) (watermark) | **NotApplicable** | Watermark hooks deferred to v1.1.1 (c2patool + AudioSeal + Kirchenbauer text). See "What TrustLayer v1.0 is NOT" below. |
 | EU AI Act | Art. 50(4) (labelling) | **Covered** | 4-layer compliance assessment + v1 disclaimers in every response |
-| DORA | Art. 19-20 (evidence pack) | **Partial** | `DORAEvidenceStrategy` stub with 6-check completion in v1.1.0 |
-| ISO 42001 | AIMS | **NotImplemented** | Planned v1.2 |
-| NIST AI RMF | Govern/Map/Measure/Manage | **NotImplemented** | Planned v1.2 |
+| DORA | Art. 19-20 (evidence pack) | **Partial** | `DORAEvidenceStrategy` returns 6 checks (5 pass, `multi_tenant_isolation` honest-fail "ships in v1.2 — see tl-policy::multi_tenant_isolation_stub"). 1/6 honest-flag per Plan v1.2 Block 4 v1.1.0.x+1+5. |
+| ISO 42001 | AIMS | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2). |
+| NIST AI RMF | Govern/Map/Measure/Manage | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2). |
+| NIST SP 800-53 | Security and privacy controls | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2. |
+| SOC 2 | AICPA Trust Services Criteria | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2. |
+| ISO 27001 | Information Security Management System | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2. |
+| OWASP LLM 2026 | Top-10 for LLM Applications | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2. |
 
 ### What TrustLayer v1.0 is NOT (per `disclaimers` field)
 
