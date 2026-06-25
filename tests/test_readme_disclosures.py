@@ -110,3 +110,43 @@ def test_scope_section_mentions_qualified_tsp_warning():
     assert "FreeTSA" in body and "qualified" in body.lower(), (
         "Section must mention FreeTSA + qualified TSP warning"
     )
+
+
+# --- v1.0.5-US-2 AC-6 + v1.0.5-US-4 AC-3 ---
+
+
+def test_readme_has_content_negotiation_section():
+    """v1.0.5-US-2 AC-6: README mentions the content-negotiation contract.
+
+    Per Plan v1.2 Block 2 v1.0.5-US-2 AC-6: "README `## Architecture`
+    section mentions the content-negotiation contract in a one-line addition."
+    """
+    text = _read_readme()
+    assert "application/scitt+json" in text, (
+        "README must mention `application/scitt+json` so users know "
+        "the SCITT envelope format is available via content negotiation "
+        "(v1.0.5-US-2 AC-6)."
+    )
+    # The mention should be in the Architecture context, not just anywhere.
+    arch_idx = text.find("## Architecture")
+    assert arch_idx > 0, "Missing `## Architecture` section"
+    scitt_idx = text.find("application/scitt+json")
+    assert scitt_idx > arch_idx, (
+        "The content negotiation mention must be AFTER `## Architecture` "
+        "section header (per AC-6)."
+    )
+
+
+def test_readme_has_integration_smoke_test_section():
+    """v1.0.5-US-4 AC-3: README has a `## Integration smoke test` section
+    that pastes the first 50 lines of the artifact + link to full file."""
+    text = _read_readme()
+    assert "## Integration smoke test" in text, (
+        "README must have a `## Integration smoke test` section "
+        "(v1.0.5-US-4 AC-3)."
+    )
+    # Link to the full artifact must be present.
+    assert "smoke_test/v1.0.5_output.txt" in text, (
+        "README must link to the full smoke test artifact at "
+        "`audit_artifacts/smoke_test/v1.0.5_output.txt`."
+    )

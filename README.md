@@ -103,6 +103,47 @@ Every disclosure reports **4 independent layers**:
 
 **Rollup is most-restrictive-wins.** A `NonCompliant` in any layer → global `NonCompliant`. Never false-positive.
 
+### Content negotiation (v1.0.5)
+
+`GET /v1/evidence/{bundle_id}` dispatches by `Accept` header (RFC 7231 §5.3.2): `application/scitt+json` → SCITT receipt envelope (IETF draft-ietf-scitt-scrapi-09, offline-verifiable); `application/json` / no header / `*/*` → v1.0 evidence_bundle_v1 (default, backward-compatible); anything else → 406 Not Acceptable with the supported list. See `services/control_plane/app/api/evidence.py` and `crates/tl-scitt/`.
+
+---
+
+## Integration smoke test (v1.0.5)
+
+Per the 2nd auditor's recommendation (P1: real-world testability), the full vertical slice runs end-to-end and its output is captured in `audit_artifacts/smoke_test/v1.0.5_output.txt`. Excerpt (first 50 lines; full file is 228 lines):
+
+```
+================================================================
+TrustLayer v1.0.5 — Integration Smoke Test Output
+================================================================
+
+Generated:    2026-06-25T13:35:00Z (UTC)
+Run by:       Pablo + Claude (oh-my-claudecode + ralph)
+Plan source:  .omc/plans/trustlayer-v1.2-execute.md (Block 2)
+PRD source:   .omc/state/sessions/v1.0.5-execution/prd.json
+
+================================================================
+TEST ENVIRONMENT
+================================================================
+
+OS:           Linux 7.1.1-1-cachyos-bore-lto (Arch-based)
+Kernel:       Linux (CachyOS)
+CPU:          AMD Ryzen 5 3600 (6c/12t)
+RAM:          48 GB
+Rust:         rustc 1.88 (stable, edition 2021)
+Python:       3.13 (via uv)
+
+================================================================
+VERTICAL SLICE — what was tested
+================================================================
+
+The canonical vertical slice per spec §1 is:
+  generate → sign → verify → SCITT receipt → bundle export
+```
+
+Full output at [`audit_artifacts/smoke_test/v1.0.5_output.txt`](audit_artifacts/smoke_test/v1.0.5_output.txt). The artifact includes the **HONEST DISCLOSURES** section naming every synthetic / demo-grade part (synthetic bundle, synthetic SCITT fixture, Qualified stub returns NotImplemented, US-13 still blocked).
+
 ---
 
 ## Compliance map
