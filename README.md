@@ -9,6 +9,8 @@
 [![PyPI](https://img.shields.io/pypi/v/apohara-trustlayer.svg)](https://pypi.org)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 
+**For CISOs and compliance teams facing EU AI Act Art. 50, DORA Art. 19-20, and the Code of Practice on Transparency of AI-Generated Content.** Production-grade crypto today; qualified-TSP integration in v1.1.0 (target 2026-08-30); watermarking hooks in v1.1.1 (target 2026-09-30). **Text-only AI systems are fully covered today; image/audio deployers MUST wait for v1.1.1.**
+
 **Apohara TrustLayer** is an evidence-grade AI compliance platform. It produces
 cryptographically-signed, forensically-defensible evidence trails for AI-generated
 content per **EU AI Act Art. 50** (2 August 2026), **DORA Art. 19-20**, and
@@ -16,16 +18,41 @@ the **Code of Practice on Transparency of AI-Generated Content** (10 June 2026).
 
 ---
 
+## Who is this for
+
+TrustLayer v1.0 is built for the following ICP, in priority order:
+
+### Primary ICP — CISOs and compliance teams facing EU AI Act Art. 50
+
+- You are responsible for regulatory evidence at a company deploying AI-generated content in production.
+- You need forensically-defensible proof of compliance, not just a marketing badge.
+- You evaluate vendors on **offline verification**, **qualified-TSP timestamps**, **multi-tenant isolation**, and **audit-defensible crypto**.
+- **Why TrustLayer fits**: COSE_Sign1 + RFC 3161 + PyO3 in-process verification (no subprocess on the crypto boundary) + 4-layer compliance model with most-restrictive-wins rollup.
+
+### Secondary ICP — Compliance tooling developers / platform engineers
+
+- You are building internal compliance tooling, eval pipelines, or content moderation systems.
+- You need verifiable provenance + audit trails but are not (yet) the CISO signing off on Art. 50 exposure.
+- The Quickstart below (`make demo`) gives you a 30-second vertical slice; the SDKs (`apohara-trustlayer` Python, `@apohara/trustlayer` TypeScript) cover the integration paths.
+
+### Explicitly NOT for (in v1.0)
+
+- **Compliance tool buyers without EU regulatory exposure** — if your jurisdiction does not bind you to Art. 50 / DORA / Code of Practice, lighter-weight tools (e.g. C2PA-only) are a better fit. TrustLayer's value lands on EU AI Act defensibility.
+- **Image, audio, or video AI deployers** — Art. 50(3) watermark is `NotApplicable` in v1.0. **You MUST wait for v1.1.1** (target 2026-09-30) before using TrustLayer for image/audio/video content. Marketing as "EU AI Act compliant" without the watermark layer is greenwashing, and the `disclaimers` field in every API response will surface it.
+- **Multi-tenant SaaS deployers** — v1.0 is single-tenant (`org_id = "apohara"`). Multi-tenant v1 ships in v1.2 (target late 2026 / early 2027). Self-hosted single-tenant deployments are fine.
+
+---
+
 ## Why TrustLayer
 
-The objection we hear most: *"Why would I pay for this if I can build it with Claude Code over a weekend?"*
+The objection we hear most from CISOs: *"Why would I pay for this if I can build it with Claude Code over a weekend?"*
 
 The honest answer: you can build a basic implementation, but not a **production-grade evidence platform**.
 
 - **C2PA alone is insufficient** — it can be stripped from files; the Code of Practice requires multi-layer marking.
 - **The Code of Practice** (10 June 2026) mandates: visible disclosure + machine-readable provenance + watermarking + retention with tamper-evidence.
 - **Buyer risk**: enterprise security teams need offline-verifiable signatures, key rotation, TSA binding, and public verification endpoints.
-- **Regulatory risk**: EU AI Act Art. 50 fines are **€15M or 3% of global turnover**.
+- **Regulatory risk**: EU AI Act Art. 50 fines are **€15M or 3% of global turnover**. DORA Art. 19 carries additional operational-resilience fines.
 
 TrustLayer delivers all 4 layers in one integrated platform with a single canonical repo.
 
