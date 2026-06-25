@@ -524,9 +524,11 @@ impl ComplianceStrategy {
         // Production wiring:
         s.strategies.insert(Framework::Dora, Box::new(DORAEvidenceStrategy::new()));
         s.strategies.insert(Framework::EuAiAct, Box::new(EuAiActStrategy));
+        // v1.1.1 / v1.2 stubs (real impls land in v1.2).
+        s.strategies.insert(Framework::Iso42001, Box::new(Iso42001Strategy));
+        s.strategies.insert(Framework::NistAiRmf, Box::new(NistAiRmfStrategy));
+        // v1.2 / beyond stubs.
         for framework in [
-            Framework::Iso42001,
-            Framework::NistAiRmf,
             Framework::NistSp80053,
             Framework::Soc2,
             Framework::Iso27001,
@@ -668,6 +670,62 @@ impl Strategy for NotImplementedStrategy {
             Status::NotImplemented,
             format!("{reason} — {when}"),
             vec!["crates/tl-policy/src/lib.rs (this stub)".to_string()],
+        )
+    }
+}
+
+// =============================================================================
+// ISO/IEC 42001:2023 — Plan v1.2 Block 5 v1.2-US-2
+// =============================================================================
+
+/// ISO/IEC 42001:2023 AI Management System (AIMS) mapper.
+///
+/// Ported pattern from `reference/apohara-themis/crates/themis-compliance/src/iso_42001.rs`:
+/// maps an evidence packet to ISO 42001 clauses. v1.1.1 ships a stub
+/// that reports `NotImplemented`; the real mapper lands in v1.2.
+pub struct Iso42001Strategy;
+
+impl Strategy for Iso42001Strategy {
+    fn name(&self) -> &'static str {
+        "iso_42001_aims_stub"
+    }
+    fn evaluate(&self, _ctx: &DORAContext) -> (Status, String, Vec<String>) {
+        (
+            Status::NotImplemented,
+            "ISO/IEC 42001:2023 AIMS mapper not yet implemented in v1.1.1 — \
+             ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2). \
+             The pattern is ported from themis-compliance::iso_42001; \
+             v1.2 implementation will populate the 8 AIMS clauses \
+             (context, leadership, planning, support, operation, performance, improvement, control).".to_string(),
+            vec!["reference/apohara-themis/crates/themis-compliance/src/iso_42001.rs (port pattern)".to_string()],
+        )
+    }
+}
+
+// =============================================================================
+// NIST AI Risk Management Framework (AI RMF 1.0)
+// =============================================================================
+
+/// NIST AI RMF (Govern/Map/Measure/Manage) mapper.
+///
+/// v1.1.1 ships a stub. Production-grade implementation lands in v1.2
+/// (Plan v1.2 Block 5 v1.2-US-2). Maps evidence packets to the 4
+/// GOVERN/MAP/MEASURE/MANAGE functions + 19 categories of the
+/// NIST AI RMF Core (NIST AI 100-1, January 2023).
+pub struct NistAiRmfStrategy;
+
+impl Strategy for NistAiRmfStrategy {
+    fn name(&self) -> &'static str {
+        "nist_ai_rmf_stub"
+    }
+    fn evaluate(&self, _ctx: &DORAContext) -> (Status, String, Vec<String>) {
+        (
+            Status::NotImplemented,
+            "NIST AI RMF (Govern/Map/Measure/Manage) mapper not yet implemented \
+             in v1.1.1 — ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2). \
+             Production impl will map to the 4 functions + 19 categories of \
+             NIST AI 100-1 (January 2023).".to_string(),
+            vec!["NIST AI 100-1 (January 2023)".to_string()],
         )
     }
 }
