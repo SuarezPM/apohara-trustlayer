@@ -32,36 +32,82 @@ sys.path.insert(0, str(CONTROL_PLANE))
 # Now we can import the FastAPI app and the evidence router.
 from app.api.evidence import SUPPORTED_TYPES  # noqa: E402
 
+
+# Test helpers (also used by tests/test_real_evidence_lookup.py).
+# They live here because the content negotiation tests are the primary
+# user of the AutoCreateSession pattern.
+def _extract_bundle_id_from_stmt(stmt):
+    """Best-effort extraction of the bundle_id from a SQLAlchemy stmt."""
+    try:
+        right = stmt.whereclause.right
+        if hasattr(right, "value"):
+            return right.value
+        return str(right)
+    except Exception:
+        return None
+
+
+class _NullResult:
+    def scalar_one_or_none(self):
+        return None
+
+
+class _RecordResult:
+    def __init__(self, bundle: dict) -> None:
+        self._record = _BundleRecordAdapter(bundle)
+
+    def scalar_one_or_none(self):
+        return self._record
+
+
+class _BundleRecordAdapter:
+    def __init__(self, bundle: dict) -> None:
+        self.bundle = bundle
+        if "id" not in self.bundle and "bundle_id" in self.bundle:
+            self.bundle["id"] = self.bundle["bundle_id"]
+
+    def __getattr__(self, name):
+        return self.bundle.get(name)
+
 # Importing main lazily because it triggers structlog config
 # which needs the env vars set. We construct the app directly.
 def _make_client():
     """Build a TestClient for the FastAPI app.
 
-    v1.1.0 (US-12): the evidence route now requires a BundleLookup.
-    We inject an InMemoryBundleLookup that auto-creates a synthetic
-    bundle on lookup miss, so the 200-path tests work for any
-    bundle_id used in this file. The auto-create is a TEST-ONLY
-    fallback (the production path returns 404 on miss).
+    v1.1.0.x (US-3): the route uses `Depends(get_async_session_dep)`.
+    For tests, we override the dependency with a sync session adapter
+    that auto-creates a synthetic bundle on lookup miss (same behavior
+    as the v1.1.0 AutoCreateLookup, but routed through the async
+    session pattern).
     """
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from app.api.evidence import (
-        BundleLookup,
         InMemoryBundleLookup,
-        get_bundle_lookup,
+        get_async_session_dep,
         router as evidence_router,
     )
 
-    class AutoCreateLookup(BundleLookup):
-        """Test-only lookup that creates a synthetic bundle on miss."""
+    class _AutoCreateSession:
+        def __init__(self) -> None:
+            self._bundles: dict[str, dict] = {}
 
-        def lookup(self, bundle_id: str):
-            synthetic = InMemoryBundleLookup._synthetic_bundle_for_tests(bundle_id)
-            return synthetic
+        async def execute(self, stmt):
+            bundle_id = _extract_bundle_id_from_stmt(stmt)
+            if bundle_id is None:
+                return _NullResult()
+            if bundle_id not in self._bundles:
+                self._bundles[bundle_id] = (
+                    InMemoryBundleLookup._synthetic_bundle_for_tests(bundle_id)
+                )
+            return _RecordResult(self._bundles[bundle_id])
+
+    def get_session():
+        return _AutoCreateSession()
 
     app = FastAPI()
+    app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
-    app.dependency_overrides[get_bundle_lookup] = lambda: AutoCreateLookup()
     return TestClient(app)
 
 
@@ -70,15 +116,19 @@ def _make_empty_client():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from app.api.evidence import (
-        InMemoryBundleLookup,
-        get_bundle_lookup,
+        get_async_session_dep,
         router as evidence_router,
     )
 
-    lookup = InMemoryBundleLookup()  # empty
+    # Empty session: returns no records → route returns 404.
+    def get_session():
+        class _EmptySession:
+            async def execute(self, _stmt):
+                return _NullResult()
+        return _EmptySession()
+
     app = FastAPI()
-    app.state.bundle_lookup = lookup
-    app.dependency_overrides[get_bundle_lookup] = lambda: lookup
+    app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
     return TestClient(app)
 

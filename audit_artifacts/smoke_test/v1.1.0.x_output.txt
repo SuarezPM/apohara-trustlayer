@@ -1,0 +1,20 @@
+platform linux -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- /home/thelinconx/.cache/uv/builds-v0/.tmpHXaSp6/bin/python
+cachedir: .pytest_cache
+rootdir: /dev
+configfile: null
+plugins: asyncio-1.4.0, anyio-4.14.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+../../../../../dev::test_async_route_handles_100_concurrent_requests 
+[concurrency] 100 requests in 0.09s, interleaved sleep 92ms (event loop responsive)
+PASSED
+../../../../../dev::test_async_route_404_for_missing_bundle PASSED
+
+=============================== warnings summary ===============================
+../../../.cache/uv/archive-v0/2puSIrpeY2UY0m4n/lib/python3.13/site-packages/_pytest/cacheprovider.py:469
+  /home/thelinconx/.cache/uv/archive-v0/2puSIrpeY2UY0m4n/lib/python3.13/site-packages/_pytest/cacheprovider.py:469: PytestCacheWarning: could not create cache path /dev/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/dev/pytest-cache-files-bt5efqkt'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 2 passed, 1 warning in 0.46s =========================
