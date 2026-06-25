@@ -17,6 +17,12 @@ thiserror = "1"
 uuid = { version = "1", features = ["v4"] }
 # Pinned per plan v3.1 AC-20 (coset is "under construction" upstream):
 coset = "=0.4.2"
+# v1.1.0-US-1: real DigiCert adapter. reqwest with rustls-tls (no native-tls).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# x509-parser for cert chain verification.
+x509-parser = "0.16"
+# base64 for digest encoding in fetch_token.
+base64 = "0.22"
 # NOTE: themis-compressor was incorrectly listed in plan v3.1 as the
 # RFC 3161 substrate. Reality: themis-compressor is LLMLingua-2
 # prompt compression. The actual RFC 3161 lives in themis-evidence::timestamp
@@ -25,3 +31,5 @@ coset = "=0.4.2"
 [dev-dependencies]
 proptest = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# wiremock for mocking the DigiCert endpoint in tests.
+wiremock = "0.6"

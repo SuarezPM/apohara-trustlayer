@@ -1,0 +1,16 @@
+[package]
+name = "tl-policy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+authors = ["Pablo M. Suarez <suarezpm@csnat.unt.edu.ar>"]
+description = "Policy strategies for compliance assessment (DORA Art. 19, EU AI Act Art. 50, ISO 42001, NIST AI RMF)"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+
+[dev-dependencies]
+# No external deps for the trait + concrete strategy tests.
