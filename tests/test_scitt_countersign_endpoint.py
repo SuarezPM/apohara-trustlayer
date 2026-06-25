@@ -94,6 +94,7 @@ def _make_bundle(bundle_id: str) -> dict:
         "cose_sign1_b64": "AABBCCDD",  # synthetic placeholder
         "issuer_pubkey_fingerprint": "11" * 32,
         "compliance_rollup": "Partial",
+                "org_id": "apohara",
     }
 
 
