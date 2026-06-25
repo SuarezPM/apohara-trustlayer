@@ -5330,6 +5330,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "blake3",
+ "rand 0.8.6",
  "schemars 0.8.22",
  "serde",
  "serde_json",

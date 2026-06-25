@@ -12,6 +12,10 @@ description = "Apohara TrustLayer MCP server — exposes 7 tools for AI agents (
 name = "tl-mcp-server"
 path = "src/main.rs"
 
+[lib]
+name = "tl_mcp_server"
+path = "src/lib.rs"
+
 [dependencies]
 # v1.1.0-US-13: rmcp 1.8 macros are fundamentally broken (verified in
 # v1.0.4 + v1.0.5). We drop rmcp entirely and implement a manual
@@ -32,6 +36,8 @@ themis-evidence = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 tracing = "0.1"
+# v1.2-US-3: prompt envelope (nonce-tagged sentinels via OS RNG).
+rand = "0.8"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 anyhow = "1"
 blake3 = { workspace = true }

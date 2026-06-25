@@ -28,13 +28,21 @@
 //!   maintainer engagement) is unbounded. When rmcp is fixed, this
 //!   file can be replaced with the SDK-based implementation.
 //!
-//! ## Files
+//! ## v1.2 hardening (Plan v1.2 Block 4 v1.2-US-3)
 //!
-//! - This file: stdio JSON-RPC server + 7 tool handlers (<400 lines).
-//! - `Cargo.toml`: only `schemars`, `serde`, `serde_json`, `tokio`,
-//!   `tl-evidence`, `tl-types` (no rmcp).
+//! - `envelope` module: prompt envelope (Spotlighting defense per
+//!   Hines et al. arXiv 2403.14720; port from apohara-probant).
+//!   Every untrusted block passed to the 7 tools is wrapped in
+//!   per-request nonce-tagged sentinels to prevent prompt injection.
+//! - `rule_of_two` module: Meta's "Agentic Rule of Two" gate for
+//!   destructive tool actions. Of (CI env, TTY, human override),
+//!   require ≥ 2 — a single signal is not enough to authorize
+//!   destructive ops (delete evidence, rotate keys, etc.).
 
 #![warn(missing_docs)]
+
+pub mod envelope;
+pub mod rule_of_two;
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
