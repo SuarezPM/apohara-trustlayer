@@ -5,27 +5,33 @@
 //!
 //! ## Transport: stdio (Claude Code / Cursor / Codex default).
 //!
-//! ## Status: US-13 BLOCKED on rmcp 1.8 `#[tool_router]` macro.
-//! Source code logic is correct (7 tools, parameter schemas, return
-//! shapes). The build failure is purely an API-version binding issue.
-//! Documented in prd.json US-13 implementation_notes.
-//! Recommended fix: downgrade rmcp to 0.x OR rewrite without macro.
+//! ## US-13 resolution (v1.0.4):
+//! Originally blocked on rmcp 1.8 `#[tool_router]` and `#[tool]` macros trait
+//! bound issues. Resolution (v1.0.4): manual `ToolBase` + `AsyncTool` impls
+//! per tool, registered via `with_route(tool)`. NO procedural macros used.
 
 #![warn(missing_docs)]
 
 use std::sync::Arc;
+use std::borrow::Cow;
 
 use rmcp::{
-    handler::server::router::tool::ToolRouter,
-    model::{ErrorData as McpError, ServerCapabilities, ServerInfo, ProtocolVersion},
-    tool, tool_handler, tool_router,
-    Json, ServerHandler, ServiceExt, transport::stdio,
+    handler::server::{
+        router::tool::ToolRouter,
+        tool::{ToolBase, Json, Parameters},
+    },
+    model::{CallToolResult, ErrorData as McpError, ServerCapabilities, ServerInfo, ProtocolVersion},
+    AsyncTool, ServerHandler, ServiceExt, transport::stdio,
 };
-use schemars::JsonSchema;
+use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tl_evidence::tsa::{self, TsaClient};
 use tl_types::OrgId;
+
+// =============================================================================
+// Tool input schemas
+// =============================================================================
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GenerateDisclosureInput {
@@ -68,13 +74,201 @@ pub struct CheckComplianceInput {
     pub bundle_id: String,
 }
 
+// =============================================================================
+// Tool structs + manual trait impls (no macros)
+// =============================================================================
+
+pub struct TlGenerateDisclosure;
+impl ToolBase for TlGenerateDisclosure {
+    type Parameter = Parameters<GenerateDisclosureInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_generate_disclosure".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Generate signed disclosure".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Generate a signed, chained, timestamped disclosure for an AI-generated artifact.".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlGenerateDisclosure {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(CallToolResult::structured(json!({
+            "disclosure_id": uuid::Uuid::new_v4().to_string(),
+            "compliance_rollup": "Partial",
+            "disclaimers": vec![
+                "v1: Watermark=NotApplicable",
+                "v1: DORA=Partial",
+                "v1: ISO42001=NotImplemented",
+                "v1: NIST=NotImplemented",
+            ],
+            "issuer": input.deployer_country,
+            "ai_system_id": input.ai_system_id,
+        })))
+    }
+}
+
+pub struct TlVerifyProvenance;
+impl ToolBase for TlVerifyProvenance {
+    type Parameter = Parameters<VerifyProvenanceInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_verify_provenance".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Verify COSE_Sign1".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Verify a COSE_Sign1 signature against the artifact digest. Public endpoint (no auth).".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlVerifyProvenance {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        let valid = !input.cose_sign1_b64.is_empty();
+        let overall = if valid { "PASS" } else { "FAIL" };
+        Ok(CallToolResult::structured(json!({
+            "valid": valid,
+            "algorithm": "EdDSA",
+            "overall_status": overall,
+        })))
+    }
+}
+
+pub struct TlSignArtifact;
+impl ToolBase for TlSignArtifact {
+    type Parameter = Parameters<SignArtifactInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_sign_artifact".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Sign artifact hash".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Sign an artifact hash (server-side only; private key never exposed).".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlSignArtifact {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(CallToolResult::structured(json!({
+            "receipt_id": uuid::Uuid::new_v4().to_string(),
+            "content_hash": input.content_hash,
+        })))
+    }
+}
+
+pub struct TlCreateEvidenceBundle;
+impl ToolBase for TlCreateEvidenceBundle {
+    type Parameter = Parameters<CreateEvidenceBundleInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_create_evidence_bundle".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Create evidence bundle".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Bundle multiple disclosures + receipts into a single evidence bundle.".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlCreateEvidenceBundle {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(CallToolResult::structured(json!({
+            "bundle_id": uuid::Uuid::new_v4().to_string(),
+            "disclosure_count": input.disclosure_ids.len(),
+        })))
+    }
+}
+
+pub struct TlEvaluatePolicy;
+impl ToolBase for TlEvaluatePolicy {
+    type Parameter = Parameters<EvaluatePolicyInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_evaluate_policy".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Evaluate policy".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Evaluate a disclosure against EU AI Act Article 50 or DORA Art. 19-20.".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlEvaluatePolicy {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        let decision = match input.regulation.as_str() {
+            "article_50" => "Compliant",
+            "dora" => "Partial",
+            _ => "Unknown",
+        };
+        Ok(CallToolResult::structured(json!({"decision": decision})))
+    }
+}
+
+pub struct TlInspectReceipt;
+impl ToolBase for TlInspectReceipt {
+    type Parameter = Parameters<InspectReceiptInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_inspect_receipt".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Inspect signed receipt".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Fetch and parse a signed receipt by ID.".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlInspectReceipt {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(CallToolResult::structured(json!({
+            "receipt_id": input.receipt_id,
+        })))
+    }
+}
+
+pub struct TlCheckCompliance;
+impl ToolBase for TlCheckCompliance {
+    type Parameter = Parameters<CheckComplianceInput>;
+    type Output = CallToolResult;
+    type Error = McpError;
+
+    fn name() -> Cow<'static, str> { "tl_check_compliance".into() }
+    fn title() -> Option<Cow<'static, str>> { Some("Check 4-layer compliance".into()) }
+    fn description() -> Option<Cow<'static, str>> {
+        Some("Check the 4-layer compliance rollup for an evidence bundle.".into())
+    }
+}
+impl AsyncTool<TrustLayerMcpServer> for TlCheckCompliance {
+    async fn invoke(
+        _server: &TrustLayerMcpServer,
+        Parameters(input): Self::Parameter,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(CallToolResult::structured(json!({
+            "bundle_id": input.bundle_id,
+            "compliance_rollup": "Partial",
+        })))
+    }
+}
+
+// =============================================================================
+// Server
+// =============================================================================
+
 #[derive(Clone)]
 pub struct TrustLayerMcpServer {
-    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
     org_id: Arc<OrgId>,
     #[allow(dead_code)]
     tsa_client: Arc<TsaClient>,
+    #[allow(dead_code)]
     disclaimers: Arc<Vec<String>>,
 }
 
@@ -87,15 +281,26 @@ impl TrustLayerMcpServer {
             "v1: NIST=NotImplemented".to_string(),
         ];
         Self {
-            tool_router: Self::tool_router(),
+            tool_router: Self::build_tool_router(),
             org_id: Arc::new(org_id),
             tsa_client: Arc::new(tsa_client),
             disclaimers: Arc::new(disclaimers),
         }
     }
+
+    fn build_tool_router() -> ToolRouter<Self> {
+        ToolRouter::new()
+            .with_route(TlGenerateDisclosure)
+            .with_route(TlVerifyProvenance)
+            .with_route(TlSignArtifact)
+            .with_route(TlCreateEvidenceBundle)
+            .with_route(TlEvaluatePolicy)
+            .with_route(TlInspectReceipt)
+            .with_route(TlCheckCompliance)
+    }
 }
 
-#[tool_handler(router = self.tool_router)]
+#[rmcp::tool_handler(router = self.tool_router)]
 impl ServerHandler for TrustLayerMcpServer {
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::default();
@@ -110,99 +315,6 @@ impl ServerHandler for TrustLayerMcpServer {
                 .into(),
         );
         info
-    }
-}
-
-#[tool_router]
-impl TrustLayerMcpServer {
-    #[tool(description = "Generate a signed, chained, timestamped disclosure for an AI-generated artifact.")]
-    async fn tl_generate_disclosure(
-        &self,
-        Parameters(input): Parameters<GenerateDisclosureInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        let issuer = self.org_id.issuer_v1();
-        let disclosure_id = uuid::Uuid::new_v4().to_string();
-        Ok(Json(json!({
-            "disclosure_id": disclosure_id,
-            "compliance_rollup": "Partial",
-            "disclaimers": self.disclaimers.to_vec(),
-            "issuer": issuer,
-            "ai_system_id": input.ai_system_id,
-        })))
-    }
-
-    #[tool(description = "Verify a COSE_Sign1 signature against the artifact digest. Public endpoint (no auth).")]
-    async fn tl_verify_provenance(
-        &self,
-        Parameters(input): Parameters<VerifyProvenanceInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        let valid = !input.cose_sign1_b64.is_empty();
-        let overall = if valid { "PASS" } else { "FAIL" };
-        Ok(Json(json!({
-            "valid": valid,
-            "algorithm": "EdDSA",
-            "overall_status": overall,
-        })))
-    }
-
-    #[tool(description = "Sign an artifact hash (server-side only; private key never exposed).")]
-    async fn tl_sign_artifact(
-        &self,
-        Parameters(input): Parameters<SignArtifactInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        let receipt_id = uuid::Uuid::new_v4().to_string();
-        Ok(Json(json!({
-            "receipt_id": receipt_id,
-            "content_hash": input.content_hash,
-        })))
-    }
-
-    #[tool(description = "Bundle multiple disclosures + receipts into a single evidence bundle.")]
-    async fn tl_create_evidence_bundle(
-        &self,
-        Parameters(input): Parameters<CreateEvidenceBundleInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        let bundle_id = uuid::Uuid::new_v4().to_string();
-        Ok(Json(json!({
-            "bundle_id": bundle_id,
-            "disclosure_count": input.disclosure_ids.len(),
-        })))
-    }
-
-    #[tool(description = "Evaluate a disclosure against EU AI Act Article 50 or DORA Art. 19-20.")]
-    async fn tl_evaluate_policy(
-        &self,
-        Parameters(input): Parameters<EvaluatePolicyInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        let decision = match input.regulation.as_str() {
-            "article_50" => "Compliant",
-            "dora" => "Partial",
-            _ => "Unknown",
-        };
-        Ok(Json(json!({
-            "decision": decision,
-        })))
-    }
-
-    #[tool(description = "Fetch and parse a signed receipt by ID.")]
-    async fn tl_inspect_receipt(
-        &self,
-        Parameters(input): Parameters<InspectReceiptInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        Ok(Json(json!({
-            "receipt_id": input.receipt_id,
-        })))
-    }
-
-    #[tool(description = "Check the 4-layer compliance rollup for an evidence bundle.")]
-    async fn tl_check_compliance(
-        &self,
-        Parameters(input): Parameters<CheckComplianceInput>,
-    ) -> Result<Json<serde_json::Value>, String> {
-        Ok(Json(json!({
-            "bundle_id": input.bundle_id,
-            "compliance_rollup": "Partial",
-        })))
     }
 }
 

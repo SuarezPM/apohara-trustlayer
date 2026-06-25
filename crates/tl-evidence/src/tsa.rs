@@ -1,5 +1,33 @@
 //! RFC 3161 TSA provider abstraction.
 //!
+//! # ⚠️ CRITICAL: FreeTSA is NOT a qualified TSP for EU regulatory evidence
+//!
+//! Per **ETSI EN 319 421** (Policy and Security Requirements for Trust Service
+//! Providers issuing Time-Stamps) and the **EU Trust List** (Article 67 of
+//! Regulation (EU) No 910/2014 eIDAS), **FreeTSA.org is NOT a qualified
+//! Timestamp Authority**:
+//! - FreeTSA is a free volunteer-operated service (no SLA, no audit, no
+//!   formal compliance certification).
+//! - FreeTSA is NOT on the EU Trust List of qualified TSPs.
+//! - Timestamps from FreeTSA are **NOT forensically valid** for EU regulatory
+//!   purposes (EU AI Act Art. 50, DORA Art. 19, eIDAS Art. 42).
+//! - FreeTSA MUST NOT be used in production deployments that require
+//!   regulator-defensible evidence.
+//!
+//! **Production deployments must integrate with a qualified TSP**:
+//! - DigiCert Timestamp Authority (https://timestamp.digicert.com)
+//! - Sectigo (formerly Comodo) Timestamp Authority
+//! - An in-house HSM-backed TSP with eIDAS QCP-n-qscd certification
+//!
+//! FreeTSA in this codebase is for **DEVELOPMENT AND TESTING ONLY**.
+//! Plan v1.1 (Block 3) replaces FreeTSA with a qualified TSP integration
+//! (DigiCert adapter). See `apohara-trustlayer/.omc/plans/trustlayer-v1.1.md`
+//! Story v1.1.0-US-1 for the migration plan.
+//!
+//! For a `quick sanity test` of the timestamp flow, `mock` and `free_tsa`
+//! are acceptable. **For any evidence that will be shown to a regulator,
+//! auditor, or court, use a qualified TSP.**
+//!
 //! ## Why an enum, not a trait (Architect IC-2)
 //!
 //! Plan v3.1 originally proposed `trait TsaProvider` with 3 implementations
@@ -93,7 +121,9 @@ impl TsaTokenBytes {
 pub enum TsaTier {
     /// Mock — for tests only.
     Mock,
-    /// FreeTsa — `freetsa.org` over HTTPS. No SLA, used for demo / dev.
+    /// FreeTsa — `freetsa.org` over HTTPS. **DEV-ONLY**: NOT a qualified
+    /// TSP per ETSI EN 319 421 / EU Trust List. NOT forensically valid
+    /// for EU regulatory evidence. See module-level warning at top of file.
     FreeTsa,
 }
 
