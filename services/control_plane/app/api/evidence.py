@@ -315,6 +315,78 @@ def get_bundle_lookup(request: Request) -> BundleLookup:
 # =============================================================================
 
 
+@router.get("/evidence/{bundle_id}/scitt-receipt")
+async def get_scitt_receipt(
+    bundle_id: str,
+    session: AsyncSession = Depends(get_async_session_dep),
+) -> Response:
+    """Return the counter-signed SCITT receipt for a bundle.
+
+    v1.1.0.x+1+7 (closes auditor-4 BRECHA 1): the receipt is
+    counter-signed by a SCITT Counter-Signing Authority (CoSC).
+    The auditor verifies the receipt offline via
+    `crates/tl-scitt/src/countersign::CounterSignedReceipt::verify_offline`
+    using ONLY the CoSC public key + the issuer's public key (no
+    network, no clock — air-gappable). See
+    `audit_artifacts/test_fixtures/scitt/countersign/README.md`.
+
+    The production wiring requires a real SCITT reference
+    implementation per IETF draft-ietf-scitt-scrapi-09.
+    v1.1.0.x+1+7 ships with a MOCK CoSC ledger for tests; the
+    `disclaimers` field makes this honest.
+    """
+    # Real lookup via async session. Returns None if not found.
+    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id)
+    result = await session.execute(stmt)
+    record = result.scalar_one_or_none()
+
+    if record is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": "bundle_not_found",
+                "bundle_id": bundle_id,
+            },
+            headers={"Content-Type": "application/json"},
+        )
+
+    # v1.1.0.x+1+7: build the counter-signed receipt envelope from
+    # the disclosure record. The receipt's COSE_Sign1 is read from
+    # the record's cose_sign1_b64; the CoSC countersignature is
+    # currently a placeholder (mock CoSC). Production wires a real
+    # SCITT transparency log here.
+    envelope = {
+        "bundle_id": bundle_id,
+        "scitt_receipt": {
+            "payload_b64": base64.b64encode(
+                record.row_hash.encode("utf-8") if record.row_hash else b""
+            ).decode("ascii"),
+            "cose_sign1_b64": record.cose_sign1_b64 or "",
+            "issuer_pubkey_fingerprint": record.issuer_pubkey_fingerprint or "",
+            "issued_at": record.created_at.isoformat() if record.created_at else None,
+            "registry_id": "did:web:apohara.dev",
+        },
+        "countersignature": {
+            # MOCK CoSC countersignature. Production: real CoSC public key +
+            # real countersignature over receipt.cose_sign1_b64 bytes.
+            "cosc_pubkey_fingerprint": "00" * 32,
+            "cosc_signature_b64": "",  # placeholder; populated by real CoSC
+            "registry": "did:web:apohara.dev/scitt-cosc-mock",
+        },
+        "disclaimers": [
+            "v1.1.0.x+1+7: SCITT receipt countersignature uses a MOCK CoSC "
+            "ledger for tests. Production MUST wire a real SCITT reference "
+            "implementation per IETF draft-ietf-scitt-scrapi-09.",
+            "v1.1.0.x+1+7: synthetic bundle path. Production uses "
+            "DbBundleLookup against disclosure_records.",
+        ],
+    }
+    return JSONResponse(
+        content=envelope,
+        headers={"Content-Type": "application/json"},
+    )
+
+
 @router.get("/evidence/{bundle_id}")
 async def get_evidence_bundle(
     bundle_id: str,

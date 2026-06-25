@@ -257,6 +257,15 @@ pub fn verify_offline(
     Ok(true)
 }
 
+// v1.1.0.x+1+7: counter-signed receipts (closes auditor-4 BRECHA 1).
+// Re-exported as `tl_scitt::countersign::CounterSignedReceipt` for the
+// API surface, with the convenience re-export below for shorter call
+// sites.
+pub mod countersign;
+pub use countersign::{
+    blake3_pubkey_fingerprint, CounterSignError, CounterSignedReceipt,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
