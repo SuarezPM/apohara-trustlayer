@@ -17,7 +17,7 @@ CONTROL_PLANE := services/control_plane
 # Phony declarations
 # =============================================================================
 
-.PHONY: help demo build test lint audit deny ci clean install-hooks
+.PHONY: help demo demo-v1.1.x build test lint audit deny ci clean install-hooks
 
 # =============================================================================
 # Help (default target)
@@ -27,6 +27,7 @@ help:
 	@echo "Apohara TrustLayer — make targets:"
 	@echo "  help           Show this help"
 	@echo "  demo           Run the canonical acceptance test (<30s)"
+	@echo "  demo-v1.1.x    Run v1.1.x integration smoke test + freeze artifact"
 	@echo "  build          Build all Rust + Python + TypeScript components"
 	@echo "  test           Run all test suites (Rust + Python)"
 	@echo "  lint           Run clippy + ruff + mypy"
@@ -55,6 +56,22 @@ demo:
 		pytest tests/e2e/test_third_party_can_generate_verify_and_audit.py -v
 	@echo ""
 	@echo "Demo complete. See audit_artifacts/spec_facts_audit.md for the 8 reconciled claims."
+
+# =============================================================================
+# Demo v1.1.x: integration smoke test + frozen artifact (BRECHA 5)
+# Plan v1.2 Block 4 v1.1.0.x+1+4 — closes auditor-4 BRECHA 5.
+# =============================================================================
+
+demo-v1.1.x:
+	@echo "==> Running TrustLayer v1.1.x integration smoke test"
+	@echo "    Generates vertical slice + captures frozen artifact to"
+	@echo "    audit_artifacts/smoke_test/v1.1.x_output.txt"
+	@echo "    Includes openssl ts -verify output (CRÍTICO 1 closure evidence)"
+	@echo ""
+	@bash scripts/run_smoke_v1_1_x.sh
+	@echo ""
+	@echo "Smoke test artifact frozen at audit_artifacts/smoke_test/v1.1.x_output.txt"
+	@echo "sha256: $$(sha256sum audit_artifacts/smoke_test/v1.1.x_output.txt | awk '{print $$1}')"
 
 # =============================================================================
 # Build

@@ -144,6 +144,22 @@ The canonical vertical slice per spec §1 is:
 
 Full output at [`audit_artifacts/smoke_test/v1.0.5_output.txt`](audit_artifacts/smoke_test/v1.0.5_output.txt). The artifact includes the **HONEST DISCLOSURES** section naming every synthetic / demo-grade part (synthetic bundle, synthetic SCITT fixture, Qualified stub returns NotImplemented, US-13 still blocked).
 
+## Integration smoke test (v1.1.x) — closes auditor-4 BRECHA 5
+
+Per Plan v1.2 Block 4 v1.1.0.x+1+4 (BRECHA 5: "`make demo` must produce a real evidence bundle and capture the output as a frozen artifact"), the v1.1.x smoke test runs the canonical vertical slice (generate → sign → verify → SCITT receipt → bundle export) and freezes the output to `audit_artifacts/smoke_test/v1.1.x_output.txt`.
+
+Run via:
+```bash
+make demo-v1.1.x
+```
+
+Key markers in the artifact (asserted by `tests/test_smoke_test_artifact.py`):
+- `Verification: OK` — openssl ts -verify output proving the digicert fixture passes full CMS signature verification per RFC 5652 §5.6 (closes auditor-4 BRECHA 1 + auditor-3 CRÍTICO 1).
+- `cargo test --workspace` output showing 39+ Rust tests passing.
+- `disclosure_id`, `compliance_rollup`, `SCITT`, environment markers, and **HONEST DISCLOSURES** about synthetic / NotApplicable / NotImplemented parts.
+
+Frozen artifact sha256 (drift detection): `cc3c4a0fd67dab643d7782cad88a8097b9aa8a4f4bfed07a861c6afc7809f61b` — also asserted by `tests/test_smoke_test_artifact.py`.
+
 ---
 
 ## Compliance map

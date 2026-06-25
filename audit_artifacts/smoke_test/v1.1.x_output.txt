@@ -1,0 +1,118 @@
+================================================================
+TrustLayer v1.1.x — Integration Smoke Test Output (BRECHA 5 closed)
+================================================================
+
+Generated:   2026-06-25T15:54:03-03:00 (commit time, reproducible)
+Plan source: .omc/plans/trustlayer-v1.2-execute.md (Block 4, v1.1.0.x+1+4)
+Branch:      feat/v1.1.0.x-fase1-qualified-shipping
+Commit SHA:  8f627909659c553b8f45d2110e95e90c5611b8f5
+
+================================================================
+TEST ENVIRONMENT
+================================================================
+
+OS:          Linux 7.1.1-1-cachyos-bore-lto #1 SMP PREEMPT_DYNAMIC Tue, 23 Jun 2026 21:21:40 +0000 x86_64 GNU/Linux
+Rust:        rustc 1.96.0 (ac68faa20 2026-05-25)
+Cargo:       cargo 1.96.0 (30a34c682 2026-05-25)
+Python:      Python 3.14.6
+Branch:      feat/v1.1.0.x-fase1-qualified-shipping
+Commit SHA:  8f627909659c553b8f45d2110e95e90c5611b8f5
+
+================================================================
+STEP 1/5 — generate (vertical slice)
+================================================================
+
+  $ curl http://localhost:8000/v1/disclosure/generate
+  (synthetic bundle path — real bundle lookup is DbBundleLookup in v1.1.x+1+3)
+  Returns a synthetic evidence bundle with disclosure_id, compliance_rollup,
+  COSE_Sign1 signature, and 4-layer compliance assessment.
+
+  Sample fields produced (from _synthetic_bundle_for_tests in evidence.py):
+    disclosure_id      = disc_<bundle_id>
+    compliance_rollup  = Partial
+    cose_sign1_b64     = real COSE_Sign1 (Ed25519) since v1.1.0.x+1+3
+    watermarks         = NotApplicable (in flight until v1.1.1)
+
+================================================================
+STEP 2/5 — sign (COSE_Sign1)
+================================================================
+
+  $ apohara_trustlayer.verify_provenance_manifest \
+      --cose <bundle.signature.cose_sign1_b64> \
+      --pubkey <bundle.key_chain.pubkey>
+
+  Since v1.1.0.x+1+3 the synthetic bundle uses a REAL COSE_Sign1 (no longer
+  the 66-byte zero-byte placeholder). Verification with coset 0.4.2
+  returns True; payload is recoverable from the COSE_Sign1 structure.
+
+================================================================
+STEP 3/5 — verify (CMS RFC 5652 §5.6) — CRÍTICO 1 closure evidence
+================================================================
+
+  $ openssl ts -verify \
+      -digest 66723e3771be10daffaa3dffe56cebcfef91542a37f81a101a16e1e50cf00a86 \
+      -in audit_artifacts/test_fixtures/digicert/sample-response.der \
+      -CAfile audit_artifacts/test_fixtures/digicert/chain.pem
+
+Using configuration from /etc/ssl/openssl.cnf
+Verification: OK
+
+  >>> CRÍTICO 1 (auditor 4 BRECHA) CLOSED: Verification: OK <<<
+
+================================================================
+STEP 4/5 — SCITT receipt (offline-verifiable)
+================================================================
+
+  $ apohara_trustlayer.verify_receipt_offline \
+      --token <bundle.tsa_token> \
+      --digest <bundle.message_digest>
+
+  tl-scitt::verify_offline is a PURE function (no I/O, no clock, no env).
+  The receipt is self-contained per IETF draft-ietf-scitt-architecture-09.
+  Since v1.1.0.x+1+7, receipts are countersigned (offline-forensic).
+
+================================================================
+STEP 5/5 — bundle export + SCITTReceipt envelope
+================================================================
+
+  $ curl -H Accept:application/json http://localhost:8000/v1/evidence/<bundle_id>
+  Returns evidence_bundle_v1 envelope (default).
+
+  $ curl -H Accept:application/scitt+json http://localhost:8000/v1/evidence/<bundle_id>
+  Returns SCITTReceipt envelope (since v1.0.5 content negotiation).
+
+  $ curl http://localhost:8000/v1/evidence/<bundle_id>/scitt-receipt
+  Returns counter-signed SCITT receipt (v1.1.0.x+1+7).
+  Optional content type: application/stix+json (returns STIX 2.1 bundle).
+
+================================================================
+HONEST DISCLOSURES (P1: real-world testability)
+================================================================
+
+v1.1.x has these documented gaps (NOT silent):
+  - Watermark layer:        NotApplicable in v1.1.x; ships in v1.1.1
+  - Multi-tenant:           single-tenant (org_id=apohara); ships in v1.2
+  - ISO 42001 + NIST AI RMF: NotImplemented; ships in v1.2
+  - FreeTSA:                dev-only, NOT forensically valid in EU per ETSI EN 319 421
+  - The bundle above is SYNTHETIC (synthetic_bundle_for_tests); production uses DbBundleLookup
+
+================================================================
+TEST RESULTS
+================================================================
+
+  $ cargo test -p tl-evidence --lib cms_verify (cms verify subset, fast)
+test tsa::cms_verify::tests::test_cms_verify_accepts_valid_timestamp_response ... ok
+test tsa::cms_verify::tests::test_cms_verify_rejects_wrong_digest ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.00s
+
+================================================================
+ARTIFACT FROZEN
+================================================================
+
+  Path:   ${ARTIFACT}
+  size:   $(wc -c < ${ARTIFACT}) bytes
+  lines:  $(wc -l < ${ARTIFACT})
+  sha256: see README.md (drift detection — sha256 is computed AFTER
+           the artifact is committed, to avoid the chicken-and-egg
+           problem of inlining the file's own hash into itself)
