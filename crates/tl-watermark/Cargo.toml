@@ -1,0 +1,32 @@
+[package]
+name = "tl-watermark"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+authors = ["Pablo M. Suarez <suarezpm@csat.unt.edu.ar>"]
+description = "Watermarking hooks for EU AI Act Art. 50(3) compliance (c2pa-rs, AudioSeal, Kirchenbauer)"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+sha2 = "0.10"
+blake3 = "1"
+# c2pa-rs is the production-grade C2PA implementation. We use it as
+# the underlying library for the C2paWatermark adapter (subprocess
+# to `c2patool` is the fallback for sandboxes that disallow pulling
+# in heavy C dependencies).
+c2pa = { version = "0.36", optional = true }
+# AudioSeal is Meta's audio watermarking library. We bind via FFI in
+# production; for tests we use a stub implementation.
+# Kirchenbauer et al. (2023) text watermarking is implemented in pure
+# Rust (no FFI needed).
+
+[features]
+default = []
+# Enable the c2pa-rs dependency when not using subprocess mode.
+c2pa-rs = ["dep:c2pa"]
+
+[dev-dependencies]
+hex = "0.4"
