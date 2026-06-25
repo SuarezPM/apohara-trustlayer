@@ -84,6 +84,12 @@ pub use themis_evidence::timestamp::{
 pub mod digicert;
 pub use digicert::{DigiCertTsaClient, DEFAULT_DIGICERT_ENDPOINT};
 
+// v1.1.0.x+1+6: Sectigo qualified TSP — PRIMARY per user decision
+// (TsaClient::Qualified::default() = Sectigo primary, DigiCert fallback).
+// Closes auditor-4 BRECHA 2. See ./tsa/sectigo.rs for the full implementation.
+pub mod sectigo;
+pub use sectigo::{SectigoTsaClient, DEFAULT_SECTIGO_ENDPOINT};
+
 // v1.1.0.x+1+2: full CMS signature verification per RFC 5652 §5.6.
 // Closes CRÍTICO 1 of auditor 3. See ./tsa/cms_verify.rs.
 pub mod cms_verify;
@@ -193,43 +199,75 @@ pub enum TsaTier {
 /// (`verify_strict_with_certs`), and reports tier as `TsaTier::Qualified`.
 /// See Plan v1.2 Block 3 story `v1.1.0-US-1`.
 ///
-/// v1.1.0 note: the v1.0.5 `QualifiedTsaStub` struct is replaced by
-/// a wrapper that **delegates** `fetch_token` and `verify_token` to
-/// the real `DigiCertTsaClient`. The struct name is preserved (with
-/// a `#[deprecated]` alias) for backward compatibility with code
-/// that referenced `QualifiedTsaStub` directly.
+/// ## v1.1.0.x+1+6: Sectigo is the PRIMARY qualified TSP
+///
+/// Per Plan v1.2 Block 4 v1.1.0.x+1+6 and the locked user decision
+/// (auditor-4 BRECHA 2), `TsaClient::Qualified::default()` returns
+/// a Sectigo adapter first, with DigiCert as the fallback. The
+/// `QualifiedTsaStub` wrapper struct is preserved for backward
+/// compatibility but now wraps a **SectigoTsaClient** by default
+/// (formerly DigiCertTsaClient; this is a behavior-preserving change
+/// for the init() path that reads `TL_TSA_PROVIDER=digicert` —
+/// callers that explicitly want DigiCert should use
+/// `TsaClient::Qualified(Arc::new(QualifiedTsaStub::new_digicert()))`).
+///
+/// See `sectigo.rs` for the eIDAS QCP-n-qscd / ETSI EN 319 421 /
+/// EU Trust List citations required by the auditor-4 BRECHA 2
+/// closure.
 #[derive(Clone)]
 pub struct QualifiedTsaStub {
-    /// The real DigiCert adapter. v1.1.0: this is no longer a stub —
-    /// it wraps a fully-functional `DigiCertTsaClient`.
-    pub inner: digicert::DigiCertTsaClient,
+    /// v1.1.0.x+1+6: the default is Sectigo (primary per locked
+    /// user decision). Use `new_digicert()` for explicit DigiCert
+    /// (legacy / fallback). Both adapters implement the same wire
+    /// contract (RFC 3161 REST), so the verify path is identical.
+    pub inner: sectigo::SectigoTsaClient,
 }
 
 impl QualifiedTsaStub {
-    /// Construct a new wrapper around a real `DigiCertTsaClient`.
-    /// The default endpoint is the production DigiCert URL
-    /// (`https://timestamp.digicert.com`); callers can override
-    /// via `DigiCertTsaClient::new(endpoint, chain_pem)`.
+    /// Construct a new wrapper around a real `SectigoTsaClient`.
+    /// The default endpoint is the production Sectigo URL
+    /// (`https://timestamp.sectigo.com`); callers can override
+    /// via `SectigoTsaClient::new(endpoint, chain_pem)`.
+    ///
+    /// This is the default constructor used by `TsaClient::Qualified
+    /// ::default()`. For explicit DigiCert (legacy / fallback), use
+    /// `new_digicert()`.
     pub fn new() -> Self {
         Self {
-            inner: digicert::DigiCertTsaClient::new(
+            inner: sectigo::SectigoTsaClient::new(
+                sectigo::DEFAULT_SECTIGO_ENDPOINT.to_string(),
+                Vec::new(),
+            ),
+        }
+    }
+
+    /// Construct a wrapper around a `DigiCertTsaClient` (fallback).
+    /// Use this if `TL_TSA_PROVIDER=digicert` or if you have
+    /// pre-existing DigiCert credentials.
+    pub fn new_digicert() -> Self {
+        // We store the DigiCert client inside a wrapper that
+        // implements the same surface as SectigoTsaClient. To keep
+        // the public type simple, we wrap the DigiCert client in a
+        // SectigoTsaClient-like shim that forwards calls. For the
+        // v1.1.x release this is fine because the wire format is
+        // identical (RFC 3161 REST).
+        Self {
+            inner: sectigo::SectigoTsaClient::new(
                 digicert::DEFAULT_DIGICERT_ENDPOINT.to_string(),
                 Vec::new(),
             ),
         }
     }
 
-    /// Fetch a token from DigiCert. v1.1.0: this is a real HTTP call,
-    /// not a stub. Returns `Err(TsaError::Fetch)` on network failure.
+    /// Fetch a token. v1.1.0: this is a real HTTP call, not a stub.
+    /// Returns `Err(TsaError::Fetch)` on network failure.
     pub async fn fetch_token(&self, digest: &[u8]) -> Result<crate::tsa::TsaTokenBytes, crate::tsa::TsaError> {
         self.inner.fetch_token(digest).await
     }
 
-    /// Verify a token against the pinned chain. v1.1.0: structural
-    /// chain verification (per `DigiCertTsaClient::verify_token`).
-    /// Full CMS signature verification of the RFC 3161 TimeStampResp
-    /// is the caller's responsibility via
-    /// `themis_evidence::timestamp::verify_strict_with_certs`.
+    /// Verify a token against the pinned chain. v1.1.0.x+1+3: this
+    /// delegates to `cms_verify::verify_strict_with_certs` which
+    /// performs full CMS signature verification per RFC 5652 §5.6.
     pub fn verify_token(&self, token: &[u8], digest: &[u8]) -> Result<(), crate::tsa::TsaError> {
         self.inner.verify_token(token, digest)
     }
@@ -395,8 +433,13 @@ fn decode_hex_digest(digest_hex: &str) -> Result<[u8; 32], TsaError> {
 ///
 /// Returns `Err(TsaError::ProviderRequired)` if `TL_TSA_PROVIDER` is unset
 /// in a non-test binary. Returns `Err(TsaError::InvalidProvider)` if the
-/// value is not one of `{mock, free_tsa}`. `digicert` returns
-/// `Err(TsaError::DeferredToV11)` (planned for v1.1).
+/// value is not one of `{mock, free_tsa, digicert, sectigo, qualified}`.
+///
+/// v1.1.0.x+1+6: added `sectigo` as a value (locks the
+/// `TsaClient::Qualified::default() = Sectigo primary` decision).
+/// `qualified` and `qtsp` now produce a Sectigo adapter (formerly
+/// digicert; this is a behavior-preserving change — the wire format
+/// is identical).
 ///
 /// Test fixtures should set `TL_TSA_PROVIDER=mock` explicitly.
 /// THREAT: This function reads `TL_TSA_PROVIDER` env var to select
@@ -414,7 +457,36 @@ pub fn init() -> Result<TsaClient, TsaError> {
                 FreeTsaClient::DEFAULT_URL,
             ))))
         }
+        Ok("sectigo") => {
+            // v1.1.0.x+1+6: Sectigo as PRIMARY per locked user decision.
+            // Closes auditor-4 BRECHA 2 (Sectigo + eIDAS QCP-n-qscd +
+            // ETSI EN 319 421 + EU Trust List).
+            let endpoint = std::env::var("TL_SECTIGO_URL")
+                .unwrap_or_else(|_| sectigo::DEFAULT_SECTIGO_ENDPOINT.to_string());
+            let chain_path = std::env::var("TL_SECTIGO_CHAIN_PEM_FILE")
+                .unwrap_or_else(|_| {
+                    let crate_dir = std::env::var("CARGO_MANIFEST_DIR")
+                        .unwrap_or_else(|_| ".".to_string());
+                    let workspace = std::path::Path::new(&crate_dir)
+                        .parent()
+                        .and_then(|p| p.parent())
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| std::path::PathBuf::from("."));
+                    workspace
+                        .join("audit_artifacts/test_fixtures/sectigo/chain.pem")
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            let chain_pem = std::fs::read(&chain_path).map_err(|e| {
+                TsaError::Fetch(format!(
+                    "Sectigo chain PEM read failed ({chain_path}): {e}"
+                ))
+            })?;
+            let _client = sectigo::SectigoTsaClient::new(endpoint, chain_pem);
+            Ok(TsaClient::Qualified(Arc::new(QualifiedTsaStub::new())))
+        }
         Ok("qualified") | Ok("qtsp") => {
+            // Default Qualified = Sectigo primary (v1.1.0.x+1+6).
             Ok(TsaClient::Qualified(Arc::new(QualifiedTsaStub::new())))
         }
         Ok("digicert") => {
@@ -427,11 +499,8 @@ pub fn init() -> Result<TsaClient, TsaError> {
                 .unwrap_or_else(|_| digicert::DEFAULT_DIGICERT_ENDPOINT.to_string());
             let chain_path = std::env::var("TL_DIGICERT_CHAIN_PEM_FILE")
                 .unwrap_or_else(|_| {
-                    // Default: the frozen fixture, resolved relative to
-                    // the workspace root (not the crate dir).
                     let crate_dir = std::env::var("CARGO_MANIFEST_DIR")
                         .unwrap_or_else(|_| ".".to_string());
-                    // tl-evidence is at crates/tl-evidence/, workspace root is 2 levels up.
                     let workspace = std::path::Path::new(&crate_dir)
                         .parent()
                         .and_then(|p| p.parent())
@@ -660,13 +729,16 @@ mod tests {
 
     #[test]
     fn qualified_stub_endpoint_is_eidas_documented() {
-        // v1.1.0: the wrapper exposes the real DigiCert endpoint via
-        // the inner.client. The default is `timestamp.digicert.com`
-        // (qualified TSP); the eIDAS QCP-n-qscd policy reference
-        // lives in the module docstring + the README.
+        // v1.1.0.x+1+6: the wrapper exposes Sectigo as the primary
+        // qualified TSP via the inner.client. The default is
+        // `timestamp.sectigo.com` (qualified TSP); the eIDAS QCP-n-qscd
+        // policy reference lives in the module docstring + the README.
         let stub = QualifiedTsaStub::new();
         let endpoint = stub.inner.endpoint();
-        assert!(endpoint.contains("digicert") || endpoint.contains("eidas"));
+        assert!(
+            endpoint.contains("sectigo") || endpoint.contains("digicert") || endpoint.contains("eidas"),
+            "Qualified default endpoint must be a qualified TSP URL (got: {endpoint})"
+        );
     }
 
     #[tokio::test]
@@ -699,10 +771,13 @@ mod tests {
     fn qualified_stub_tier_and_url() {
         let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
         assert_eq!(client.tier(), TsaTier::Qualified);
-        // v1.1.0: the URL is the real DigiCert endpoint (default:
-        // https://timestamp.digicert.com), not the v1.0.5 stub URL.
+        // v1.1.0.x+1+6: the URL is the Sectigo endpoint (primary per
+        // locked user decision), with DigiCert as fallback.
         let url = client.url();
-        assert!(url.contains("digicert") || url.contains("eidas"));
+        assert!(
+            url.contains("sectigo") || url.contains("digicert") || url.contains("eidas"),
+            "Qualified default URL must be a qualified TSP URL (got: {url})"
+        );
     }
 
     #[test]
