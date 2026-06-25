@@ -2,10 +2,10 @@
 TrustLayer v1.1.x — Integration Smoke Test Output (BRECHA 5 closed)
 ================================================================
 
-Generated:   2026-06-25T15:54:03-03:00 (commit time, reproducible)
+Generated:   2026-06-25T18:40:51-03:00 (commit time, reproducible)
 Plan source: .omc/plans/trustlayer-v1.2-execute.md (Block 4, v1.1.0.x+1+4)
 Branch:      feat/v1.1.0.x-fase1-qualified-shipping
-Commit SHA:  8f627909659c553b8f45d2110e95e90c5611b8f5
+Commit SHA:  ba08238895bf48e1979925193e55c78ac10b38cb
 
 ================================================================
 TEST ENVIRONMENT
@@ -16,7 +16,7 @@ Rust:        rustc 1.96.0 (ac68faa20 2026-05-25)
 Cargo:       cargo 1.96.0 (30a34c682 2026-05-25)
 Python:      Python 3.14.6
 Branch:      feat/v1.1.0.x-fase1-qualified-shipping
-Commit SHA:  8f627909659c553b8f45d2110e95e90c5611b8f5
+Commit SHA:  ba08238895bf48e1979925193e55c78ac10b38cb
 
 ================================================================
 STEP 1/5 — generate (vertical slice)
@@ -104,7 +104,7 @@ TEST RESULTS
 test tsa::cms_verify::tests::test_cms_verify_accepts_valid_timestamp_response ... ok
 test tsa::cms_verify::tests::test_cms_verify_rejects_wrong_digest ... ok
 
-test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 46 filtered out; finished in 0.00s
 
 ================================================================
 ARTIFACT FROZEN

@@ -23,6 +23,11 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 x509-parser = "0.16"
 # base64 for digest encoding in fetch_token.
 base64 = "0.22"
+# v1.1.0.x+1+8: HMAC chain from chain root + tenant_id (closes auditor-4
+# prior-art port from apohara-probant). The HMAC chain is decoupled
+# from the COSE signer key.
+hmac = "0.12"
+sha2 = "0.10"
 # v1.1.0.x+1+2: full CMS signature verification per RFC 5652 §5.6.
 # Used in tsa::cms_verify::verify_strict_with_certs (closes CRÍTICO 1 of auditor 3).
 # Production-grade crate used by apple-codesign and pdf_oxide.

@@ -158,7 +158,7 @@ Key markers in the artifact (asserted by `tests/test_smoke_test_artifact.py`):
 - `cargo test --workspace` output showing 39+ Rust tests passing.
 - `disclosure_id`, `compliance_rollup`, `SCITT`, environment markers, and **HONEST DISCLOSURES** about synthetic / NotApplicable / NotImplemented parts.
 
-Frozen artifact sha256 (drift detection): `cc3c4a0fd67dab643d7782cad88a8097b9aa8a4f4bfed07a861c6afc7809f61b` — also asserted by `tests/test_smoke_test_artifact.py`.
+Frozen artifact sha256 (drift detection): `c693f2f95fddf3c7aceb9ff42a489a17d4a34311e9350f3eee86dd0e26a35b88` — also asserted by `tests/test_smoke_test_artifact.py`.
 
 ---
 
