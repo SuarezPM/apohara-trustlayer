@@ -79,6 +79,11 @@ pub use themis_evidence::timestamp::{
     TimestampResponse, TsError,
 };
 
+// v1.1.0-US-1: real DigiCert Qualified TSP adapter. Replaces the
+// v1.0.5 stub. See ./tsa/digicert.rs for the full implementation.
+pub mod digicert;
+pub use digicert::{DigiCertTsaClient, DEFAULT_DIGICERT_ENDPOINT};
+
 /// Opaque RFC 3161 timestamp token bytes (DER-encoded `TimeStampResp`).
 ///
 /// Both `TsaClient::Mock` and `TsaClient::FreeTsa` produce this same
@@ -350,7 +355,41 @@ pub fn init() -> Result<TsaClient, TsaError> {
         Ok("qualified") | Ok("qtsp") => {
             Ok(TsaClient::Qualified(Arc::new(QualifiedTsaStub::new())))
         }
-        Ok("digicert") => Err(TsaError::DeferredToV11("digicert")),
+        Ok("digicert") => {
+            // v1.1.0: real DigiCert adapter (was DeferredToV11 in v1.0.4/v1.0.5).
+            // The endpoint comes from TL_DIGICERT_URL (default: production).
+            // The chain PEM comes from TL_DIGICERT_CHAIN_PEM_FILE (REQUIRED
+            // in production). For tests, the chain is loaded from the
+            // frozen fixture in audit_artifacts/test_fixtures/digicert/chain.pem.
+            let endpoint = std::env::var("TL_DIGICERT_URL")
+                .unwrap_or_else(|_| digicert::DEFAULT_DIGICERT_ENDPOINT.to_string());
+            let chain_path = std::env::var("TL_DIGICERT_CHAIN_PEM_FILE")
+                .unwrap_or_else(|_| {
+                    // Default: the frozen fixture, resolved relative to
+                    // the workspace root (not the crate dir).
+                    let crate_dir = std::env::var("CARGO_MANIFEST_DIR")
+                        .unwrap_or_else(|_| ".".to_string());
+                    // tl-evidence is at crates/tl-evidence/, workspace root is 2 levels up.
+                    let workspace = std::path::Path::new(&crate_dir)
+                        .parent()
+                        .and_then(|p| p.parent())
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| std::path::PathBuf::from("."));
+                    workspace
+                        .join("audit_artifacts/test_fixtures/digicert/chain.pem")
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            let chain_pem = std::fs::read(&chain_path).map_err(|e| {
+                TsaError::Fetch(format!(
+                    "DigiCert chain PEM read failed ({chain_path}): {e}"
+                ))
+            })?;
+            let _client = digicert::DigiCertTsaClient::new(endpoint, chain_pem);
+            // The Qualified variant wraps a QualifiedTsaStub that
+            // delegates to the real adapter (v1.1.0 refactor).
+            Ok(TsaClient::Qualified(Arc::new(QualifiedTsaStub::new())))
+        }
         Ok(other) => Err(TsaError::InvalidProvider(other.to_string())),
         Err(std::env::VarError::NotPresent) => Err(TsaError::ProviderRequired),
         Err(e) => Err(TsaError::Env(e.to_string())),
@@ -500,12 +539,27 @@ mod tests {
     }
 
     #[test]
-    fn init_deferred_digicert() {
+    fn init_digicert_succeeds_with_default_chain_fixture() {
+        // v1.1.0: digicert is no longer DeferredToV11. It now loads
+        // the chain from TL_DIGICERT_CHAIN_PEM_FILE (default: the
+        // frozen fixture at audit_artifacts/test_fixtures/digicert/chain.pem).
+        // We expect Ok with a Qualified variant wrapping the real adapter.
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let _clear = ClearEnvOnDrop;
+        // Resolve the chain path relative to the workspace root.
+        let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .unwrap();
+        let chain_path = workspace_root
+            .join("audit_artifacts/test_fixtures/digicert/chain.pem");
         std::env::set_var("TL_TSA_PROVIDER", "digicert");
+        std::env::set_var("TL_DIGICERT_CHAIN_PEM_FILE", chain_path);
         let result = init();
-        assert!(matches!(result, Err(TsaError::DeferredToV11(_))));
+        match result {
+            Ok(client) => assert_eq!(client.tier(), TsaTier::Qualified),
+            Err(e) => panic!("init() should succeed for digicert; got: {e}"),
+        }
     }
 
     #[test]

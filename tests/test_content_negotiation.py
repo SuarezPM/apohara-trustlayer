@@ -37,15 +37,48 @@ from app.api.evidence import SUPPORTED_TYPES  # noqa: E402
 def _make_client():
     """Build a TestClient for the FastAPI app.
 
-    Avoids importing `app.main` (which calls `get_settings()` and
-    may require env vars). We build a minimal FastAPI app with just
-    the evidence router.
+    v1.1.0 (US-12): the evidence route now requires a BundleLookup.
+    We inject an InMemoryBundleLookup that auto-creates a synthetic
+    bundle on lookup miss, so the 200-path tests work for any
+    bundle_id used in this file. The auto-create is a TEST-ONLY
+    fallback (the production path returns 404 on miss).
     """
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from app.api.evidence import router as evidence_router
+    from app.api.evidence import (
+        BundleLookup,
+        InMemoryBundleLookup,
+        get_bundle_lookup,
+        router as evidence_router,
+    )
+
+    class AutoCreateLookup(BundleLookup):
+        """Test-only lookup that creates a synthetic bundle on miss."""
+
+        def lookup(self, bundle_id: str):
+            synthetic = InMemoryBundleLookup._synthetic_bundle_for_tests(bundle_id)
+            return synthetic
 
     app = FastAPI()
+    app.include_router(evidence_router, prefix="/v1")
+    app.dependency_overrides[get_bundle_lookup] = lambda: AutoCreateLookup()
+    return TestClient(app)
+
+
+def _make_empty_client():
+    """TestClient for the 404 + 406 paths (no bundles injected)."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.api.evidence import (
+        InMemoryBundleLookup,
+        get_bundle_lookup,
+        router as evidence_router,
+    )
+
+    lookup = InMemoryBundleLookup()  # empty
+    app = FastAPI()
+    app.state.bundle_lookup = lookup
+    app.dependency_overrides[get_bundle_lookup] = lambda: lookup
     app.include_router(evidence_router, prefix="/v1")
     return TestClient(app)
 
