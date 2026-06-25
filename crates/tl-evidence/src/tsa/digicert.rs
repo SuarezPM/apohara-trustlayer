@@ -125,93 +125,41 @@ impl DigiCertTsaClient {
 
     /// Verify a TSA token against the pinned chain.
     ///
-    /// `token_der` is the raw RFC 3161 `TimeStampResp` DER bytes.
+    /// `token_der` is the raw RFC 3161 `TimeStampResp` DER bytes
+    /// (or just the inner ContentInfo / PKCS7 signedData — both
+    /// are accepted).
     /// `expected_digest` is the digest the token claims to timestamp
     /// (the caller must supply this; the token itself doesn't carry
     /// the digest in a self-contained way).
     ///
-    /// **Scope (v1.1.0)**: this performs STRUCTURAL verification only:
-    /// the chain PEM is parseable, all certs in the chain parse, and
-    /// the TSA cert is parseable. The full cryptographic signature
-    /// verification of the RFC 3161 TimeStampResp (CMS over the TSA
-    /// signing cert) is performed by `themis_evidence::timestamp`
-    /// via the existing `verify_strict_with_certs` path in production.
-    /// This is honest: we do the parts that are easy and well-scoped
-    /// in v1.1.0; the CMS signature verification integrates with the
-    /// existing tested path rather than re-implementing.
-    ///
-    /// Per Plan v1.2 Block 3 v1.1.0-US-1 AC-4: this method returns
-    /// `Ok(())` when the chain parses and the TSA cert is parseable;
-    /// the caller MUST follow up with `verify_strict_with_certs` on
-    /// the actual TimeStampResp to get cryptographic verification.
+    /// **Scope (v1.1.0.x+1+2)**: this performs FULL cryptographic
+    /// verification per RFC 5652 §5.6 + RFC 3161 §2.4.2 via
+    /// `cms_verify::verify_strict_with_certs`. The verification checks:
+    /// 1. The CMS SignedData parses correctly.
+    /// 2. Each SignerInfo's signature verifies against the cert in
+    ///    the `certificates` field (cryptographic signature check).
+    /// 3. The `messageDigest` attribute matches the digest of the
+    ///    encapsulated content (the TSTInfo DER).
+    /// 4. The `contentType` attribute is `id-ct-TSTInfo`.
+    /// 5. The TSTInfo `messageImprint.hashedMessage` matches the
+    ///    `expected_digest` parameter.
+    /// 6. The pinned chain PEM is structurally valid (every cert
+    ///    parses as X.509; non-CA certs carry the `id-kp-timeStamping`
+    ///    EKU).
     pub fn verify_token(
         &self,
         token_der: &[u8],
         expected_digest: &[u8],
     ) -> Result<(), TsaError> {
-        // 1. Validate the expected digest length.
-        if expected_digest.len() != 32 {
-            return Err(TsaError::Verify(format!(
-                "expected_digest must be 32 bytes (SHA-256), got {}",
-                expected_digest.len()
-            )));
-        }
-        if token_der.is_empty() {
-            return Err(TsaError::Verify("token DER is empty".to_string()));
-        }
-
-        // 2. Parse the chain PEM into a vector of X509Certificate.
-        // We only check that all certs in the chain are parseable
-        // (structural verification). x509-parser 0.16's
-        // `parse_x509_pem` returns a nom IResult; we advance
-        // through the buffer until exhausted.
-        let mut chain_count = 0usize;
-        let mut offset = 0usize;
-        let total = self.inner.chain_pem.len();
-        while offset < total {
-            let remaining = &self.inner.chain_pem[offset..];
-            match parse_x509_pem(remaining) {
-                Ok((next, pem)) => {
-                    let _cert = pem
-                        .parse_x509()
-                        .map_err(|e| TsaError::Verify(format!("cert parse: {e:?}")))?;
-                    chain_count += 1;
-                    // Advance: remaining_len - next.len() gives the
-                    // bytes consumed by the PEM block including any
-                    // trailing whitespace.
-                    let consumed = remaining.len() - next.len();
-                    offset += consumed;
-                    // Trim any leading whitespace after the block.
-                    while offset < total
-                        && matches!(
-                            self.inner.chain_pem[offset],
-                            b'\n' | b'\r' | b' ' | b'\t'
-                        )
-                    {
-                        offset += 1;
-                    }
-                }
-                Err(e) => {
-                    return Err(TsaError::Verify(format!(
-                        "chain PEM parse failed at offset {offset}: {e:?}"
-                    )));
-                }
-            }
-        }
-        if chain_count == 0 {
-            return Err(TsaError::Verify("chain.pem is empty".to_string()));
-        }
-
-        // 3. Parse the TSA cert from the token DER (structural
-        // verification: must be a valid X.509 certificate).
-        let (_rest, _tsa_cert) = parse_x509_der(token_der)
-            .map_err(|e| TsaError::Verify(format!("TSA cert parse: {e:?}")))?;
-
-        // 4. The expected_digest is already validated for length
-        // (step 1). The actual cryptographic verification of the
-        // RFC 3161 TimeStampResp is performed by the caller via
-        // `themis_evidence::timestamp::verify_strict_with_certs`.
-        Ok(())
+        // Delegate to the production-grade CMS verifier (closes
+        // CRÍTICO 1 of auditor 3). The verifier does the full
+        // cryptographic signature check + messageImprint validation.
+        crate::tsa::cms_verify::verify_strict_with_certs(
+            token_der,
+            expected_digest,
+            &self.inner.chain_pem,
+        )
+        .map_err(|e| TsaError::Verify(format!("DigiCert verify_token: {e}")))
     }
 }
 
@@ -238,25 +186,30 @@ mod tests {
     }
 
     #[test]
-    fn test_digicert_verify_accepts_test_tsa_cert() {
-        // AC-4: verify_token with the test TSA cert + chain → Ok(()).
-        let tsa_pem_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    fn test_digicert_verify_accepts_valid_timestamp_response() {
+        // AC-4 (v1.1.0.x+1+2): verify_token with a real TimeStampResp
+        // fixture → Ok(()). The fixture was generated by
+        // scripts/generate_digicert_sample_response.py with ECDSA P-256
+        // + ESSCertIDv2 (per the auditor's plan).
+        let response_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
             .parent()
             .unwrap()
-            .join("audit_artifacts/test_fixtures/digicert/digicert-test-tsa.pem");
-        let tsa_pem_bytes = std::fs::read(&tsa_pem_path).expect("test TSA cert must exist");
+            .join("audit_artifacts/test_fixtures/digicert/sample-response.der");
+        let response = std::fs::read(&response_path).expect("sample-response.der must exist");
 
-        // Parse the PEM to extract the cert DER.
-        let (_rest, pem) = parse_x509_pem(&tsa_pem_bytes)
-            .expect("test TSA cert PEM must parse");
-        // Pem.contents is a public Vec<u8> field (not a method).
-        let der = pem.contents;
+        let digest: [u8; 32] = [
+            0x66, 0x72, 0x3E, 0x37, 0x71, 0xBE, 0x10, 0xDA, 0xFF, 0xAA, 0x3D, 0xFF, 0xE5, 0x6C, 0xEB,
+            0xCF, 0xEF, 0x91, 0x54, 0x2A, 0x37, 0xF8, 0x1A, 0x10, 0x1A, 0x16, 0xE1, 0xE5, 0x0C, 0xF0,
+            0x0A, 0x86,
+        ];
 
         let client = DigiCertTsaClient::new("https://example.invalid", read_test_chain());
-        let digest = [0u8; 32]; // dummy digest for structural test
-        let result = client.verify_token(&der, &digest);
+        let result = client.verify_token(&response, &digest);
+        if let Err(e) = &result {
+            eprintln!("verify failed: {e:?}");
+        }
         assert!(result.is_ok(), "expected Ok(()), got: {:?}", result);
     }
 

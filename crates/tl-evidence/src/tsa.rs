@@ -84,6 +84,11 @@ pub use themis_evidence::timestamp::{
 pub mod digicert;
 pub use digicert::{DigiCertTsaClient, DEFAULT_DIGICERT_ENDPOINT};
 
+// v1.1.0.x+1+2: full CMS signature verification per RFC 5652 §5.6.
+// Closes CRÍTICO 1 of auditor 3. See ./tsa/cms_verify.rs.
+pub mod cms_verify;
+pub use cms_verify::{verify_strict_with_certs, CmsVerifyError};
+
 /// Opaque RFC 3161 timestamp token bytes (DER-encoded `TimeStampResp`).
 ///
 /// Both `TsaClient::Mock` and `TsaClient::FreeTsa` produce this same

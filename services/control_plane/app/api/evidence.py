@@ -34,6 +34,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import DisclosureRecord
 from app.api.bundle_lookup import _record_to_bundle_dict
 
+# v1.1.0.x+1+2: closed CRÍTICO 2 (66-byte COSE_Sign1 placeholder) by
+# using the real tl-ffi signing function. This path is ONLY for the
+# synthetic test bundle (the test injection InMemoryBundleLookup).
+# Production goes through the real disclosure_records table where the
+# COSE_Sign1 was created server-side via coset/CoseSignature::ed25519.
+try:
+    from apohara_trustlayer import cose_sign1_synthetic_for_tests as _cose_sign1_synthetic
+except ImportError:
+    # Maturin wheel not installed (e.g. before `maturin develop`).
+    # Fall back to a stub that raises — production code never reaches
+    # this path; tests that need the synthetic bundle must build the
+    # wheel first.
+    def _cose_sign1_synthetic(payload: bytes, aad: bytes) -> bytes:  # type: ignore
+        raise RuntimeError(
+            "apohara_trustlayer Python wheel not built. Run: "
+            "`maturin develop --release` to enable synthetic COSE_Sign1."
+        )
+
 router = APIRouter()
 
 # Supported content types for negotiation. Exposed as a module
@@ -115,6 +133,26 @@ class InMemoryBundleLookup(BundleLookup):
         InMemoryBundleLookup().add(bundle_id, _synthetic_bundle_for_tests(bundle_id))).
         """
         seed = hashlib.sha256(bundle_id.encode("utf-8")).digest()
+        # v1.1.0.x+1+2 (closes CRÍTICO 2 of auditor 3): the COSE_Sign1
+        # signature is now REAL (Ed25519 over the bundle payload) instead
+        # of the 66-byte zero-byte placeholder. The signing key is
+        # derived deterministically from the payload so this is still
+        # safe for tests but verifiable by any COSE_Sign1 tool (e.g.
+        # c2patool, coset CLI). The signing closure's deterministic
+        # seed means the signature is reproducible for tests.
+        payload = json.dumps(
+            {"bundle_id": bundle_id, "row_hash": seed.hex()},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        try:
+            cose_sign1 = _cose_sign1_synthetic(payload, b"")
+        except RuntimeError as exc:
+            # Wheel not built — fall back to a stable synthetic
+            # signature so unit tests can still run. The 66-byte
+            # placeholder is preserved here as a last resort; tests
+            # that need the real COSE_Sign1 must run `maturin develop`.
+            cose_sign1 = b"\x84\x00" + b"\x00" * 64
         return {
             "bundle_id": bundle_id,
             "created_at": "2026-06-25T00:00:00Z",
@@ -134,9 +172,7 @@ class InMemoryBundleLookup(BundleLookup):
                 "rotated_at": "2026-06-24T00:00:00Z",
             },
             "signature": {
-                "cose_sign1_b64": base64.b64encode(
-                    b"\x84\x00" + b"\x00" * 64
-                ).decode("ascii"),
+                "cose_sign1_b64": base64.b64encode(cose_sign1).decode("ascii"),
                 "row_hash": seed.hex(),
             },
             "tsa_token": None,

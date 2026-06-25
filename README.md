@@ -214,7 +214,7 @@ compliant with Art. 50(3) until v1.1.1 ships.**
 | Regulation | Article | TrustLayer v1.0 status | Notes |
 |---|---|---|---|
 | EU AI Act | Art. 50(1)(a) (visible disclosure) | **Covered** | `disclosure_text` + `disclosure_html_widget` |
-| EU AI Act | Art. 50(2) (machine-readable provenance) | **Covered** (dev) | COSE_Sign1 envelope + RFC 3161 timestamp via FreeTSA. Production needs qualified TSP (v1.1.0) |
+| EU AI Act | Art. 50(2) (machine-readable provenance) | **Covered** (dev + production path) | COSE_Sign1 envelope + RFC 3161 timestamp via FreeTSA (dev) or DigiCert/Sectigo qualified TSP (production). **Full CMS signature verification per RFC 5652 §5.6 implemented** in `tl-evidence::cms_verify::verify_strict_with_certs` (closes auditor's CRÍTICO 1). |
 | EU AI Act | Art. 50(3) (watermark) | **NotApplicable** | Watermark hooks deferred to v1.1.1 (c2patool + AudioSeal). See "What TrustLayer v1.0 is NOT" below. |
 | EU AI Act | Art. 50(4) (labelling) | **Covered** | 4-layer compliance assessment + v1 disclaimers in every response |
 | DORA | Art. 19-20 (evidence pack) | **Partial** | `DORAEvidenceStrategy` stub with 6-check completion in v1.1.0 |

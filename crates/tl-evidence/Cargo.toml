@@ -23,6 +23,13 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 x509-parser = "0.16"
 # base64 for digest encoding in fetch_token.
 base64 = "0.22"
+# v1.1.0.x+1+2: full CMS signature verification per RFC 5652 §5.6.
+# Used in tsa::cms_verify::verify_strict_with_certs (closes CRÍTICO 1 of auditor 3).
+# Production-grade crate used by apple-codesign and pdf_oxide.
+cryptographic-message-syntax = "0.28"
+# bcder is used directly for BER decoding (re-exported by cryptographic-message-syntax
+# but we use it explicitly for Constructed::decode).
+bcder = "0.7"
 # NOTE: themis-compressor was incorrectly listed in plan v3.1 as the
 # RFC 3161 substrate. Reality: themis-compressor is LLMLingua-2
 # prompt compression. The actual RFC 3161 lives in themis-evidence::timestamp

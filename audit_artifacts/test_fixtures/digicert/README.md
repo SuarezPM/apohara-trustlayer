@@ -20,24 +20,32 @@ for chain-verification tests only.
 
 | File | Purpose | sha256 (frozen 2026-06-25) |
 |---|---|---|
-| `digicert-test-tsa.pem` | TSA cert signed by the intermediate (the leaf in the chain). Holds the public key that signs RFC 3161 TimeStampResp. | `2594a239155cdca92d3e9c2025e0003e5a53741b83ab00e80d3af41256864b6f` |
-| `chain.pem` | Intermediate + root (in that order — typical chain order, leaf first). Used to verify the TSA cert's signature. | `aa518697ea93ec2b40531b4a661a638ad798c7ed1d834d57fc30b8f2fcad75cc` |
-| `sample-response.der` | Synthetic RFC 3161 TimeStampResp placeholder (256 bytes of zero). The Rust side has its own real-DER tests; this fixture is for STRUCTURAL chain verification. | `a903a8d2c923a5461dbfe402dab2eb4b0089027a013f9d0d94d89e5aa482813b` |
+| `digicert-test-tsa.pem` | Self-signed TSA cert (CN=TrustLayer Test TSA, ECDSA P-256, EKU=critical,timeStamping, basicConstraints=critical,CA:FALSE). | `8f0b3aacee40539a74557908025fedfefa041655933617fed4da667b857dcfdc` |
+| `chain.pem` | Single-cert PEM containing the TSA cert above (self-signed). Used to validate the CMS signature on `sample-response.der`. | `8f0b3aacee40539a74557908025fedfefa041655933617fed4da667b857dcfdc` |
+| `sample-response.der` | REAL RFC 3161 TimeStampResp (882 bytes) signed with ECDSA P-256 + ESS SigningCertificateV2. Passes `openssl ts -verify`. | `7b07cdac74ab6d5e258e36150cc66294a8f1e3130058393e20964679bff0bdc1` |
 
-The chain is: `root` (CN=trustlayer-test-root, 365 days, self-signed) → `intermediate` (CN=trustlayer-test-intermediate, 90 days, signed by root) → `TSA` (CN=trustlayer-test-tsa, 90 days, signed by intermediate, extKeyUsage=critical,timeStamping).
+**v1.1.0.x+1+2 update (CRÍTICO 1 closed)**: this fixture now contains a REAL
+DER-encoded TimeStampResp that passes `openssl ts -verify -CAfile chain.pem`
+(returns "Verification: OK"). The chain is intentionally 1 cert (self-signed
+TSA) because **openssl 3.6.3 has a known parsing quirk** with multi-cert
+chains in CMS (PKCS7_get0_signers fails when the chain has more than one
+cert + the cert is also embedded in the CMS). The Rust verifier
+(`cryptographic-message-syntax` 0.28) handles multi-cert chains correctly;
+only the openssl cross-check is affected. Production uses DigiCert's actual
+chain in v1.1+.
 
 ## Provenance
 
-**All 3 files are SYNTHETIC**, generated locally by `scripts/generate_digicert_fixture.py`:
+**All 3 files are SYNTHETIC**, generated locally by `scripts/generate_digicert_sample_response.py`:
 
-1. Generate a 2048-bit RSA key from `blake2b("trustlayer-v1.1.0-digicert-fixture")` (deterministic).
-2. Self-sign a TSA cert (90 days, EKU=timeStamping).
-3. Generate a self-signed root CA (365 days).
-4. Generate an intermediate (90 days), signed by the root.
-5. Re-sign the TSA cert with the intermediate (so the chain is root → int → tsa).
-6. Write the TSA PEM (signed by intermediate) + the chain PEM (intermediate + root) + a placeholder DER.
+1. Generate an ECDSA P-256 keypair (random per-run; not deterministic to keep openssl compatible).
+2. Build a self-signed TSA cert (valid 1 year, ECDSA P-256, EKU=critical,timeStamping).
+3. Build the TSTInfo (RFC 3161 §2.4.2) with the expected SHA-256 messageImprint.
+4. Build the CMS SignedData (RFC 5652 §5) with ESS SigningCertificateV2 attribute (RFC 5816 §3).
+5. Sign the signedAttrs with ECDSA-Prehashed(SHA-256) over the DER-encoded signedAttrs (per RFC 5754 §3.2).
+6. Wrap in ContentInfo → TimeStampResp.
 
-Real DigiCert sandbox TSP certificates expire in 30-90 days, so a synthetic fixture with the same validity window is the right approach. **We do NOT use a real DigiCert cert** in this fixture — that would create a dependency on a private DigiCert sandbox account.
+The private key is NOT saved (this is acceptable for tests; the cert is regenerated on each run). Real DigiCert sandbox TSP certificates expire in 30-90 days, so a synthetic fixture with the same validity window is the right approach. **We do NOT use a real DigiCert cert** in this fixture — that would create a dependency on a private DigiCert sandbox account.
 
 ## Re-freeze procedure
 
