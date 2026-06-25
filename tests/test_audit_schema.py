@@ -18,6 +18,7 @@ ALLOWED_RESOLUTIONS = {
     "fixed-in-block-3",
     "fixed-in-block-4",
     "fixed-in-block-5",
+    "fixed-in-block-5-pre-merge",
     "deferred-to-v1.1",
     "accepted-as-spec-error",
 }
@@ -33,8 +34,14 @@ REQUIRED_FIELDS = {
 
 def _read_audit_file():
     repo_root = Path(__file__).resolve().parent.parent
-    audit_path = repo_root / "docs" / "spec_facts_audit.md"
+    # v1.0.4 push: moved docs/ → audit_artifacts/ (per Architect Improvement
+    # in Plan v1.1, see README's "Repository layout" section).
+    audit_path = repo_root / "audit_artifacts" / "spec_facts_audit.md"
     if not audit_path.exists():
+        # Fallback to docs/ for legacy paths.
+        legacy = repo_root / "docs" / "spec_facts_audit.md"
+        if legacy.exists():
+            return legacy.read_text()
         pytest.skip(f"audit file not found: {audit_path}")
     return audit_path.read_text()
 

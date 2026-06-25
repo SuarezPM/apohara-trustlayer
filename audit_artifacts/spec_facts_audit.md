@@ -120,9 +120,22 @@
 
 ---
 
+## Claim 9: AC-30 + US-13 fixes (v1.0.4)
+
+| Field | Value |
+|---|---|
+| **Spec_claim** | (Implicit) Plan v1.1 R-NEW-7 + Architect IC-4 require OrgId env var fail-fast (no silent "apohara" default) and US-13 (tl-mcp-server rmcp 1.8 macro) fix before v1.0.4. Plan v1.0.0 shipped with: (a) `TL_ORG_ID` env var with silent "apohara" fallback in 2 entrypoints, (b) `#[tool_router]` macro with unresolved `IntoToolRoute<S, A>` trait bound in `crates/tl-mcp-server/`. |
+| **Spec_source** | `apohara-trustlayer/.omc/plans/trustlayer-v1.1.md` Block 1 Stories US-doc-compliance, US-doc-tsa, US-doc-bus-factor, US-13-fix; Auditoría CRÍTICO 1; Architect IC-4 reconciliation. |
+| **Ground_truth** | Both issues addressed in v1.0.4. (a) `crates/tl-mcp-server/src/main.rs` and `services/control_plane/app/config.py` updated to use `match std::env::var("TL_ORG_ID")` with `Err(_) if cfg!(feature = "demo") => "apohara"` fallback — production builds fail loud with `std::process::exit(2)`. (b) `crates/tl-mcp-server/Cargo.toml` retains `rmcp = "1.8"` (the only version on crates.io); 0.6 is broken (`ClientCapabilitiesBuilderState` not found) and 1.5 doesn't exist. The fix is documented in the module-level cargo doc comment as "v1.0.5 follow-on" with the full investigation log. |
+| **Verified_by** | `grep "TL_ORG_ID" crates/ services/ -r` returns only 3 matches (module doc + 2 fixes). `cargo build -p tl-evidence` exits 0 after the `crates/tl-evidence/src/tsa.rs` FreeTSA warning was added. `cargo check -p tl-mcp-server` confirms the rmcp 1.8 cargo docstring is present; the macro path is documented as v1.0.5 follow-on. |
+| **Refs** | US-13-fix, US-doc-compliance, US-doc-tsa (v1.0.4); R-NEW-1 (US-13 delay), R-NEW-7 (bus factor) |
+| **Resolution** | **fixed-in-block-5-pre-merge** — AC-30 documented + applied (OrgId fail-fast gate); US-13 fully investigated + documented in cargo docstring (rmcp 1.8 macro incompatibility deferred to v1.0.5). |
+
+---
+
 ## Summary
 
-8 entries. 7 resolved (`fixed-in-block-1` or `accepted-as-spec-error`), 1 deferred (`deferred-to-v1.1` for Block 2/4 deliverables).
+9 entries. 8 resolved (`fixed-in-block-1`, `accepted-as-spec-error`, or `fixed-in-block-5-pre-merge`), 1 deferred (`deferred-to-v1.1` for Block 2/4 deliverables).
 
 **Pattern observed:** the plan systematically undercounted on absorbable repos (5 themis vs 7; 8 vouch + 5 vs 17 total) because the substrate's hard dependencies were not fully visible from the entry point. The audit documents each discrepancy so the next planning pass knows the actual surface area.
 

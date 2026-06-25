@@ -134,6 +134,38 @@ trustlayer/
 
 ---
 
+## Scope of Compliance in v1.0
+
+Per the **EU AI Act Art. 50** (effective **2 August 2026**, 38 days from this commit),
+the **Code of Practice on Transparency of AI-Generated Content** (10 June 2026),
+**DORA Art. 19-20**, and the **TSF v1.0 disclaimers** in every API response,
+this section states **honestly** which subclauses TrustLayer v1.0 covers and which
+it does NOT. **Deployers using v1.0 for image, audio, or video content are NOT
+compliant with Art. 50(3) until v1.1.1 ships.**
+
+| Regulation | Article | TrustLayer v1.0 status | Notes |
+|---|---|---|---|
+| EU AI Act | Art. 50(1)(a) (visible disclosure) | **Covered** | `disclosure_text` + `disclosure_html_widget` |
+| EU AI Act | Art. 50(2) (machine-readable provenance) | **Covered** (dev) | COSE_Sign1 envelope + RFC 3161 timestamp via FreeTSA. Production needs qualified TSP (v1.1.0) |
+| EU AI Act | Art. 50(3) (watermark) | **NotApplicable** | Watermark hooks deferred to v1.1.1 (c2patool + AudioSeal). See "What TrustLayer v1.0 is NOT" below. |
+| EU AI Act | Art. 50(4) (labelling) | **Covered** | 4-layer compliance assessment + v1 disclaimers in every response |
+| DORA | Art. 19-20 (evidence pack) | **Partial** | `DORAEvidenceStrategy` stub with 6-check completion in v1.1.0 |
+| ISO 42001 | AIMS | **NotImplemented** | Planned v1.2 |
+| NIST AI RMF | Govern/Map/Measure/Manage | **NotImplemented** | Planned v1.2 |
+
+### What TrustLayer v1.0 is NOT (per `disclaimers` field)
+
+- **NOT a qualified TSP for EU regulatory evidence**: the bundled `TL_TSA_PROVIDER=mock` and `free_tsa` options are **demo-grade only**. FreeTSA.org is NOT on the EU Trust List of qualified TSPs per ETSI EN 319 421. Timestamps from FreeTSA are NOT forensically valid for EU regulatory purposes. Production deployments must integrate with a qualified TSP (DigiCert, Sectigo, or an EU Trust List provider) — see v1.1.0.
+- **NOT offline-verifiable via SCITT self-contained receipts**: the current `evidence` endpoint requires a live connection to the control plane for `verify_token`. SCITT-native offline verification is planned for v1.0.5.
+- **NOT multi-tenant**: v1.0 is single-tenant (`org_id = "apohara"`). Multi-tenant v1 ships in v1.2.
+- **NOT a watermark**: image/audio/video content is NOT marked with an imperceptible watermark. Deployers handling such content should not rely on TrustLayer v1.0 for Art. 50(3) compliance.
+
+See `audit_artifacts/compliance_maps/EU_AI_Act_Article_50.md` for file-level traceability of
+each row above. The `disclaimers` field in every API response surfaces these limits
+automatically (per AC-22).
+
+---
+
 ## v1 Scope (Demo-Grade)
 
 Per the **Code of Practice** and **EU AI Act Art. 50**, the v1 release of TrustLayer
@@ -168,14 +200,19 @@ is production-grade for what it covers, but explicitly limited in scope:
 
 **TrustLayer v1 is maintained by a single engineer (Pablo M. Suarez).**
 
-This is **acknowledged risk, not silent risk**. The plan mitigates via:
-- `audit_artifacts/spec_facts_audit.md` reconciles every quantitative claim with ground truth
-- `THREAT:` notes on ≥7 security-critical functions document the threat model
+**Hard deadlines (per Plan v1.1 R-NEW-7)**:
+- **2026-08-06**: First co-maintainer merged PR. GitHub co-maintainer request opened 2026-06-25; 6-week deadline.
+- **2026-09-30**: All signing keys escrowed to HashiCorp Vault or AWS KMS. Key rotation runtime (v1.1.0) operational.
+- **Bi-weekly**: Release rotation — every 2 weeks, lead from non-primary committer if available.
+
+**Operational mitigations** (committed in v1.0):
 - 1,256+ tests provide regression safety
 - `cargo deny check` enforces license + advisory hygiene
+- `THREAT:` notes on ≥7 security-critical functions document the threat model
+- `audit_artifacts/spec_facts_audit.md` reconciles every quantitative claim with ground truth
 - The VOUCH/Themis substrate has 812 tests + audit 8.25/10 from prior work
 
-**v1.1 milestone**: recruit a co-maintainer, freeze the public API surface, and publish a "contributing" guide. Track this as a release blocker for v1.1.
+**v1.1 milestone**: full Plan v1.1 (see `.omc/plans/trustlayer-v1.1.md`). Recruit co-maintainer is a release blocker for v1.1.0. Track at https://github.com/SuarezPM/apohara-trustlayer/milestones.
 
 ---
 

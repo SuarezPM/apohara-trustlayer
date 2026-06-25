@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Apohara TrustLayer MCP server — exposes 7 tools for AI agents (Claude Code, Cursor, Codex) to generate, verify, and inspect disclosures"
+description = "Apohara TrustLayer MCP server — exposes 7 tools for AI agents (Claude Code, Cursor, Codex)"
 
 [[bin]]
 name = "tl-mcp-server"
@@ -14,6 +14,12 @@ path = "src/main.rs"
 
 [dependencies]
 # MCP SDK (stdio transport)
+# US-13 status: rmcp 1.8 `#[tool_router]` macro has trait-bound issues.
+# The 0.6 version on crates.io has a broken internal type
+# (ClientCapabilitiesBuilderState doesn't exist). 1.5 doesn't exist on
+# crates.io. The schemars 0.8 ↔ 1.x dependency mismatch breaks the
+# `#[derive(JsonSchema)]` macros. **Documented as v1.0.5 follow-on.**
+# See Plan v1.1 Block 1 Story US-13-fix for the full investigation log.
 rmcp = { version = "1.8", features = ["server", "macros", "transport-io"] }
 rmcp-macros = "1.8"
 
@@ -31,7 +37,6 @@ thiserror = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 anyhow = "1"
-schemars = { version = "0.8", features = ["derive"] }
 blake3 = { workspace = true }
 base64 = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
