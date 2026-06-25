@@ -125,6 +125,84 @@ pub enum TsaTier {
     /// TSP per ETSI EN 319 421 / EU Trust List. NOT forensically valid
     /// for EU regulatory evidence. See module-level warning at top of file.
     FreeTsa,
+    /// Qualified — a qualified TSP per **ETSI EN 319 421** + the **EU
+    /// Trust List** + **eIDAS Regulation (EU) No 910/2014 Art. 42** with
+    /// the `QCP-n-qscd` policy identifier.
+    ///
+    /// v1.0.5: stub exists for API stability. Real adapter (DigiCert or
+    /// similar) lands in v1.1.0 (Plan v1.2 Block 3, story
+    /// `v1.1.0-US-1`). Until then, `TsaClient::Qualified` returns
+    /// `Err(TsaError::NotImplemented(_))` on every `fetch_token` call.
+    /// See `QualifiedTsaStub` for the full explanation.
+    Qualified,
+}
+
+/// Stub for a qualified TSP integration. **Not implemented in v1.0.5**;
+/// the real adapter (DigiCert, Sectigo, or an HSM-backed in-house TSP)
+/// lands in **v1.1.0** (Plan v1.2 Block 3, story `v1.1.0-US-1`).
+///
+/// ## What is a "qualified TSP"?
+///
+/// Per **ETSI EN 319 421** _Policy and Security Requirements for Trust
+/// Service Providers issuing Time-Stamps_ and the **EU Trust List**
+/// (Article 67 of **Regulation (EU) No 910/2014**, a.k.a. eIDAS), a
+/// qualified TSP must:
+///
+/// 1. Be audited against the `QCP-n-qscd` policy (qualified certificate
+///    policy for a qualified signature creation device) or equivalent
+///    per the relevant national supervisory body.
+/// 2. Be listed on the EU Trust List: <https://esignature.ec.europa.eu/efda/tl-browser/>
+/// 3. Issue RFC 3161 `TimeStampResp` tokens whose signing certificate
+///    chains to a trust anchor on the EU Trust List.
+/// 4. Operate under a non-discretionary SLA and a security incident
+///    response process per eIDAS Art. 19.
+/// 5. For the highest assurance tier (`QCP-n-qscd`), protect the
+///    signing key in a qualified signature creation device (QSCD,
+///    typically an HSM or smart card).
+///
+/// ## Why this is a stub in v1.0.5
+///
+/// 1. **API stability**: Plan v1.2 Block 3 (v1.1.0) replaces the stub
+///    with a real adapter. Shipping the enum variant + stub struct in
+///    v1.0.5 means downstream code (e.g. compliance reports, audit
+///    logs) can already report `TsaTier::Qualified` without waiting
+///    for v1.1.0 to land.
+/// 2. **Fail-fast honesty**: A deployer who sets `TL_TSA_PROVIDER=qualified`
+///    today gets a loud `TsaError::NotImplemented` instead of a silent
+///    fallback to `FreeTsa` (which would be a **material misconfiguration**
+///    for EU regulatory evidence).
+/// 3. **Avoids abstraction overhead**: A `TsaProvider` trait would be
+///    premature (Architect IC-2: exactly 2 real impls in v1.0.5,
+///    third lands in v1.1.0). The enum captures the 3-tier surface
+///    with zero abstraction overhead.
+///
+/// ## What ships in v1.1.0
+///
+/// A real `DigiCertTsaClient` that uses the DigiCert REST API for
+/// timestamp retrieval, includes signed cert chain verification
+/// (`verify_strict_with_certs`), and reports tier as `TsaTier::Qualified`.
+/// See Plan v1.2 Block 3 story `v1.1.0-US-1`.
+#[derive(Debug)]
+pub struct QualifiedTsaStub {
+    /// Placeholder URL — never called in v1.0.5. Documented so
+    /// `TsaClient::url()` has a stable string for logging.
+    pub url: String,
+}
+
+impl QualifiedTsaStub {
+    /// Construct a new stub instance. The URL is recorded for
+    /// `TsaClient::url()` reporting; no network call is made.
+    pub fn new() -> Self {
+        Self {
+            url: "qualified://eidas-qcp-n-qscd-stub".to_string(),
+        }
+    }
+}
+
+impl Default for QualifiedTsaStub {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// TSA client (Architect IC-2: enum not trait).
@@ -138,6 +216,11 @@ pub enum TsaClient {
     Mock(Arc<MockTimestampAuthority>),
     /// FreeTSA — real HTTPS to freetsa.org/tsr.
     FreeTsa(Arc<FreeTSAAuthority>),
+    /// Qualified TSP — v1.0.5 stub; v1.1.0 DigiCert adapter.
+    /// `fetch_token` always returns `Err(TsaError::NotImplemented(_))`
+    /// in v1.0.5. See `QualifiedTsaStub` docstring for the regulatory
+    /// background and migration plan.
+    Qualified(Arc<QualifiedTsaStub>),
 }
 
 impl TsaClient {
@@ -173,6 +256,9 @@ impl TsaClient {
                     .map_err(|e| TsaError::Fetch(e.to_string()))?;
                 Ok(TsaTokenBytes::from_der(resp.raw_der))
             }
+            TsaClient::Qualified(_) => Err(TsaError::NotImplemented(
+                "qualified TSP integration lands in v1.1.0; see Plan v1.2 Block 3 story v1.1.0-US-1",
+            )),
         }
     }
 
@@ -206,6 +292,11 @@ impl TsaClient {
         let valid = match self {
             TsaClient::Mock(m) => m.verify(&response, digest_hex),
             TsaClient::FreeTsa(f) => f.verify(&response, digest_hex),
+            TsaClient::Qualified(_) => {
+                return Err(TsaError::NotImplemented(
+                    "qualified TSP integration lands in v1.1.0; see Plan v1.2 Block 3 story v1.1.0-US-1",
+                ));
+            }
         };
         if valid {
             Ok(())
@@ -219,6 +310,7 @@ impl TsaClient {
         match self {
             TsaClient::Mock(_) => TsaTier::Mock,
             TsaClient::FreeTsa(_) => TsaTier::FreeTsa,
+            TsaClient::Qualified(_) => TsaTier::Qualified,
         }
     }
 
@@ -227,6 +319,7 @@ impl TsaClient {
         match self {
             TsaClient::Mock(_) => "mock://local".to_string(),
             TsaClient::FreeTsa(f) => f.url().to_string(),
+            TsaClient::Qualified(q) => q.url.clone(),
         }
     }
 }
@@ -253,6 +346,9 @@ pub fn init() -> Result<TsaClient, TsaError> {
             Ok(TsaClient::FreeTsa(Arc::new(FreeTSAAuthority::new(
                 FreeTsaClient::DEFAULT_URL,
             ))))
+        }
+        Ok("qualified") | Ok("qtsp") => {
+            Ok(TsaClient::Qualified(Arc::new(QualifiedTsaStub::new())))
         }
         Ok("digicert") => Err(TsaError::DeferredToV11("digicert")),
         Ok(other) => Err(TsaError::InvalidProvider(other.to_string())),
@@ -296,6 +392,16 @@ pub enum TsaError {
     #[error("TSA provider {0} is not yet implemented (planned for v1.1)")]
     DeferredToV11(&'static str),
 
+    /// A method on a stub variant (e.g. `QualifiedTsaStub::fetch_token`)
+    /// was called. The stub exists for API stability; the real
+    /// implementation lands in a later version. Per the 2nd auditor's
+    /// rec #5 (Plan v1.2 Block 2 story `v1.0.5-US-0`), the stub must
+    /// surface a loud `NotImplemented` error rather than fall back
+    /// silently to `FreeTsa` (which would be a material misconfiguration
+    /// for EU regulatory evidence).
+    #[error("TSA feature not implemented: {0}")]
+    NotImplemented(&'static str),
+
     /// Failed to fetch token from upstream TSA.
     #[error("TSA fetch failed: {0}")]
     Fetch(String),
@@ -316,6 +422,24 @@ pub enum TsaError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// Serializes all tests that mutate the `TL_TSA_PROVIDER` env var.
+    /// cargo runs tests in parallel by default; without this lock, a
+    /// test that sets `qualified` can race a test that expects `mock`
+    /// and produce flaky failures. The lock is process-wide; that's
+    /// fine for tests.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// RAII guard: clears `TL_TSA_PROVIDER` on Drop so the env var
+    /// is always restored, even on panic. Without this, a panicking
+    /// test would leak the env var to subsequent tests.
+    struct ClearEnvOnDrop;
+    impl Drop for ClearEnvOnDrop {
+        fn drop(&mut self) {
+            std::env::remove_var("TL_TSA_PROVIDER");
+        }
+    }
 
     #[tokio::test]
     async fn mock_fetch_returns_a_token() {
@@ -339,6 +463,8 @@ mod tests {
 
     #[test]
     fn init_fails_fast_when_env_unset() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
         std::env::remove_var("TL_TSA_PROVIDER");
         let result = init();
         assert!(matches!(result, Err(TsaError::ProviderRequired)));
@@ -346,36 +472,40 @@ mod tests {
 
     #[test]
     fn init_rejects_invalid_env_value() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
         std::env::set_var("TL_TSA_PROVIDER", "garbage");
         let result = init();
         assert!(matches!(result, Err(TsaError::InvalidProvider(_))));
-        std::env::remove_var("TL_TSA_PROVIDER");
     }
 
     #[test]
     fn init_accepts_mock_explicitly() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
         std::env::set_var("TL_TSA_PROVIDER", "mock");
         let result = init();
         assert!(result.is_ok());
         assert_eq!(result.unwrap().tier(), TsaTier::Mock);
-        std::env::remove_var("TL_TSA_PROVIDER");
     }
 
     #[test]
     fn init_accepts_free_tsa() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
         std::env::set_var("TL_TSA_PROVIDER", "free_tsa");
         let result = init();
         assert!(result.is_ok());
         assert_eq!(result.unwrap().tier(), TsaTier::FreeTsa);
-        std::env::remove_var("TL_TSA_PROVIDER");
     }
 
     #[test]
     fn init_deferred_digicert() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
         std::env::set_var("TL_TSA_PROVIDER", "digicert");
         let result = init();
         assert!(matches!(result, Err(TsaError::DeferredToV11(_))));
-        std::env::remove_var("TL_TSA_PROVIDER");
     }
 
     #[test]
@@ -400,5 +530,90 @@ mod tests {
         )));
         assert_eq!(freetsa.tier(), TsaTier::FreeTsa);
         assert_eq!(freetsa.url(), "https://freetsa.org/tsr");
+    }
+
+    // --- v1.0.5-US-0: TsaTier::Qualified + TsaClient::Qualified stub ---
+
+    #[test]
+    fn qualified_tier_variant_exists() {
+        // The Qualified variant must be a third variant on TsaTier.
+        // We assert via Debug formatting (a missed variant would not
+        // produce "Qualified").
+        assert_eq!(format!("{:?}", TsaTier::Qualified), "Qualified");
+    }
+
+    #[test]
+    fn qualified_stub_url_is_eidas_documented() {
+        // The stub URL must document the eIDAS QCP-n-qscd policy so
+        // anyone reading logs knows what's intended.
+        let stub = QualifiedTsaStub::new();
+        assert!(stub.url.contains("eidas"));
+        assert!(stub.url.contains("qcp-n-qscd"));
+    }
+
+    #[tokio::test]
+    async fn qualified_stub_returns_not_implemented() {
+        // Per 2nd auditor rec #5 + Plan v1.2 Block 2 story v1.0.5-US-0:
+        // the Qualified stub MUST return NotImplemented on fetch_token
+        // (not silently fall back to FreeTsa, which would be a
+        // material misconfiguration for EU regulatory evidence).
+        let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
+        let result = client.fetch_token("dGVzdA==").await;
+        match result {
+            Err(TsaError::NotImplemented(msg)) => {
+                assert!(
+                    msg.contains("v1.1.0"),
+                    "NotImplemented message must reference v1.1.0; got: {msg}"
+                );
+            }
+            other => panic!("expected NotImplemented, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn qualified_stub_tier_and_url() {
+        let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
+        assert_eq!(client.tier(), TsaTier::Qualified);
+        assert!(client.url().contains("qualified"));
+        assert!(client.url().contains("eidas"));
+    }
+
+    #[test]
+    fn qualified_verify_token_returns_not_implemented() {
+        // verify_token on the stub must also return NotImplemented.
+        let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
+        let token = TsaTokenBytes::from_der(vec![1, 2, 3]);
+        let result = client.verify_token(&token, "dGVzdA==");
+        assert!(matches!(result, Err(TsaError::NotImplemented(_))));
+    }
+
+    #[test]
+    fn init_accepts_qualified() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
+        // TL_TSA_PROVIDER=qualified must resolve to TsaClient::Qualified
+        // (so deployers get a loud NotImplemented instead of a silent
+        // FreeTsa fallback). The test exercises the full init() path.
+        std::env::set_var("TL_TSA_PROVIDER", "qualified");
+        let result = init();
+        let tier = match result {
+            Ok(client) => client.tier(),
+            Err(e) => panic!("init() failed for qualified: {}", e),
+        };
+        assert_eq!(tier, TsaTier::Qualified);
+    }
+
+    #[test]
+    fn init_accepts_qtsp_alias() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _clear = ClearEnvOnDrop;
+        // Common abbreviation: qtsp (qualified TSP). Must also resolve.
+        std::env::set_var("TL_TSA_PROVIDER", "qtsp");
+        let result = init();
+        let tier = match result {
+            Ok(client) => client.tier(),
+            Err(e) => panic!("init() failed for qtsp: {}", e),
+        };
+        assert_eq!(tier, TsaTier::Qualified);
     }
 }

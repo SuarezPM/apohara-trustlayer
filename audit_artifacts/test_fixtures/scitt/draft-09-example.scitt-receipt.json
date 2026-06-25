@@ -1,0 +1,9 @@
+{
+  "cose_sign1": "U0NJVGRpZDp3ZWI6YXBvaGFyYS5kZXY6dHJ1c3RsYXllcjp2o+hMMftmpGOWQMqtQU3z1QJgS+lAYwFfyFJbVlue2vrg/cHKS6Cnk7DVa2QdSPnBY6ipEgsPteaZhktLoSKmCg==",
+  "inclusion_proof": "None",
+  "issued_at": 136680700,
+  "issuer_kid": "did:web:apohara.dev:trustlayer:v1.0.5:fixture-key-1",
+  "issuer_pubkey_fingerprint": "f6112eb8227c2e3461ce0e33f2959f4d1621336eff5f9552d7c746b62cdaf306",
+  "payload": "RVUgQUkgQWN0IEFydC4gNTAgZGlzY2xvc3VyZSBmcm9tIGFwb2hhcmEuZGV2IG9uIDIwMjYtMDYtMjU6IHN5bnRoZXRpYyB0ZXh0LW9ubHkgQUkgZGlzY2xvc3VyZSB1c2VkIGFzIHRoZSB0bC1zY2l0dCB2MS4wLjUgZnJvemVuIHRlc3QgZml4dHVyZS4gU2VlIGF1ZGl0X2FydGlmYWN0cy90ZXN0X2ZpeHR1cmVzL3NjaXR0L1JFQURNRS5tZCBmb3IgcHJvdmVuYW5jZSBhbmQgcmUtZnJlZXplIHBvbGljeS4=",
+  "registry_id": "trustlayer-fixture-v1.0.5"
+}
