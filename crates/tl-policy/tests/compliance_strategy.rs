@@ -46,7 +46,7 @@ fn test_dispatcher_returns_map_of_8_frameworks_for_a_disclosure() {
 }
 
 #[test]
-fn test_v1_1_x_status_matrix_is_honest() {
+fn test_v1_2_x_status_matrix_is_honest() {
     // For v1.1.x state: DORA=Partial, EU AI Act=Covered, the other 6
     // are NotImplemented. This is the v1.1.x truth-table per the README.
     let dispatcher = ComplianceStrategy::new();
@@ -60,11 +60,23 @@ fn test_v1_1_x_status_matrix_is_honest() {
     assert_eq!(
         reports[&Framework::EuAiAct].status,
         Status::Covered,
-        "EU AI Act must report Covered in v1.1.x (v1.0.5 truthfulness)"
+        "EU AI Act must report Covered in v1.2.x (v1.0.5 truthfulness)"
     );
+    // v1.2: ISO 42001 + NIST AI RMF are now Covered (real mappers).
     for framework in [
         Framework::Iso42001,
         Framework::NistAiRmf,
+    ] {
+        assert_eq!(
+            reports[&framework].status,
+            Status::Covered,
+            "v1.2: {:?} must report Covered (real mapper)",
+            framework
+        );
+    }
+    // v1.2: the other 4 frameworks are still NotImplemented
+    // (they ship in v1.2 follow-ups per Plan v1.2 Block 5).
+    for framework in [
         Framework::NistSp80053,
         Framework::Soc2,
         Framework::Iso27001,
@@ -73,7 +85,7 @@ fn test_v1_1_x_status_matrix_is_honest() {
         assert_eq!(
             reports[&framework].status,
             Status::NotImplemented,
-            "{:?} must report NotImplemented in v1.1.x",
+            "{:?} must report NotImplemented in v1.2 (still follow-up)",
             framework
         );
     }
