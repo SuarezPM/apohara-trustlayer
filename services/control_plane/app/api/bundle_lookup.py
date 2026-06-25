@@ -20,11 +20,32 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.evidence import BundleLookup
+# BundleLookup is defined in app.api.evidence to keep the abstract
+# interface alongside the route that uses it. Importing it at the
+# top of this module would create a circular import (evidence
+# imports _record_to_bundle_dict from here). We use a lazy import
+# inside the class body instead.
 from app.db.models import DisclosureRecord
 
 
-class DbBundleLookup(BundleLookup):
+class DbBundleLookup:
+    """Real bundle lookup via the `disclosure_records` table.
+
+    Per Plan v1.2 Block 3 v1.1.0-US-12 AC-2: when the id exists in
+    the table, the response is the real bundle (cose_sign1_b64,
+    tsa_token_b64, etc.) with status 200. When the id does not
+    exist, returns None (the route maps this to 404).
+
+    Note: v1.1.0.x-US-3 replaced the v1.1.0 sync `lookup()` method
+    with the canonical async `lookup_async(bundle_id, session)`
+    method. The async path is what the route uses in production
+    (via `Depends(get_async_session_dep)`).
+
+    This class deliberately does NOT inherit from BundleLookup
+    (the abstract interface in app.api.evidence) to avoid the
+    circular import. It implements the same surface contract
+    (a `lookup_async` method) and is structurally compatible.
+    """
     """Real bundle lookup via the `disclosure_records` table.
 
     Per Plan v1.2 Block 3 v1.1.0-US-12 AC-2: when the id exists in
@@ -91,9 +112,18 @@ def _record_to_bundle_dict(record: DisclosureRecord) -> dict[str, Any]:
     - `disclaimers` (list of str)
     """
     compliance_layers = record.compliance_layers or {}
+    # created_at may be a datetime (from the real DB) or a string
+    # (from the test adapter). Be defensive: convert to string if
+    # it's a datetime, pass through otherwise.
+    created_at_str = ""
+    if record.created_at:
+        if hasattr(record.created_at, "isoformat"):
+            created_at_str = record.created_at.isoformat()
+        else:
+            created_at_str = str(record.created_at)
     return {
         "bundle_id": str(record.id),
-        "created_at": record.created_at.isoformat() if record.created_at else "",
+        "created_at": created_at_str,
         "disclosures": [
             {
                 "disclosure_id": str(record.id),
@@ -112,16 +142,14 @@ def _record_to_bundle_dict(record: DisclosureRecord) -> dict[str, Any]:
             }
         ],
         "key_chain": {
-            "active_key_id": record.row_hash[:16],  # stable per-record identifier
+            "active_key_id": (record.row_hash or "")[:16],  # stable per-record identifier
             "algorithm": "Ed25519",
-            "rotated_at": (
-                record.created_at.isoformat() if record.created_at else ""
-            ),
+            "rotated_at": created_at_str,
         },
         "signature": {
-            "cose_sign1_b64": record.cose_sign1_b64,
-            "row_hash": record.row_hash,
-            "prev_hash": record.prev_hash,
+            "cose_sign1_b64": record.cose_sign1_b64 or "",
+            "row_hash": record.row_hash or "",
+            "prev_hash": record.prev_hash or "",
         },
         "tsa_token": (
             {

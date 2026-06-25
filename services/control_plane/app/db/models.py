@@ -18,6 +18,7 @@ from enum import Enum as PyEnum
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     DateTime,
     Enum,
@@ -25,7 +26,7 @@ from sqlalchemy import (
     String,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -71,7 +72,7 @@ class DisclosureRecord(Base):
     tsa_url: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     # Compliance (JSON for forward-compat)
-    compliance_layers: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    compliance_layers: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     # Retention + audit
     created_at: Mapped[datetime] = mapped_column(
@@ -145,7 +146,7 @@ class PolicyDecision(Base):
     strategy_version: Mapped[str] = mapped_column(String(32), nullable=False)
     decision: Mapped[str] = mapped_column(String(32), nullable=False)
     rationale: Mapped[str] = mapped_column(String(4096), nullable=False)
-    missing_evidence: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    missing_evidence: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

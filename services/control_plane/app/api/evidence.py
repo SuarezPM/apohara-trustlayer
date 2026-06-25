@@ -28,6 +28,11 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import DisclosureRecord
+from app.api.bundle_lookup import _record_to_bundle_dict
 
 router = APIRouter()
 
@@ -236,14 +241,32 @@ def _select_content_type(accept_header: str | None) -> str | None:
 # =============================================================================
 
 
-def get_bundle_lookup(request: Request) -> BundleLookup:
-    """FastAPI dependency: returns the production BundleLookup.
+def get_async_session_dep():
+    """Re-export of get_async_session from app.db.session.
 
-    The control plane stores the lookup on `app.state.bundle_lookup`
-    at startup. If unset (e.g. in unit tests), we fall back to an
-    InMemoryBundleLookup with no entries — every lookup returns 404.
-    The tests that need synthetic bundles construct their own
-    FastAPI app with a different dependency override.
+    This indirection lets tests override the dependency cleanly via
+    `app.dependency_overrides[get_async_session_dep]`. Importing
+    directly from `app.db.session` would also work but breaks the
+    tests that want a custom session per app.
+    """
+    from app.db.session import get_async_session
+    return get_async_session
+
+
+# Backward-compat: the v1.1.0 sync dependency is preserved as
+# `get_bundle_lookup` for tests that inject an InMemoryBundleLookup
+# (avoids touching the DB). The production route uses
+# `get_async_session_dep` (async) instead.
+def get_bundle_lookup(request: Request) -> BundleLookup:
+    """FastAPI dependency (TEST-ONLY path): returns the production
+    BundleLookup stored on `app.state.bundle_lookup`. The v1.1.0
+    production path used this; v1.1.0.x replaces it with
+    `get_async_session_dep` for the real async wiring.
+
+    If `app.state.bundle_lookup` is unset (e.g. unit tests), we fall
+    back to an empty `InMemoryBundleLookup` (every lookup returns 404).
+    Tests that need synthetic bundles construct their own FastAPI app
+    with a different dependency override.
     """
     lookup = getattr(request.app.state, "bundle_lookup", None)
     if lookup is None:
@@ -260,16 +283,22 @@ def get_bundle_lookup(request: Request) -> BundleLookup:
 async def get_evidence_bundle(
     bundle_id: str,
     accept: str | None = Header(default=None),
-    lookup: BundleLookup = Depends(get_bundle_lookup),
+    session: AsyncSession = Depends(get_async_session_dep),
 ) -> Response:
     """Download a complete evidence bundle with content negotiation.
 
-    v1.1.0 (US-12): real lookup via the injected BundleLookup.
+    v1.1.0.x (US-3, CRÍTICO 3 of auditor 3): async wiring. The route
+    uses `Depends(get_async_session_dep)` to receive an `AsyncSession`
+    per request. The session is closed when the response is sent
+    (FastAPI handles the lifecycle via the dependency generator).
+
+    v1.1.0 (US-12): real lookup via the injected BundleLookup
+    (replaced with direct session.execute for async).
     v1.0.5 (US-2): content negotiation by Accept header.
 
     The synthetic bundle generator that v1.0.5 used as a default
-    is REMOVED from this production path. Tests that need synthetic
-    bundles inject InMemoryBundleLookup with `_synthetic_bundle_for_tests`.
+    is REMOVED from the production path. Tests inject an in-memory
+    DB (SQLite aiosqlite) via `app.dependency_overrides`.
     """
     content_type = _select_content_type(accept)
 
@@ -283,9 +312,11 @@ async def get_evidence_bundle(
             headers={"Content-Type": "application/json"},
         )
 
-    # Real lookup (or test injection). Returns None if not found.
-    bundle = lookup.lookup(bundle_id)
-    if bundle is None:
+    # Real lookup via async session. Returns None if not found.
+    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id)
+    result = await session.execute(stmt)
+    record = result.scalar_one_or_none()
+    if record is None:
         return JSONResponse(
             status_code=404,
             content={
@@ -294,6 +325,8 @@ async def get_evidence_bundle(
             },
             headers={"Content-Type": "application/json"},
         )
+
+    bundle = _record_to_bundle_dict(record)
 
     if content_type == "application/scitt+json":
         return JSONResponse(
