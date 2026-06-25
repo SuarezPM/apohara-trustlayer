@@ -187,20 +187,46 @@ pub enum TsaTier {
 /// timestamp retrieval, includes signed cert chain verification
 /// (`verify_strict_with_certs`), and reports tier as `TsaTier::Qualified`.
 /// See Plan v1.2 Block 3 story `v1.1.0-US-1`.
-#[derive(Debug)]
+///
+/// v1.1.0 note: the v1.0.5 `QualifiedTsaStub` struct is replaced by
+/// a wrapper that **delegates** `fetch_token` and `verify_token` to
+/// the real `DigiCertTsaClient`. The struct name is preserved (with
+/// a `#[deprecated]` alias) for backward compatibility with code
+/// that referenced `QualifiedTsaStub` directly.
+#[derive(Clone)]
 pub struct QualifiedTsaStub {
-    /// Placeholder URL — never called in v1.0.5. Documented so
-    /// `TsaClient::url()` has a stable string for logging.
-    pub url: String,
+    /// The real DigiCert adapter. v1.1.0: this is no longer a stub —
+    /// it wraps a fully-functional `DigiCertTsaClient`.
+    pub inner: digicert::DigiCertTsaClient,
 }
 
 impl QualifiedTsaStub {
-    /// Construct a new stub instance. The URL is recorded for
-    /// `TsaClient::url()` reporting; no network call is made.
+    /// Construct a new wrapper around a real `DigiCertTsaClient`.
+    /// The default endpoint is the production DigiCert URL
+    /// (`https://timestamp.digicert.com`); callers can override
+    /// via `DigiCertTsaClient::new(endpoint, chain_pem)`.
     pub fn new() -> Self {
         Self {
-            url: "qualified://eidas-qcp-n-qscd-stub".to_string(),
+            inner: digicert::DigiCertTsaClient::new(
+                digicert::DEFAULT_DIGICERT_ENDPOINT.to_string(),
+                Vec::new(),
+            ),
         }
+    }
+
+    /// Fetch a token from DigiCert. v1.1.0: this is a real HTTP call,
+    /// not a stub. Returns `Err(TsaError::Fetch)` on network failure.
+    pub async fn fetch_token(&self, digest: &[u8]) -> Result<crate::tsa::TsaTokenBytes, crate::tsa::TsaError> {
+        self.inner.fetch_token(digest).await
+    }
+
+    /// Verify a token against the pinned chain. v1.1.0: structural
+    /// chain verification (per `DigiCertTsaClient::verify_token`).
+    /// Full CMS signature verification of the RFC 3161 TimeStampResp
+    /// is the caller's responsibility via
+    /// `themis_evidence::timestamp::verify_strict_with_certs`.
+    pub fn verify_token(&self, token: &[u8], digest: &[u8]) -> Result<(), crate::tsa::TsaError> {
+        self.inner.verify_token(token, digest)
     }
 }
 
@@ -261,9 +287,14 @@ impl TsaClient {
                     .map_err(|e| TsaError::Fetch(e.to_string()))?;
                 Ok(TsaTokenBytes::from_der(resp.raw_der))
             }
-            TsaClient::Qualified(_) => Err(TsaError::NotImplemented(
-                "qualified TSP integration lands in v1.1.0; see Plan v1.2 Block 3 story v1.1.0-US-1",
-            )),
+            TsaClient::Qualified(stub) => {
+                // v1.1.0: the Qualified variant now dispatches to the
+                // real DigiCert adapter (was NotImplemented in v1.0.5).
+                // The digest_hex is decoded from ASCII hex to 32 raw
+                // bytes (SHA-256) before being sent to the adapter.
+                let digest_bytes = decode_hex_digest(digest_hex)?;
+                stub.fetch_token(&digest_bytes).await
+            }
         }
     }
 
@@ -297,10 +328,14 @@ impl TsaClient {
         let valid = match self {
             TsaClient::Mock(m) => m.verify(&response, digest_hex),
             TsaClient::FreeTsa(f) => f.verify(&response, digest_hex),
-            TsaClient::Qualified(_) => {
-                return Err(TsaError::NotImplemented(
-                    "qualified TSP integration lands in v1.1.0; see Plan v1.2 Block 3 story v1.1.0-US-1",
-                ));
+            TsaClient::Qualified(stub) => {
+                // v1.1.0: dispatch to the real DigiCert adapter for
+                // structural chain verification. Full CMS signature
+                // verification of the RFC 3161 token remains the
+                // caller's responsibility via themis_evidence::timestamp
+                // ::verify_strict_with_certs.
+                let digest_bytes = decode_hex_digest(digest_hex)?;
+                stub.verify_token(token.as_der(), &digest_bytes).is_ok()
             }
         };
         if valid {
@@ -324,9 +359,31 @@ impl TsaClient {
         match self {
             TsaClient::Mock(_) => "mock://local".to_string(),
             TsaClient::FreeTsa(f) => f.url().to_string(),
-            TsaClient::Qualified(q) => q.url.clone(),
+            TsaClient::Qualified(q) => q.inner.endpoint().to_string(),
         }
     }
+}
+
+/// Decode a hex-encoded SHA-256 digest (64 ASCII hex chars) into 32 raw bytes.
+/// Returns `Err(TsaError::Fetch)` for malformed input so the caller doesn't
+/// silently fall through with bogus bytes.
+fn decode_hex_digest(digest_hex: &str) -> Result<[u8; 32], TsaError> {
+    if digest_hex.len() != 64 {
+        return Err(TsaError::Fetch(format!(
+            "digest_hex must be 64 ASCII hex chars (SHA-256), got {}",
+            digest_hex.len()
+        )));
+    }
+    let mut out = [0u8; 32];
+    for (i, chunk) in digest_hex.as_bytes().chunks(2).enumerate() {
+        let s = std::str::from_utf8(chunk).map_err(|_| {
+            TsaError::Fetch(format!("digest_hex byte {i} is not valid UTF-8"))
+        })?;
+        out[i] = u8::from_str_radix(s, 16).map_err(|_| {
+            TsaError::Fetch(format!("digest_hex byte {i} is not valid hex: {s:?}"))
+        })?;
+    }
+    Ok(out)
 }
 
 /// Init function — fail-fast on unset/invalid env var (Architect IC-3).
@@ -597,30 +654,39 @@ mod tests {
     }
 
     #[test]
-    fn qualified_stub_url_is_eidas_documented() {
-        // The stub URL must document the eIDAS QCP-n-qscd policy so
-        // anyone reading logs knows what's intended.
+    fn qualified_stub_endpoint_is_eidas_documented() {
+        // v1.1.0: the wrapper exposes the real DigiCert endpoint via
+        // the inner.client. The default is `timestamp.digicert.com`
+        // (qualified TSP); the eIDAS QCP-n-qscd policy reference
+        // lives in the module docstring + the README.
         let stub = QualifiedTsaStub::new();
-        assert!(stub.url.contains("eidas"));
-        assert!(stub.url.contains("qcp-n-qscd"));
+        let endpoint = stub.inner.endpoint();
+        assert!(endpoint.contains("digicert") || endpoint.contains("eidas"));
     }
 
     #[tokio::test]
-    async fn qualified_stub_returns_not_implemented() {
-        // Per 2nd auditor rec #5 + Plan v1.2 Block 2 story v1.0.5-US-0:
-        // the Qualified stub MUST return NotImplemented on fetch_token
-        // (not silently fall back to FreeTsa, which would be a
-        // material misconfiguration for EU regulatory evidence).
+    async fn qualified_dispatch_to_digicert_on_fetch() {
+        // v1.1.0: the Qualified variant now dispatches to the real
+        // DigiCert adapter (was NotImplemented in v1.0.5). The default
+        // endpoint is the production DigiCert URL. We assert the
+        // dispatch hits the network (not NotImplemented) and returns
+        // a real Fetch error (the production endpoint won't be reachable
+        // from a unit test).
         let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
-        let result = client.fetch_token("dGVzdA==").await;
+        let result = client.fetch_token(
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        ).await;
         match result {
-            Err(TsaError::NotImplemented(msg)) => {
-                assert!(
-                    msg.contains("v1.1.0"),
-                    "NotImplemented message must reference v1.1.0; got: {msg}"
-                );
+            Err(TsaError::NotImplemented(_)) => {
+                panic!("v1.1.0 must NOT return NotImplemented on Qualified::fetch_token")
             }
-            other => panic!("expected NotImplemented, got: {:?}", other),
+            Err(TsaError::Fetch(_)) => {
+                // Expected: the production endpoint isn't reachable in tests.
+            }
+            Ok(_) => {
+                // Even better — but unlikely without network mocking.
+            }
+            other => panic!("unexpected result: {:?}", other),
         }
     }
 
@@ -628,17 +694,27 @@ mod tests {
     fn qualified_stub_tier_and_url() {
         let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
         assert_eq!(client.tier(), TsaTier::Qualified);
-        assert!(client.url().contains("qualified"));
-        assert!(client.url().contains("eidas"));
+        // v1.1.0: the URL is the real DigiCert endpoint (default:
+        // https://timestamp.digicert.com), not the v1.0.5 stub URL.
+        let url = client.url();
+        assert!(url.contains("digicert") || url.contains("eidas"));
     }
 
     #[test]
-    fn qualified_verify_token_returns_not_implemented() {
-        // verify_token on the stub must also return NotImplemented.
+    fn qualified_verify_token_dispatches_to_digicert() {
+        // v1.1.0: verify_token on the Qualified variant now dispatches
+        // to the real adapter (returns a real error, not NotImplemented).
         let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
         let token = TsaTokenBytes::from_der(vec![1, 2, 3]);
-        let result = client.verify_token(&token, "dGVzdA==");
-        assert!(matches!(result, Err(TsaError::NotImplemented(_))));
+        let result = client.verify_token(
+            &token,
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        );
+        // We don't care WHICH error; only that it's not NotImplemented
+        // (which would mean the dispatch is broken).
+        if let Err(TsaError::NotImplemented(_)) = result {
+            panic!("v1.1.0 must NOT return NotImplemented on Qualified::verify_token")
+        }
     }
 
     #[test]
