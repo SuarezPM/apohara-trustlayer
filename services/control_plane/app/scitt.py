@@ -141,6 +141,14 @@ class SCITTTSConfig(BaseModel):
         description="SCITT Transparency Service base URL. Dev: scittles locally. "
                    "Prod: managed SCITT TS or self-hosted on hardened infra.",
     )
+    # W7.0 (auditor gap 3): public SCITT ledger for production receipt anchoring.
+    public_ledger_url: str = Field(
+        default="",
+        description="Public SCITT TS URL for production receipt anchoring. "
+                   "If empty, uses `ts_url`. Recommended: IETF reference emulator "
+                   "https://scitt-ref.azurewebsites.net/ or self-hosted scittles "
+                   "https://github.com/scitt-community/scitt-rs with public ingress.",
+    ),
     auth_method: SCITTAuthMethod = Field(
         default=SCITTAuthMethod.NONE,
         description="Authentication method for TS requests. "
