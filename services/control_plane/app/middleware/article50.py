@@ -108,12 +108,10 @@ class Article50DisclosureMiddleware:
         request_id = str(uuid.uuid4())
         start_time = time.monotonic()
 
-        # v3.0 W1.4: We always emit the disclosure header. The PUBLIC_PATHS
-        # exclusion is documented but disabled because path extraction has edge
-        # cases across ASGI servers. In production (uvicorn), the path is
-        # always set correctly; in TestClient, raw_path must be used.
-        # TODO W4.1: re-enable PUBLIC_PATHS exclusion with proper path handling.
-        should_disclose = True
+        # v3.0 W1.4: PUBLIC_PATHS exclusion re-enabled (was disabled in v0.1).
+        # Path extraction now uses scope.get("path") with raw_path fallback,
+        # which works in both uvicorn and TestClient.
+        should_disclose = _should_disclose(path)
         is_evidence = method in ("POST", "PUT") and _is_evidence_path(path)
         # Per-request state (request_id) lives in scope["state"] which
         # is shared with the FastAPI Request via request.state.
