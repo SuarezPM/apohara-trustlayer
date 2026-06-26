@@ -1,0 +1,19 @@
+[package]
+name = "tl-argus"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+authors = ["Pablo M. Suarez <suarezpm@csnat.unt.edu.ar>"]
+description = "ARGUS absorption — 4 specialist module interfaces + CordonEnforcer moat + EU AI Act Art. 12 AuditEvent (16 fields, BLAKE3 fingerprints)"
+
+[dependencies]
+# Workspace deps from TrustLayer root
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "1"
+ed25519-dalek = "2"
+hex = "0.4"

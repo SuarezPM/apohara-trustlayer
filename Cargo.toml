@@ -29,6 +29,7 @@ members = [
     "crates/tl-mcp-server",
     # v1.0.5 (Plan v1.2 Block 2 US-1): tl-scitt — SCITT-native receipts
     "crates/tl-scitt",
+    "crates/tl-argus",  # v3.0 W3.1: apohara-argus absorption
     # v3.0 W3.2 + W3.5: tl-context — INV-15 safety invariant (Rust port of
     # Apohara_Context_Forge Z3 proof + 5-category prompt-injection regex).
     "crates/tl-context",
