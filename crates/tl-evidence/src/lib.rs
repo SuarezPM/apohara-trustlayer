@@ -23,6 +23,7 @@ pub mod cose;
 pub mod hmac_chain;
 pub mod key_rotation;
 pub mod packet;
+pub mod pqc;
 pub mod signer;
 pub mod tsa;
 

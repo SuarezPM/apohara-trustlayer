@@ -29,6 +29,18 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 x509-parser = "0.16"
 # base64 for digest encoding in fetch_token.
 base64 = "0.22"
+# v3.0 W1.1: ML-DSA-65 (FIPS 204) hybrid signer. Uses ml-dsa (RustCrypto,
+# pure Rust, 2026-06-05) + module-lattice (Array<T, N> type used by ml-dsa).
+# We declare module-lattice as a direct dep because ml-dsa doesn't
+# re-export Array under its public API.
+ml-dsa = { version = "0.1.1", default-features = false, features = ["alloc", "zeroize", "pkcs8"] }
+module-lattice = "0.2.3"
+# v3.0 W1.1: generic-array is the Array<T, N> type used by ml-dsa. ml-dsa
+# uses it internally but doesn't re-export it. We declare it directly
+# so we can construct Array<u8, U1952> for EncodedVerifyingKey etc.
+generic-array = "0.14"
+# v3.0 W1.1: bs58 for did:key ML-DSA-65 encoding (multicodec 0x1211 + base58btc + z prefix).
+bs58 = "0.5"
 # v1.1.0.x+1+8: HMAC chain from chain root + tenant_id (closes auditor-4
 # prior-art port from apohara-probant). The HMAC chain is decoupled
 # from the COSE signer key.
@@ -45,6 +57,7 @@ bcder = "0.7"
 # RFC 3161 substrate. Reality: themis-compressor is LLMLingua-2
 # prompt compression. The actual RFC 3161 lives in themis-evidence::timestamp
 # (x509-tsp + cms). Re-exported via tl-evidence/src/tsa.rs.
+
 
 [dev-dependencies]
 proptest = "1"
