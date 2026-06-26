@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Apohara TrustLayer MCP server — exposes 7 tools for AI agents (Claude Code, Cursor, Codex)"
+description = "Apohara TrustLayer MCP server — exposes 36 tools across 10 modules for AI agents (Claude Code, Cursor, Codex)"
 
 [[bin]]
 name = "tl-mcp-server"

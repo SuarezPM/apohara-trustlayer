@@ -6,11 +6,11 @@
 //! of MCP that Claude Code / Cursor / Codex use:
 //!
 //!   - `initialize`       → returns server info + capabilities
-//!   - `tools/list`       → returns the 7 tools with JSON Schemas
+//!   - `tools/list`       → returns the 36 tools with JSON Schemas
 //!   - `tools/call`       → dispatches to the tool function by name
 //!
 //! The MCP spec is JSON-RPC 2.0 with a few method names; we don't
-//! need the full rmcp SDK to expose 7 tools. The transport is
+//! need the full rmcp SDK to expose 36 tools. The transport is
 //! line-delimited JSON over stdio (the standard MCP transport).
 //!
 //! ## What this is NOT
@@ -32,17 +32,27 @@
 //!
 //! - `envelope` module: prompt envelope (Spotlighting defense per
 //!   Hines et al. arXiv 2403.14720; port from apohara-probant).
-//!   Every untrusted block passed to the 7 tools is wrapped in
+//!   Every untrusted block passed to the 36 tools is wrapped in
 //!   per-request nonce-tagged sentinels to prevent prompt injection.
 //! - `rule_of_two` module: Meta's "Agentic Rule of Two" gate for
 //!   destructive tool actions. Of (CI env, TTY, human override),
 //!   require ≥ 2 — a single signal is not enough to authorize
 //!   destructive ops (delete evidence, rotate keys, etc.).
+//!
+//! ## v3.0 expansion (Plan v3.0 W3.3)
+//!
+//! 29 additional tools are defined in `tools_v2.rs` (9 modules:
+//! `bundle.*`, `scitt.*`, `watermark.*`, `trustlist.*`, `key.*`,
+//! `soa.*`, `nist.*`, `pld.*`, `partner.*`). Total MCP surface:
+//! 36 tools (7 v1 + 29 v2). The dispatch table and tools/list
+//! spec are extended via `tools_v2::register_dispatch()` and
+//! `tools_v2::tools_list()`.
 
 #![warn(missing_docs)]
 
 pub mod envelope;
 pub mod rule_of_two;
+pub mod tools_v2;
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
@@ -105,7 +115,7 @@ pub struct CheckComplianceInput {
 /// Tool handler: returns a JSON value (the MCP tool result).
 type ToolHandler = fn(Value) -> Result<Value, String>;
 
-/// Build the dispatch table for the 7 MCP tools.
+/// Build the dispatch table for all 36 MCP tools (7 v1 + 29 v2).
 fn build_tool_dispatch() -> HashMap<&'static str, ToolHandler> {
     let mut m: HashMap<&'static str, ToolHandler> = HashMap::new();
     m.insert("tl_generate_disclosure", handle_generate_disclosure);
@@ -115,13 +125,14 @@ fn build_tool_dispatch() -> HashMap<&'static str, ToolHandler> {
     m.insert("tl_evaluate_policy", handle_evaluate_policy);
     m.insert("tl_inspect_receipt", handle_inspect_receipt);
     m.insert("tl_check_compliance", handle_check_compliance);
+    tools_v2::register_dispatch(&mut m);
     m
 }
 
 /// Build the tools/list response. Each tool has a JSON Schema
 /// generated from the input struct via `schemars`.
 fn build_tools_list() -> Value {
-    let tool_specs: Vec<Value> = vec![
+    let mut tool_specs: Vec<Value> = vec![
         tool_spec::<GenerateDisclosureInput>(
             "tl_generate_disclosure",
             "Generate signed disclosure",
@@ -158,6 +169,7 @@ fn build_tools_list() -> Value {
             "Check the 4-layer compliance assessment for a bundle.",
         ),
     ];
+    tool_specs.extend(tools_v2::tools_list());
     json!({ "tools": tool_specs })
 }
 
