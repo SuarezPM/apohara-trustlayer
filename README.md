@@ -501,6 +501,21 @@ endpoint's end-to-end behavior.
 
 The roadmap for v3.0 → v4.0 (PQC parity with Attestix, PLD defect rebuttal shield, ISO 42001 cert-readiness, NIST AASI integration, Catalyst integration, Series A) is documented at [`docs/ROADMAP_v3.md`](docs/ROADMAP_v3.md).
 
+---
+
+## Design partner program — ACTIVE (2026-07-10 application deadline)
+
+We are looking for **5 EU-regulated design partners** (free v2.0 for 6 months) to validate TrustLayer in production before the EU AI Act Art. 50 deadline (2 August 2026). Ideal partners:
+
+- **EU financial services** with DORA Art. 9-13 obligations (ICT risk, incident log)
+- **AI providers** needing EU AI Act Art. 50(2) marking (transparency) and Art. 12 (record-keeping)
+- **Subject to PLD 2024/2853** product liability for AI-driven products
+- **Pursuing ISO/IEC 42001:2023** AI management system certification
+
+Application: see [`docs/design-partners/README.md`](docs/design-partners/README.md) and email pablo@apohara.org.
+
+**Why now**: the EU AI Act Art. 50 enforcement deadline is 37 days away. Five design partners in 2 weeks is achievable; without them, the code sits in a vacuum.
+
 
 ## v1.2 multi-tenant handoff — COMPLETE (2026-06-26)
 
