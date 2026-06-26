@@ -20,6 +20,7 @@ pub fn version() -> &'static str {
 
 pub mod cose;
 pub mod hmac_chain;
+pub mod key_rotation;
 pub mod packet;
 pub mod signer;
 pub mod tsa;
