@@ -233,7 +233,7 @@ compliant with Art. 50(3) until v1.1.1 ships.**
 | EU AI Act | Art. 50(2) (machine-readable provenance) | **Covered** (dev + production path) | COSE_Sign1 envelope + RFC 3161 timestamp via FreeTSA (dev) or DigiCert/Sectigo qualified TSP (production, default = Sectigo per v1.1.0.x+1+6). **Full CMS signature verification per RFC 5652 §5.6 implemented** in `tl-evidence::cms_verify::verify_strict_with_certs` (closes auditor-3 CRÍTICO 1 + auditor-4 BRECHA 1). |
 | EU AI Act | Art. 50(3) (watermark) | **NotApplicable** | Watermark hooks deferred to v1.1.1 (c2patool + AudioSeal + Kirchenbauer text). See "What TrustLayer v1.0 is NOT" below. |
 | EU AI Act | Art. 50(4) (labelling) | **Covered** | 4-layer compliance assessment + v1 disclaimers in every response |
-| DORA | Art. 19-20 (evidence pack) | **Partial** | `DORAEvidenceStrategy` returns 6 checks (5 pass, `multi_tenant_isolation` honest-fail "ships in v1.2 — see tl-policy::multi_tenant_isolation_stub"). 1/6 honest-flag per Plan v1.2 Block 4 v1.1.0.x+1+5. |
+| DORA | Art. 19-20 (evidence pack) | **Partial** | `DORAEvidenceStrategy` returns 6 checks (5 pass, `multi_tenant_isolation` honest-fail "ships in v1.2 — see tl-policy::multi_tenant_isolation_stub"). 1/6 honest-flag per Plan v1.2 Block 4 v1.1.0.x+1+5. **v1.2 progress (merged on `feat/v1.2-middleware-integration`):** the `org_resolver_middleware` and `get_org_id` dependency are wired into `main.py` + all 3 evidence routes + the disclosure route. The org_id column is on `DisclosureRecord` (4 tables). Remaining for full v1.2 multi-tenancy: Alembic migration for per-tenant `chain_id` namespace + the dedicated acme/globex isolation test. |
 | ISO 42001 | AIMS | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2). |
 | NIST AI RMF | Govern/Map/Measure/Manage | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2). |
 | NIST SP 800-53 | Security and privacy controls | **NotImplemented** | `ComplianceStrategy::evaluate_all` honest-stub. Ships in v1.2. |
@@ -352,8 +352,65 @@ See [LICENSE](LICENSE) for details.
 **Pre-release.** v1 closes 14/22 stories (64%); the remaining 8 are Block 5
 (docs, demo, public push) + US-13 (rmcp 1.8 macro blocker, in progress).
 
+**v1.2 progress (merged on `feat/v1.2-middleware-integration`):**
+- Multi-tenant org resolution: function-based `org_resolver_middleware`
+  (NOT `BaseHTTPMiddleware`, avoids the SQLAlchemy 2.0 contextvars
+  propagation issue). Resolves `org_id` from JWT (HS256) or
+  `X-Org-Id` header. Returns 401 (loud, per IC-3) if missing.
+- `get_org_id` FastAPI dependency wired into all 3 evidence routes
+  + the disclosure route.
+- `DisclosureRecord` (and the 3 other append-only tables) have
+  an `org_id` column. Routes filter by `where(id == X, org_id == Y)`.
+- The `multi_tenant_isolation` DORA check is no longer a 401 — it's
+  200 for org_id-matching requests and 404 for cross-tenant.
+- Remaining for full v1.2: Alembic migration for per-tenant
+  `chain_id` namespace + the dedicated acme/globex isolation test
+  + 4 follow-up test files (test_scitt, test_stix, test_content
+  _negotiation) need a `__future__` annotations fix.
+
 **Not yet pushed to a public registry.** The `v1` release tag will follow
 Pablo's manual review of the spec-facts audit diff and the public verify
 endpoint's end-to-end behavior.
 
 **EU AI Act Art. 50 deadline: 2 August 2026** (39 days from this commit).
+
+
+## v1.2 multi-tenant handoff (next-session TODO)
+
+The `feat/v1.2-middleware-integration` branch was merged to `main` on
+2026-06-25. The next session should:
+
+1. **Fix the 4 remaining test files** that fail with 401:
+   - `tests/test_scitt_countersign_endpoint.py`
+   - `tests/test_stix_export.py`
+   - `tests/test_content_negotiation.py`
+   - All have the same root cause: `from __future__ import annotations`
+   before the `from tests.test_org_id_helpers import OrgIdTestClient`
+   import causes a circular import issue.
+   - **Fix**: move `from __future__ import annotations` AFTER the
+     `OrgIdTestClient` import, OR use string forward references.
+
+2. **Add the dedicated acme/globex isolation test** to
+   `tests/test_real_evidence_lookup.py`:
+   ```python
+   def test_acme_cannot_see_globex_bundles():
+       # Create bundle with org_id=acme; test that acme gets 200,
+       # globex gets 404 (org_id filter blocks the cross-tenant lookup)
+   ```
+
+3. **Alembic migration for per-tenant `chain_id` namespace**
+   (Plan v1.2 Block 4 v1.2-US-1, remaining step):
+   - `chain_id` should be `tenant:{org_id}:{disclosure_type}` instead
+     of the current single value.
+   - This is the final step for true multi-tenant SaaS.
+
+4. **Run `review-work` skill** on the merged commit to validate
+   the full v1.2-middleware-integration change.
+
+5. **Run openssl ts -verify** regression on the digicert fixture
+   to ensure v1.2 didn't break v1.1.x. (Already passes locally.)
+
+6. **Real mappers for ISO 42001 + NIST AI RMF** (deferred to a
+   future PR; the v1.2 work is multi-tenant focused).
+
+7. **Add the v1.2 sub-section** to the README status block.
