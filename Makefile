@@ -17,7 +17,7 @@ CONTROL_PLANE := services/control_plane
 # Phony declarations
 # =============================================================================
 
-.PHONY: help demo demo-v1.1.x build test lint audit deny ci clean install-hooks
+.PHONY: help demo demo-full demo-v1.1.x build test lint audit deny ci clean install-hooks
 
 # =============================================================================
 # Help (default target)
@@ -56,6 +56,45 @@ demo:
 		pytest tests/e2e/test_third_party_can_generate_verify_and_audit.py -v
 	@echo ""
 	@echo "Demo complete. See audit_artifacts/spec_facts_audit.md for the 8 reconciled claims."
+
+# =============================================================================
+# Demo Full: end-to-end acceptance + capture output for public artifact
+# Plan v3.0 F0.1 — the public "what does this actually do?" artifact.
+# Captures stdout+stderr of the full flow to docs/demo_output.txt so
+# any reviewer (buyer, auditor, design partner) can see the artifact
+# in <30s without running anything.
+# =============================================================================
+
+demo-full:
+	@echo "==> TrustLayer full demo (disclosure → COSE+TSA → 4-layer → verify → PDF)"
+	@echo ""
+	@mkdir -p docs
+	@REPO_ROOT=$$(pwd) && \
+	DEMO_OUT=$$(mktemp -t demo-full-XXXXXX.txt) && \
+	PYTHONPATH=$(CONTROL_PLANE) $(UV) run --no-project \
+		--with pytest --with pytest-asyncio --with pytest-cov \
+		--with httpx --with fastapi \
+		--with 'pydantic[email]' --with pydantic-settings \
+		--with sqlalchemy --with asyncpg --with structlog \
+		--with pyjwt --with uvicorn \
+		pytest tests/e2e/test_third_party_can_generate_verify_and_audit.py -v -s \
+		> $$DEMO_OUT 2>&1 ; \
+	EXIT=$$? ; \
+	{ echo "## TrustLayer Full Demo — captured $$(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+	  echo "## Repository: https://github.com/SuarezPM/apohara-trustlayer"; \
+	  echo "## Commit: $$(git rev-parse HEAD 2>/dev/null || echo unknown)"; \
+	  echo "## Exit code: $$EXIT"; \
+	  echo "## (re-run with: make demo-full)"; \
+	  echo ""; \
+	  echo '```'; \
+	  cat $$DEMO_OUT; \
+	  echo '```'; \
+	} > docs/demo_output.txt && \
+	rm -f $$DEMO_OUT && \
+	echo "" && \
+	echo "==> Captured to docs/demo_output.txt" && \
+	echo "==> sha256: $$(sha256sum docs/demo_output.txt | awk '{print $$1}')" && \
+	echo "==> lines: $$(wc -l < docs/demo_output.txt)"
 
 # =============================================================================
 # Demo v1.1.x: integration smoke test + frozen artifact (BRECHA 5)

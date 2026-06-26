@@ -484,7 +484,22 @@ with strict isolation enforced at the SQL level.
 Pablo's manual review of the spec-facts audit diff and the public verify
 endpoint's end-to-end behavior.
 
-**EU AI Act Art. 50 deadline: 2 August 2026** (39 days from this commit).
+## Regulatory deadline clock
+
+| Regime | Status | Deadline | Days remaining (from 2026-06-26) |
+|---|---|---|---|
+| **DORA (EU Reg 2022/2554)** | ✅ **In force since 17 January 2025** — ICT incident logging mandatory | Already enforced | — |
+| **EU AI Act Art. 50 (transparency)** | ⚠️ Approaching — partial deferral to 2 Dec 2026 for pre-existing systems (Digital Omnibus 7-may-2026) | **2 August 2026** | **37 days** |
+| **EU AI Act Art. 12 (logging, high-risk)** | ⚠️ Stand-alone systems deferred to 2 Dec 2027 by Digital Omnibus | 2 Dec 2027 (stand-alone); 2 Aug 2028 (embedded) | ~17 months |
+| **PLD 2024/2853 (Product Liability)** | ⚠️ Member state transposition by 9 Dec 2026; applies to products placed on market after that date | **9 December 2026** | ~166 days |
+| **ISO/IEC 42001:2023** | ✅ Adopted as BS EN ISO/IEC 42001:2026 (25-mar-2026) — voluntary certification | No fixed date | — |
+| **NIST PQC migration** | ⚠️ NIST NSM-10: priority systems by 2030; RSA/ECC disallowed by 2035 | 2030 / 2035 | ~4-9 years |
+| **NIST AI 600-1 (GenAI Profile)** | ✅ Published 26-jul-2024 — voluntary framework | No fixed date | — |
+| **SCITT RFC 9943** | ✅ Published April 2026 — reference standard for AI evidence | — | — |
+
+**TrustLayer is positioned to address ALL these regimes with the v1.2.1 + v2.0 baseline** (multi-tenant + DORA evidence + EU Trust List validation + SCITT countersignatures + Kirchenbauer watermark + PQC-ready key rotation).
+
+The roadmap for v3.0 → v4.0 (PQC parity with Attestix, PLD defect rebuttal shield, ISO 42001 cert-readiness, NIST AASI integration, Catalyst integration, Series A) is documented at [`docs/ROADMAP_v3.md`](docs/ROADMAP_v3.md).
 
 
 ## v1.2 multi-tenant handoff — COMPLETE (2026-06-26)
