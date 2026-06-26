@@ -470,21 +470,30 @@ impl KirchenbauerTextWatermark {
         }
     }
 
+    /// Build with custom hyperparameters (γ, δ).
+    pub fn with_params(key: [u8; 32], gamma: f32, delta: f32) -> Self {
+        Self { key, gamma, delta }
+    }
+
     /// Derive a green-list for a token position using the algorithm
-    /// (deterministic per (key, prompt_hash, position) triple).
+    /// (deterministic per (key, position) triple).
     ///
-    /// Returns the byte-position of tokens in the green list
-    /// (modulo a 16-bit hash of the position). The caller (an
-    /// LLM sampler) would bias logits at these positions.
+    /// Returns the token ids in the green list (modulo vocab_size).
+    /// The caller (an LLM sampler) would bias logits at these
+    /// positions upward by `delta`.
+    ///
+    /// Per Kirchenbauer et al. (2023) "A Watermark for Large Language
+    /// Models": the green list is a random γ-fraction of the vocab,
+    /// determined by hashing the previous token id + a secret key.
+    /// Here we hash (key, position) — the position itself acts as
+    /// the "previous token" proxy since we don't have a real sampler
+    /// integration yet.
     pub fn green_list_for_position(&self, position: u32, vocab_size: u32) -> Vec<u32> {
-        // Seed a per-position PRNG with key + position.
         let mut prng_seed = self.key.to_vec();
         prng_seed.extend_from_slice(&position.to_le_bytes());
-        // Use blake3 as the PRNG (deterministic, no_std-friendly).
         let mut hasher = blake3::Hasher::new();
         hasher.update(&prng_seed);
         let hash = hasher.finalize();
-        // Use first 4 bytes as the seed for the green-list.
         let seed = u32::from_le_bytes([
             hash.as_bytes()[0],
             hash.as_bytes()[1],
@@ -494,10 +503,160 @@ impl KirchenbauerTextWatermark {
         let green_size = ((self.gamma * vocab_size as f32) as u32).max(1);
         let mut green = Vec::with_capacity(green_size as usize);
         for i in 0..green_size {
-            // Cheap deterministic per-position token id.
-            green.push((seed.wrapping_add(i.wrapping_mul(0x9E3779B1))) % vocab_size.max(1));
+            green.push(
+                (seed.wrapping_add(i.wrapping_mul(0x9E3779B1))) % vocab_size.max(1),
+            );
         }
         green
+    }
+
+    /// Bias logits for a single token position: add `delta` to each
+    /// green-list logit. Returns a new vector; input is not mutated.
+    ///
+    /// This is the **sampling-side** hook: an LLM serving stack would
+    /// call this on every logit vector before softmax, making
+    /// green-list tokens exponentially more likely.
+    pub fn bias_logits(&self, logits: &[f32], position: u32) -> Vec<f32> {
+        let vocab_size = logits.len() as u32;
+        let green = self.green_list_for_position(position, vocab_size);
+        let mut biased = logits.to_vec();
+        // Build a set for O(1) lookup.
+        // For small green lists (γ=0.25, vocab=50k → ~12.5k entries),
+        // a HashSet is fine. For very large vocabs, use a bitmap.
+        let mut green_set = std::collections::HashSet::with_capacity(green.len());
+        for &id in &green {
+            green_set.insert(id);
+        }
+        for (i, l) in biased.iter_mut().enumerate() {
+            if green_set.contains(&(i as u32)) {
+                *l += self.delta;
+            }
+        }
+        biased
+    }
+
+    /// Detect a watermark in a sequence of token ids by counting
+    /// how many fall in the green list and running a z-test.
+    ///
+    /// Returns `(detected, z_score, green_count, total_count)`.
+    /// Detection threshold: z > 4.0 (p < 0.00003 one-sided) is the
+    /// standard Kirchenbauer et al. (2023) threshold.
+    pub fn detect_tokens(
+        &self,
+        tokens: &[u32],
+        vocab_size: u32,
+    ) -> DetectionStats {
+        let n = tokens.len();
+        if n == 0 {
+            return DetectionStats {
+                detected: false,
+                z_score: 0.0,
+                green_count: 0,
+                total_count: 0,
+                gamma: self.gamma,
+            };
+        }
+        let mut green_count: usize = 0;
+        for (i, &tok) in tokens.iter().enumerate() {
+            let green = self.green_list_for_position(i as u32, vocab_size);
+            if green.contains(&tok) {
+                green_count += 1;
+            }
+        }
+        // z-test: under null hypothesis (no watermark), green_count ~ Binom(n, γ).
+        // z = (observed - expected) / sqrt(n * γ * (1-γ))
+        let n_f = n as f64;
+        let gamma = self.gamma as f64;
+        let expected = n_f * gamma;
+        let variance = n_f * gamma * (1.0 - gamma);
+        let std_dev = variance.sqrt();
+        let z = if std_dev > 0.0 {
+            (green_count as f64 - expected) / std_dev
+        } else {
+            0.0
+        };
+        // Threshold: z > 4.0 → watermark detected (one-sided p < 0.00003).
+        let detected = z > 4.0;
+        DetectionStats {
+            detected,
+            z_score: z,
+            green_count,
+            total_count: n,
+            gamma: self.gamma,
+        }
+    }
+
+    /// Convenience: detect on a token sequence and wrap the stats in
+    /// a `DetectionResult`. In production, you'd use this with a real
+    /// tokenizer output.
+    ///
+    /// Note: named `detect_token_sequence` to avoid shadowing the
+    /// `WatermarkProvider::detect(&[u8])` trait method (which is the
+    /// stub marker-detection used by `apply`).
+    pub fn detect_token_sequence(
+        &self,
+        tokens: &[u32],
+        vocab_size: u32,
+    ) -> Result<DetectionResult, WatermarkError> {
+        let stats = self.detect_tokens(tokens, vocab_size);
+        Ok(DetectionResult {
+            detected: stats.detected,
+            confidence: stats.confidence() as f32,
+            metadata: serde_json::json!({
+                "algorithm": "kirchenbauer_et_al_2023",
+                "z_score": stats.z_score,
+                "green_count": stats.green_count,
+                "total_count": stats.total_count,
+                "gamma": stats.gamma,
+                "threshold_z": 4.0,
+            }),
+        })
+    }
+}
+
+/// Statistics from a Kirchenbauer watermark detection z-test.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DetectionStats {
+    /// True iff z_score > 4.0 (one-sided p < 0.00003).
+    pub detected: bool,
+    /// The z-score: (observed - expected) / std_dev under null hypothesis.
+    pub z_score: f64,
+    /// Number of tokens that fell in the green list.
+    pub green_count: usize,
+    /// Total tokens analyzed.
+    pub total_count: usize,
+    /// Expected green-list fraction γ used.
+    pub gamma: f32,
+}
+
+impl DetectionStats {
+    /// Confidence in [0, 1] derived from the z-score via the
+    /// standard normal CDF complement (one-sided).
+    pub fn confidence(&self) -> f64 {
+        // Approximation of 1 - Φ(z) using the complementary error
+        // function (since 1 - Φ(z) = 0.5 * erfc(z/√2)).
+        // For practical purposes, a simple piecewise:
+        //   z >= 6  → 1.0
+        //   z >= 4  → 0.99997
+        //   z >= 3  → 0.9987
+        //   z >= 2  → 0.9772
+        //   z >= 1  → 0.8413
+        //   z >= 0  → 0.5
+        //   else   → 1 - confidence(|z|)
+        let z = self.z_score.abs();
+        let one_minus_cdf = match z {
+            z if z >= 6.0 => 1.0,
+            z if z >= 4.0 => 0.99997,
+            z if z >= 3.0 => 0.99865,
+            z if z >= 2.0 => 0.97725,
+            z if z >= 1.0 => 0.84134,
+            _ => 0.5,
+        };
+        if self.z_score >= 0.0 {
+            one_minus_cdf
+        } else {
+            1.0 - one_minus_cdf
+        }
     }
 }
 
@@ -623,6 +782,100 @@ mod tests {
         let detected = wm.detect(&out.bytes).expect("detect should succeed");
         assert!(detected.detected, "stub watermark should be detectable");
     }
+
+    #[test]
+    fn test_kirchenbauer_bias_logits_increases_green_probs() {
+        // Per Kirchenbauer et al. (2023): biasing green-list logits
+        // by δ should make green-list tokens more likely. We verify
+        // that the bias_logits output has larger values at green
+        // positions than the input.
+        let wm = KirchenbauerTextWatermark::with_params([0u8; 32], 0.25, 2.0);
+        let vocab_size = 1000u32;
+        let logits = vec![0.0_f32; vocab_size as usize];
+        let biased = wm.bias_logits(&logits, 0);
+        // At every position i where green_list_for_position(0, vocab)
+        // contains i, biased[i] should equal delta (2.0).
+        let green = wm.green_list_for_position(0, vocab_size);
+        for &g in &green {
+            assert!(
+                (biased[g as usize] - 2.0).abs() < 1e-6,
+                "green-list token {} should have bias +2.0, got {}",
+                g,
+                biased[g as usize]
+            );
+        }
+        // Non-green tokens should be unchanged.
+        let non_green_count = biased.iter().enumerate()
+            .filter(|(i, v)| !green.contains(&(*i as u32)) && **v != 0.0)
+            .count();
+        assert_eq!(non_green_count, 0, "non-green tokens must be unchanged");
+    }
+
+    #[test]
+    fn test_kirchenbauer_z_test_detects_watermarked_tokens() {
+        // Build a "watermarked" token sequence: bias logits, then
+        // greedily pick green-list tokens. Detection should give z > 4.
+        let wm = KirchenbauerTextWatermark::with_params([1u8; 32], 0.25, 5.0);
+        let vocab_size = 1000u32;
+        let n_tokens = 200usize;
+        let mut tokens = Vec::with_capacity(n_tokens);
+        for i in 0..n_tokens {
+            let green = wm.green_list_for_position(i as u32, vocab_size);
+            tokens.push(green[0]); // pick the first green token
+        }
+        let stats = wm.detect_tokens(&tokens, vocab_size);
+        assert!(stats.detected, "z-test should detect watermarked sequence (z={:.2})", stats.z_score);
+        assert!(stats.z_score > 4.0, "z-score should exceed threshold: got {:.2}", stats.z_score);
+        assert_eq!(stats.total_count, n_tokens);
+        assert_eq!(stats.green_count, n_tokens); // all tokens are green
+    }
+
+    #[test]
+    fn test_kirchenbauer_z_test_does_not_detect_random_tokens() {
+        // A random token sequence (uniformly drawn from vocab) should
+        // NOT be detected as watermarked. Expected green fraction ≈ γ,
+        // so z ≈ 0.
+        let wm = KirchenbauerTextWatermark::new([2u8; 32]);
+        let vocab_size = 10000u32;
+        let n_tokens = 1000usize;
+        // Pseudo-random but deterministic token sequence.
+        let mut tokens = Vec::with_capacity(n_tokens);
+        let mut state: u64 = 0xDEADBEEF;
+        for _ in 0..n_tokens {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            tokens.push((state as u32) % vocab_size);
+        }
+        let stats = wm.detect_tokens(&tokens, vocab_size);
+        // For random tokens, green fraction ≈ γ=0.25, so z ≈ 0.
+        // Allow a generous bound (±3) for the small sample.
+        assert!(!stats.detected, "random tokens should not be detected (z={:.2})", stats.z_score);
+        assert!(stats.z_score.abs() < 3.0, "z-score for random should be near 0: got {:.2}", stats.z_score);
+    }
+
+    #[test]
+    fn test_kirchenbauer_z_test_empty_sequence() {
+        let wm = KirchenbauerTextWatermark::new([0u8; 32]);
+        let stats = wm.detect_tokens(&[], 100);
+        assert!(!stats.detected);
+        assert_eq!(stats.total_count, 0);
+        assert_eq!(stats.green_count, 0);
+        assert_eq!(stats.z_score, 0.0);
+    }
+
+    #[test]
+    fn test_kirchenbauer_detection_stats_confidence() {
+        // z=5 should give confidence ≈ 0.99997
+        let stats = DetectionStats {
+            detected: true,
+            z_score: 5.0,
+            green_count: 250,
+            total_count: 1000,
+            gamma: 0.25,
+        };
+        let conf = stats.confidence();
+        assert!(conf > 0.99 && conf <= 1.0, "confidence for z=5 should be ~1.0: got {}", conf);
+    }
+
 
     #[test]
     fn test_passthrough_is_idempotent() {
