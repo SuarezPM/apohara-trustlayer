@@ -29,6 +29,9 @@ members = [
     "crates/tl-mcp-server",
     # v1.0.5 (Plan v1.2 Block 2 US-1): tl-scitt — SCITT-native receipts
     "crates/tl-scitt",
+    # v3.0 W3.2 + W3.5: tl-context — INV-15 safety invariant (Rust port of
+    # Apohara_Context_Forge Z3 proof + 5-category prompt-injection regex).
+    "crates/tl-context",
     # v1.1.0 (Plan v1.2 Block 3 US-3): tl-policy — DORA + EU AI Act + ISO + NIST strategies
     # v1.1.0 (Plan v1.1 Block 4 v1.1.0-US-11): tl-wasm — browser/edge verification SDK
     "crates/tl-wasm",

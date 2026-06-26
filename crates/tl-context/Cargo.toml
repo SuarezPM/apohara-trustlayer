@@ -1,0 +1,22 @@
+[package]
+name = "tl-context"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "TrustLayer INV-15 verifier + Z3 proof wrapper - absorbed from Apohara_Context_Forge per Plan v3.0 W3.2"
+
+[lib]
+name = "tl_context"
+path = "src/lib.rs"
+
+[dependencies]
+regex = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
