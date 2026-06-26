@@ -95,7 +95,7 @@ pub struct BundleRecord {
 /// `DisclosureRecord` query against `tl-evidence`'s hmac_chain store.
 ///
 /// Wire to: `crates/tl-evidence::hmac_chain::BLAKE3ChainStore::get(&id)`.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BundleStore {
     inner: RwLock<HashMap<String, BundleRecord>>,
 }
@@ -150,12 +150,12 @@ impl BundleStore {
         id: &str,
         format: &str,
     ) -> Result<BundleExport, BackendError> {
-        let bundle = self.get(id)?;
         if !["json", "pdf", "csv"].contains(&format) {
             return Err(BackendError::InvalidInput(format!(
-                "format must be json|pdf|csv, got {format}"
+                "format must be json|pdf/csv, got {format}"
             )));
         }
+        let bundle = self.get(id)?;
         Ok(BundleExport {
             bundle_id: id.to_string(),
             format: format.to_string(),
@@ -179,7 +179,7 @@ pub struct BundleExport {
 /// returned by the TS.
 ///
 /// Wire to: `crates/tl-scitt::ScittClient::verify_offline(&receipt)`.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ScittBackend {
     inner: RwLock<HashMap<String, String>>, // entry_id -> receipt (base64)
 }
@@ -275,7 +275,7 @@ pub struct WatermarkResult {
 /// `crates/tl-watermark::KirchenbauerTextWatermark::detect`.
 ///
 /// Wire to: `tl_watermark::KirchenbauerTextWatermark::detect(text)`.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct WatermarkBackend;
 
 impl WatermarkBackend {
@@ -322,7 +322,7 @@ pub struct WatermarkGenerateResult {
 ///
 /// Wire to: `crates/tl-evidence::tsa::eu_trust_list::EIDAS_QTSP_LIST`
 /// (already implemented in v1.1.0.x+1+1+3).
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct EuTrustListBackend {
     inner: RwLock<HashMap<String, EuTrustListEntry>>,
 }
@@ -369,7 +369,7 @@ impl EuTrustListBackend {
 // ============================================================================
 
 /// Key rotation record. In production this is `tl-evidence::key_rotation::KeyStore`.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct KeyRotationBackend;
 
 #[derive(Debug, Clone, Serialize)]
@@ -425,7 +425,7 @@ impl KeyRotationBackend {
 // ============================================================================
 
 /// ISO/IEC 42001:2023 Statement of Applicability (Clause 6.3).
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct SoaBackend;
 
 #[derive(Debug, Clone, Serialize)]
@@ -527,7 +527,7 @@ impl SoaBackend {
 
 /// NIST AI 600-1 GenAI Profile risk catalog (12 GAI risks per the
 /// framework).
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct NistAi6001Backend;
 
 #[derive(Debug, Clone, Serialize)]
@@ -637,7 +637,7 @@ fn risk(id: &str, name: &str, severity: &str, desc: &str) -> NistRisk {
 /// Product Liability Directive 2024/2853 disclosure + rebuttal backend.
 /// In production, this calls the `services/control_plane/app/pld_shield.py`
 /// endpoints which already implement the rebuttal logic.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PldBackend;
 
 #[derive(Debug, Clone, Serialize)]
@@ -760,7 +760,7 @@ fn days_until(date: &str) -> i64 {
 /// Design partner program backend. In production, this connects to
 /// the partner management service (or a Typeform webhook as per
 /// docs/design-partners/README.md).
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PartnerBackend;
 
 #[derive(Debug, Clone, Serialize)]

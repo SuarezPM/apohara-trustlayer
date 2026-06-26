@@ -17,7 +17,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use super::backends::Backends;
+use crate::backends::Backends;
 
 static BACKENDS: OnceLock<Arc<Backends>> = OnceLock::new();
 
