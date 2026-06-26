@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MCP_BIN = REPO_ROOT / "target" / "debug" / "tl-mcp-server"
 
 EXPECTED_TOOLS = [
+    # v1 (7 tools, original)
     "tl_generate_disclosure",
     "tl_verify_provenance",
     "tl_sign_artifact",
@@ -37,6 +38,45 @@ EXPECTED_TOOLS = [
     "tl_evaluate_policy",
     "tl_inspect_receipt",
     "tl_check_compliance",
+    # v2 (29 tools, W3.3 expansion)
+    # Bundle query (5)
+    "bundle.get",
+    "bundle.list",
+    "bundle.search",
+    "bundle.metadata",
+    "bundle.export",
+    # SCITT verification (4)
+    "scitt.verify",
+    "scitt.get",
+    "scitt.submit",
+    "scitt.status",
+    # Watermark detection (3)
+    "watermark.detect",
+    "watermark.generate",
+    "watermark.confidence",
+    # EU Trust List (3)
+    "trustlist.check",
+    "trustlist.list_providers",
+    "trustlist.policy_oid",
+    # Key rotation (3)
+    "key.status",
+    "key.rotate",
+    "key.history",
+    # ISO 42001 SoA (3)
+    "soa.generate",
+    "soa.controls",
+    "soa.compliance_status",
+    # NIST AI 600-1 (3)
+    "nist.risks",
+    "nist.mitigations",
+    "nist.profile_compliance",
+    # PLD disclosure (3)
+    "pld.disclosure_response",
+    "pld.rebuttal_pack",
+    "pld.deadline",
+    # Design partner (2)
+    "partner.apply",
+    "partner.status",
 ]
 
 
@@ -77,8 +117,8 @@ def _send_jsonrpc(requests: list[dict]) -> list[dict]:
     return responses
 
 
-def test_mcp_server_tools_list_returns_seven_tools() -> None:
-    """AC-6: tools/list returns the 7 expected tools."""
+def test_mcp_server_tools_list_returns_thirty_six_tools() -> None:
+    """AC-6: tools/list returns the 36 expected tools (7 v1 + 29 v2 per W3.3)."""
     request = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -92,7 +132,7 @@ def test_mcp_server_tools_list_returns_seven_tools() -> None:
     assert resp["id"] == 1
     assert "result" in resp
     tools = resp["result"]["tools"]
-    assert len(tools) == 7
+    assert len(tools) == 36
     names = {t["name"] for t in tools}
     assert names == set(EXPECTED_TOOLS)
 
