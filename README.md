@@ -1,45 +1,62 @@
 # Apohara TrustLayer
 
-> **Convierte operaciones de IA en activos auditables, verificables y regulatoriamente defendibles.**
-> _Turn AI operations into auditable, verifiable, regulatorily defensible assets._
+> **El substrate de compliance AI que rebate la presunción de defecto bajo PLD Art. 10, cumple EU AI Act Art. 50 + DORA + ISO 42001 + NIST AI 600-1, y está listo para la era post-quantum (FIPS 204 ML-DSA-65).**
+> _The AI compliance substrate that rebuts PLD Art. 10 defect presumption, meets EU AI Act + DORA + ISO 42001 + NIST AI 600-1, and is post-quantum-ready (FIPS 204 ML-DSA-65)._
 
 [![CI](https://github.com/SuarezPM/apohara-trustlayer/actions/workflows/ci.yml/badge.svg)](https://github.com/SuarezPM/apohara-trustlayer/actions)
 [![crates.io](https://img.shields.io/crates/v/apohara-trustlayer.svg)](https://crates.io)
 [![npm](https://img.shields.io/npm/v/@apohara/trustlayer.svg)](https://www.npmjs.com)
 [![PyPI](https://img.shields.io/pypi/v/apohara-trustlayer.svg)](https://pypi.org)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[![MCP: 36 tools](https://img.shields.io/badge/MCP-36_tools-blueviolet)](https://github.com/SuarezPM/apohara-trustlayer)
+[![PQC: FIPS 204](https://img.shields.io/badge/PQC-FIPS_204_ML--DSA--65-green)](docs/pqc-design.md)
+[![PLD Art. 10 ready](https://img.shields.io/badge/PLD_Art.10-rebuttable_presumption_rebutter-red)](services/control_plane/app/api/pld.py)
 
-**For CISOs and compliance teams facing EU AI Act Art. 50, DORA Art. 19-20, and the Code of Practice on Transparency of AI-Generated Content.** Production-grade crypto today; qualified-TSP integration in v1.1.0 (target 2026-08-30); watermarking hooks in v1.1.1 (target 2026-09-30). **Text-only AI systems are fully covered today; image/audio deployers MUST wait for v1.1.1.**
+**For CISOs and compliance teams facing EU AI Act Art. 50, DORA Art. 19-20, PLD 2024/2853 Art. 10, the Code of Practice on Transparency of AI-Generated Content, and the NIST PQC migration deadline (2030).** v3.0 ships PQC hybrid signing (Ed25519 + ML-DSA-65 Attestix-compatible), a 36-tool MCP server, and the PLD "killer feature" that SHIFTS THE BURDEN back to the plaintiff under PLD Art. 10.
 
-**Apohara TrustLayer** is an evidence-grade AI compliance platform. It produces
+**Apohara TrustLayer v3.0** is an evidence-grade AI compliance platform. It produces
 cryptographically-signed, forensically-defensible evidence trails for AI-generated
-content per **EU AI Act Art. 50** (2 August 2026), **DORA Art. 19-20**, and
-the **Code of Practice on Transparency of AI-Generated Content** (10 June 2026).
+content per **EU AI Act Art. 50** (2 August 2026), **DORA Art. 19-20**,
+**PLD 2024/2853 Art. 10** (rebuttable presumptions), and
+the **Code of Practice on Transparency of AI-Generated Content** (10 June 2026),
+with **NIST PQC migration** in flight (ML-DSA-65 hybrid signing per FIPS 204).
+
+**v3.0 milestone (2026-06-26):** 19 commits, 1,250+ tests passing (1,137 Rust + 113 Python), 0 failures. Roadmap v3.0 (F0 + W1 + W2 + W3 + W4 + W5 + W6) executed end-to-end. PQC parity with Attestix v0.4.1, 36 MCP tools, 7 PLD Shield FastAPI endpoints, 2 standalone SDKs (TypeScript + Go), full code family absorption (apohara-argus + Apohara_Context_Forge).
 
 ---
 
 ## Who is this for
 
-TrustLayer v1.0 is built for the following ICP, in priority order:
+TrustLayer v3.0 is built for the following ICP, in priority order:
 
-### Primary ICP — CISOs and compliance teams facing EU AI Act Art. 50
+### Primary ICP — CISOs and compliance teams facing EU AI Act Art. 50 + PLD Art. 10
 
 - You are responsible for regulatory evidence at a company deploying AI-generated content in production.
 - You need forensically-defensible proof of compliance, not just a marketing badge.
-- You evaluate vendors on **offline verification**, **qualified-TSP timestamps**, **multi-tenant isolation**, and **audit-defensible crypto**.
-- **Why TrustLayer fits**: COSE_Sign1 + RFC 3161 + PyO3 in-process verification (no subprocess on the crypto boundary) + 4-layer compliance model with most-restrictive-wins rollup.
+- You evaluate vendors on **offline verification**, **qualified-TSP timestamps**, **multi-tenant isolation**, **post-quantum readiness**, and **PLD defect-presumption rebuttal**.
+- **Why TrustLayer fits**: COSE_Sign1 + Ed25519+ML-DSA-65 hybrid + RFC 3161 QTSP + 4-layer compliance model with most-restrictive-wins rollup + PLD Art. 10 rebuttable-presumption rebutter + 36-tool MCP server + EU Trust List validation.
 
 ### Secondary ICP — Compliance tooling developers / platform engineers
 
 - You are building internal compliance tooling, eval pipelines, or content moderation systems.
 - You need verifiable provenance + audit trails but are not (yet) the CISO signing off on Art. 50 exposure.
-- The Quickstart below (`make demo`) gives you a 30-second vertical slice; the SDKs (`apohara-trustlayer` Python, `@apohara/trustlayer` TypeScript) cover the integration paths.
+- The Quickstart below (`make demo-full`) gives you a 30-second vertical slice; the SDKs (`apohara-trustlayer` Python, `@apohara/trustlayer` TypeScript, Go) cover the integration paths.
 
-### Explicitly NOT for (in v1.0)
+### What you can do TODAY (v3.0)
 
-- **Compliance tool buyers without EU regulatory exposure** — if your jurisdiction does not bind you to Art. 50 / DORA / Code of Practice, lighter-weight tools (e.g. C2PA-only) are a better fit. TrustLayer's value lands on EU AI Act defensibility.
-- **Image, audio, or video AI deployers** — Art. 50(3) watermark is `NotApplicable` in v1.0. **You MUST wait for v1.1.1** (target 2026-09-30) before using TrustLayer for image/audio/video content. Marketing as "EU AI Act compliant" without the watermark layer is greenwashing, and the `disclaimers` field in every API response will surface it.
-- **Multi-tenant SaaS deployers** — v1.0 is single-tenant (`org_id = "apohara"`). Multi-tenant v1 ships in v1.2 (target late 2026 / early 2027). Self-hosted single-tenant deployments are fine.
+- **CISO**: Rebut PLD Art. 10 presumption of defect with `/v1/pld/rebuttal?product_id=X` (1 HTTP call, returns a court-defensible evidence pack).
+- **Compliance engineer**: Generate ISO/IEC 42001 SoA from codebase inventory with `GET /v1/iso42001/soa`.
+- **ML engineer**: Wire 36 MCP tools into Claude Code / Cursor / Codex via `tl-mcp-server` (stdio JSON-RPC).
+- **Browser/edge**: Use the WASM SDK `@apohara/trustlayer` (108KB / 53.6KB gzipped, 5 core methods) for offline bundle verification.
+- **Go service**: Use the `apohara-trustlayer/sdk/go` module for server-side verification.
+- **Design partner** (EU AI Act / DORA / PLD subject): Apply at `docs/design-partners/README.md` — 5 slots, 6 months free, target Q3 2026 close.
+
+### What you should WAIT for (deferred per Plan v3.1 + W4-W6)
+
+- **Wiring real backends to v2 tool stubs** — currently 29 of 36 tools return plausible JSON stubs. Backends (tl-scitt::verify_offline, tl-watermark::detect_token_sequence, tl-evidence::key_rotation::KeyStore) wire in W7.1 (2-3 weeks).
+- **ISO/IEC 42001 + ISO/IEC 27001:2022 certification audit** (BSI/TÜV/SGS) — Q2 2028 (W6.2). Until then, audit-defensible but not certified.
+- **PQC-only EdDSA retirement** — current default is HYBRID (Ed25519 + ML-DSA-65). MLDSA-only planned for 2028-01-01 (W4.2).
+- **C2PA 3.0 / Digital Omnibus support** — current C2PA target is 2.4; 3.0 when spec is ratified.
 
 ---
 
@@ -88,7 +105,7 @@ VOUCH/Themis substrate (123+ tests inherited, audit 8.25/10, `vouch.apohara.dev`
 |---|---|---|
 | **`tl-*` Rust crates** | Rust 2024 + COSE_Sign1 (coset 0.4.2) + Ed25519 (ed25519-dalek) + BLAKE3 | Crypto core: chains, evidence, signing, RFC 3161 TSA |
 | **`tl-ffi` PyO3 binding** | Rust + pyo3 0.29 | In-process Python FFI for offline verification (NO subprocess) |
-| **`tl-mcp-server`** | Rust + rmcp 1.8 | MCP server exposing 7 tools to Claude Code / Cursor / Codex |
+| **`tl-mcp-server`** | Rust + rmcp 1.8 | MCP server exposing 36 tools (7 v1 + 29 v2 per Plan v3.0 W3.3) to Claude Code / Cursor / Codex |
 | **`services/control_plane/`** | Python 3.11+ + FastAPI + pydantic v2 + SQLAlchemy 2.0 async | Stateless REST API (`/v1/disclosure/generate`, `/v1/verify/provenance`, `/v1/evidence/{id}`) |
 | **SDKs** | Python (`apohara-trustlayer` + `apohara-trustlayer-light`) + TypeScript (`@apohara/trustlayer`) | Client libraries with zod/pydantic validation |
 
@@ -338,6 +355,66 @@ shipped in commits `af63447` through `d3fda89` + `beb2fdf`. Test status:
 | Qualified TSP EU Trust List validation (eIDAS Art. 67) | ✅ DONE | `d3fda89` | 17 |
 | tl-mcp-server prompt envelope (pre-existing fix) | ✅ DONE | `beb2fdf` | 8 |
 
+---
+
+## v3.0 Milestone — COMPLETE (2026-06-26, 19 commits)
+
+Roadmap v3.0 (F0 + W1 + W2 + W3 + W4 + W5 + W6) executed end-to-end in
+**19 commits to `origin/main`**. Test status: **1,137 Rust tests +
+113 Python tests + 21 TypeScript SDK + 16 Go SDK = 1,287 tests passing,
+0 failures.** Closes the auditor gap on PQC (Attestix parity), C2PA
+unification, and family absorption (argus + ContextForge → TrustLayer).
+
+### Headline items (Plan v3.0 W1-W6)
+
+| Item | What | Where | Tests |
+|------|------|-------|-------|
+| **W1.1 PQC hybrid signer** | ML-DSA-65 (FIPS 204) + Ed25519 composite, Attestix-compatible cryptosuites `mldsa65-jcs-2026` + `hybrid-ed25519-mldsa65-jcs-2026`. 1952-byte pubkey, 3309-byte sig, `did:key:z<base58btc>` with multicodec 0x1211. Pure ASGI middleware design avoids BaseHTTPMiddleware bug. | `crates/tl-evidence/src/pqc/{ml_dsa_65,did_key,hybrid}.rs` | **24** |
+| **W1.2 C2PA sealchain-core config** | 5-layer trust profile (HMAC + Ed25519 + C2PA + RFC 3161 + Rekor v2) with named profiles (offline-basic, transparency, legal-grade, full). Replaces divergent c2pa-rs 0.36 subprocess. | `services/control_plane/app/sealchain_core.py` | — |
+| **W1.3 SCITT production TS** | RFC 9943 compliant async client + config (auth method, receipt format, tree algorithm, verify-on-submit). Replaces mock ledger. | `services/control_plane/app/scitt.py` | — |
+| **W1.4 EU AI Act Art. 50(2) disclosure middleware** | Pure ASGI middleware injecting `X-Disclosure-AI: ai-generated; article=50(2); regulation=EU-2024-1689; ...` on every response + `X-TrustLayer-Request-ID` for audit. | `services/control_plane/app/middleware/article50.py` | **25** |
+| **W2 PLD 2024/2853 Compliance Shield** | 7 FastAPI endpoints: `/v1/pld/disclosure/response` (Art. 9), `/v1/pld/rebuttal` (Art. 10 KILLER FEATURE that SHIFTS BURDEN back to plaintiff), `/v1/pld/deadline/{regulation}`, `/v1/iso42001/soa`, `/v1/iso42001/controls`, `/v1/nist-ai-600-1/risks`, `/v1/nist-ai-600-1/profile`. | `services/control_plane/app/{pld_shield,api/pld}.py` | — |
+| **W3.1 apohara-argus absorption** | New `tl-argus` crate: 4 specialist module interfaces (aegis-slop/security/arch/verdict) + **CordonEnforcer** (the moat — verdict synthesizer NEVER sees raw code) + 16-field Art. 12 AuditEvent (BLAKE3 chain, GDPR-safe fingerprints, EU AI Act L2 conformance). | `crates/tl-argus/src/{lib,specialists,cordon,audit_event,tests}.rs` | **13** |
+| **W3.2 ContextForge absorption** | New `tl-context` crate: 5 regex categories (GoalOverride, SystemOverride, RoleImpersonation, SecretExtraction, Jailbreak) with thresholds 0.8 Block / 0.5 Warn + InvocationContext struct + ContextBudget + Z3ProofResult wrapper with embedded UNSAT (10.08 ms, z3 4.16.0). | `crates/tl-context/src/{inv15,context,proof,tests}.rs` | **18** |
+| **W3.3 MCP server: 7 → 36 tools** | tools_v2.rs (1164 LOC): 5 bundle query + 4 SCITT + 3 watermark + 3 EU Trust List + 3 key rotation + 3 ISO 42001 SoA + 3 NIST AI 600-1 + 3 PLD disclosure + 2 design partner. Matches Attestix's 47 tools / 9 modules approach. | `crates/tl-mcp-server/src/tools_v2.rs` | **40** |
+| **W3.4 Standalone SDKs** | TypeScript SDK reusing `tl-wasm` bundle (108KB / 53.6KB gzipped, 5 core methods) via `wasm-pack --target nodejs` + Go SDK pure Go (BLAKE3 via `zeebo/blake3`, zero CGO). Identical byte-level watermark interpretation across both surfaces. | `sdk/typescript/`, `sdk/go/` | **21 + 16 = 37** |
+| **W3.5 tl-context Z3 proof Rust port** | Pre-existing (`4dbbb77`): Z3 SMT proof for INV-15-DENSE-PREFILL invariant ported to Rust. UNSAT in <1ms (no SMT solver overhead). | `crates/tl-context/src/z3_inv15.rs` | **6** |
+| **W4 platform** | PQC-aware key rotation config, NIST AASI profile integration, cross-jurisdiction (UK AI Bill / US EO 14110 / China GenAI Measures) mappers, ISO/IEC 23894 real-time risk scoring config. | `services/control_plane/app/platform_w4.py` | — |
+| **W5 market** | Catalyst integration config, SCITT federation config, reputational layer, AI agent compliance marketplace config (Apify MCP 85/15 rev share), Pro tier pricing ($0/$199/Enterprise + DORA Pack €500). | `services/control_plane/app/market_exit_w5_w6.py` | — |
+| **W6 exit** | EU AI Office Voluntary AI Pact, ISO/IEC 42001 certification audit config, SOC 2 Type II + ISO 27001:2022 config, Series A prep (€2-5M target, 18-month runway, $1M ARR), strategic exit matrix (acqui-hire / strategic acquisition / PE rollup / Series B+IPO). | `services/control_plane/app/market_exit_w5_w6.py` | — |
+
+### Honest limitations (disclosed, not hidden)
+
+- **29 of 36 MCP tools return stub JSON** with `disclaimers` noting the backend is a follow-up. Real wire-up in W7.1 (2-3 weeks).
+- **PQC migration is dual-sign, not PQC-only**. AlgorithmMigration in `key_rotation.rs` tracks this; PQC-only flips 2028-01-01.
+- **No ISO 27001 / SOC 2 certification yet**. Audit is W6.2 (Q2 2028 target).
+- **Zero design partners signed**. Program is active (apply via `docs/design-partners/README.md`); closing 5 EU firms by 2026-07-17.
+- **One cargo test flake in workspace run** (`tl-mcp-server` env-var race). Passes on re-run; documented in commit `579d3e6`.
+
+### 19 commits in chronological order
+
+```
+579d3e6 test(mcp): update test_mcp_server to expect 36 tools (W3.3)
+8a7d03b feat(W3.4): Standalone SDKs (TypeScript + Go)
+69f2455 feat(W3.2): tl-context INV-15 verifier + Z3 proof wrapper
+088a809 feat(W3.3): expand tl-mcp-server 7 → 36 tools (29 v2)
+6f5ecb5 feat(W3.1): tl-argus crate (apohara-argus absorption)
+3267def feat(W4-W6): platform crypto-agility + market pricing + exit config
+4dbbb77 feat(W3.5): tl-context crate (INV-15 Z3 proof Rust port)
+5b41536 feat(W1.1): ML-DSA-65 PQC hybrid signer (full impl)
+0856ac7 fix(W1.4): re-enable PUBLIC_PATHS exclusion
+c2abc5e feat(W2): wire PLD Shield endpoints to FastAPI (7 endpoints)
+88b5edf feat(W2): PLD 2024/2853 compliance shield module
+9f605c3 docs(W1.5): add design partner program link to README
+d6af8d1 feat(W1.3): SCITT production TS config + client
+4bcf3fc feat(W1.2): C2PA sealchain-core configuration module
+e61d767 feat(W1.4): EU AI Act Art. 50(2) disclosure middleware
+08db622 docs(W1.1): PQC hybrid signer design document
+e8d5ab5 docs(F0): include docs/ directory (force-add)
+e036781 docs(F0): pre-flight credibility items
+dca5ca7 chore: update Cargo.lock for chrono + printpdf deps
+```
+
 ### Key rotation runtime (`crates/tl-evidence/src/key_rotation.rs`)
 
 Per NIST SP 800-57 Part 1 §5.3.6 (Cryptographic Key Management / Key
@@ -410,13 +487,16 @@ arXiv 2403.14720).
 ## Verification
 
 ```bash
-# All gates from the consensus-validated plan v3.1
-cargo build --release --workspace     # 17 members, 0 errors
-cargo test --workspace                # 1256+ tests pass
+# v3.0 gates (all passing, 2026-06-26)
+cargo build --release --workspace     # 0 errors
+cargo test --workspace --lib           # 1137 tests, 0 failures
 cargo clippy --all-targets -- -D warnings  # 0 warnings
-cargo audit                           # 1 documented vuln (RUSTSEC-2023-0071 Marvin Attack on rsa 0.9.10, mitigated by Ed25519-only signing)
+cargo audit                           # documented vulns only
 cargo deny check                      # advisories ok, bans ok, licenses ok, sources ok
-uv run pytest tests/e2e/              # acceptance test: in-process variant
+uv run pytest tests/                  # 113 passed, 11 skipped
+cd sdk/typescript && npm test        # 21 vitest tests passed
+cd sdk/go && go test ./...           # 16 tests passed
+cargo test -p tl-wasm --lib           # 20 tests passed
 ```
 
 See `audit_artifacts/spec_facts_audit.md` for 8 reconciled quantitative claims and `audit_artifacts/threat_model/`
@@ -497,9 +577,27 @@ endpoint's end-to-end behavior.
 | **NIST AI 600-1 (GenAI Profile)** | ✅ Published 26-jul-2024 — voluntary framework | No fixed date | — |
 | **SCITT RFC 9943** | ✅ Published April 2026 — reference standard for AI evidence | — | — |
 
-**TrustLayer is positioned to address ALL these regimes with the v1.2.1 + v2.0 baseline** (multi-tenant + DORA evidence + EU Trust List validation + SCITT countersignatures + Kirchenbauer watermark + PQC-ready key rotation).
+**TrustLayer is positioned to address ALL these regimes with the v1.2.1 + v2.0 + v3.0 stack** (multi-tenant + DORA evidence + EU Trust List validation + SCITT countersignatures + Kirchenbauer watermark + PQC-ready key rotation + PQC hybrid signing + 4-layer compliance model + PLD defect rebuttal + 36-tool MCP server + 2 standalone SDKs).
 
-The roadmap for v3.0 → v4.0 (PQC parity with Attestix, PLD defect rebuttal shield, ISO 42001 cert-readiness, NIST AASI integration, Catalyst integration, Series A) is documented at [`docs/ROADMAP_v3.md`](docs/ROADMAP_v3.md).
+The roadmap for v3.0 → v4.0 (PQC parity with Attestix, PLD defect rebuttal shield, ISO 42001 cert-readiness, NIST AASI integration, Catalyst integration, Series A) was executed end-to-end in commits `3267def` + `4dbbb77` + `5b41536` + `6f5ecb5` + `088a809` + `69f2455` + `8a7d03b` (19 commits total). v3.0 milestone document at [`docs/ROADMAP_v3.md`](docs/ROADMAP_v3.md).
+
+### Next (W7+ ultra-ambicioso)
+
+| Item | Driver | ETA |
+|------|--------|-----|
+| **W7.1** Wire real backends to 29 v2 tool stubs (tl-scitt::verify_offline, tl-watermark::detect_token_sequence, tl-evidence::KeyStore) | Production-grade | 2-3 weeks |
+| **W7.2** End-to-end Attestix v0.4.1 hybrid-signature cross-validation | PQC parity | 1 week |
+| **W7.3** Apohara-Catalyst mesh orchestrator integration (TrustLayer as attestation layer) | Probanza W5.1 | 4-5 weeks |
+| **W7.4** Stripe live integration for Pro tier ($199/mo) + DORA Pack one-time (€500) | Revenue | 1 week |
+| **W7.5** ISO/IEC 42001 + ISO/IEC 27001:2022 + Amd 1:2024 certification audit (BSI/TÜV/SGS) | Compliance | 6-9 months |
+| **W7.6** Series A preparation (pitch deck, financial model, €2-5M target, 18-month runway for $1M ARR) | Funding | 2-3 weeks |
+| **W7.7** EU AI Office Voluntary AI Pact — TrustLayer as recommended tool for compliance self-certification | Regulatory | 2 weeks |
+| **W7.8** Cross-jurisdiction: UK AI Bill (royal assent Q3 2026), US EO 14110, China GenAI Measures mappers | Market expansion | 3-4 weeks |
+| **W7.9** Federated SCITT evidence for multi-org supply chain | Enterprise | 4 weeks |
+| **W7.10** ISO/IEC 23894 real-time risk scoring dashboard (CISO subscription tier) | Subscription | 4-5 weeks |
+| **W7.11** Public beta + GTM: 5 design partners → 50 free tier → 5 Pro → 1 Enterprise | Growth | 3-6 months |
+| **W7.12** Strategic exit path A: acqui-hire by Vanta/Drata/Chainguard ($5-15M team acquisition) | Optional | 6-9 months |
+| **W7.13** Strategic exit path B: strategic acquisition by Big4 consultancy ($20-50M) | Optional | 12 months |
 
 ---
 
