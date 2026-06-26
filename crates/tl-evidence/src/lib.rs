@@ -18,6 +18,7 @@ pub fn version() -> &'static str {
     "vouch-evidence"
 }
 
+pub mod bundle_pdf;
 pub mod cose;
 pub mod hmac_chain;
 pub mod key_rotation;

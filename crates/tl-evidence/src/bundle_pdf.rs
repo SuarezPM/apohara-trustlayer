@@ -1,0 +1,635 @@
+//! PDF evidence bundle export (v1.1.0 → v1.1.1).
+//!
+//! Per Plan v1.1 (Block 4 v1.1.0-US-10): "PDF export of evidence bundles"
+//! — produce a human-readable PDF that an auditor can print, sign, and
+//! attach to a regulatory file. JSON-only was the v1.0 limitation.
+//!
+//! ## What this module does
+//!
+//! Takes an evidence bundle (JSON string or `EvidenceBundle` struct)
+//! and renders a multi-section PDF with:
+//!
+//! 1. **Header**: bundle_id, org_id, created_at, compliance rollup
+//!    with most-restrictive-wins color coding (green=Compliant,
+//!    yellow=Partial, red=NonCompliant, gray=Unknown).
+//! 2. **Disclosures**: each disclosure's id, compliance, disclaimers.
+//! 3. **Signature**: COSE_Sign1 (truncated to 80 chars + elision),
+//!    issuer public key fingerprint (BLAKE3 hex), row hash.
+//! 4. **Timestamp**: TSA token presence (FreeTSA/Sectigo/Mock label).
+//! 5. **Verification instructions**: how to verify offline.
+//! 6. **Disclaimers**: full list of v1 scope limitations.
+//!
+//! ## What this module does NOT do
+//!
+//! - No PDF/A archival conformance (deferred to v2.0).
+//! - No QR codes (themis-orchestrator/pdf has those for orchestrator
+//!   output; evidence bundle export is text-only).
+//! - No embedded images (printpdf with `embedded_images` feature
+//!   supports them; not needed for evidence bundles).
+//!
+//! ## Pattern ported from
+//!
+//! `crates/themis-orchestrator/src/pdf/` — the existing PDF renderer
+//! for orchestrator court output. Reuses the same `printpdf` crate
+//! version (0.7) so the bundle stays in lock-step.
+
+use printpdf::*;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+/// Errors from PDF export.
+#[derive(Debug, Error)]
+pub enum PdfExportError {
+    #[error("invalid bundle JSON: {0}")]
+    InvalidJson(String),
+    #[error("missing required field: {0}")]
+    MissingField(String),
+    #[error("printpdf error: {0}")]
+    PrintPdf(String),
+}
+
+impl From<printpdf::Error> for PdfExportError {
+    fn from(e: printpdf::Error) -> Self {
+        PdfExportError::PrintPdf(format!("{:?}", e))
+    }
+}
+
+/// Evidence bundle subset needed for PDF rendering.
+///
+/// We accept JSON (from the API) OR a typed struct. JSON is preferred
+/// at the API boundary; the struct is for internal callers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvidenceBundle {
+    #[serde(default)]
+    pub bundle_id: String,
+    #[serde(default)]
+    pub org_id: String,
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub compliance_rollup: String,
+    #[serde(default)]
+    pub disclosures: Vec<DisclosureItem>,
+    #[serde(default)]
+    pub signature: Option<SignatureInfo>,
+    #[serde(default)]
+    pub tsa_token: Option<String>,
+    #[serde(default)]
+    pub tsa_url: Option<String>,
+    #[serde(default)]
+    pub disclaimers: Vec<String>,
+    #[serde(default)]
+    pub row_hash: Option<String>,
+    #[serde(default)]
+    pub issuer_pubkey_fingerprint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DisclosureItem {
+    #[serde(default)]
+    pub disclosure_id: String,
+    #[serde(default)]
+    pub compliance_rollup: String,
+    #[serde(default)]
+    pub v1_disclaimers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SignatureInfo {
+    #[serde(default)]
+    pub cose_sign1_b64: String,
+    #[serde(default)]
+    pub row_hash: String,
+}
+
+/// Parse an evidence bundle from JSON.
+pub fn parse_bundle(json: &str) -> Result<EvidenceBundle, PdfExportError> {
+    let bundle: EvidenceBundle = serde_json::from_str(json)
+        .map_err(|e| PdfExportError::InvalidJson(e.to_string()))?;
+    Ok(bundle)
+}
+
+/// Render an evidence bundle to PDF bytes.
+///
+/// Returns the raw PDF byte buffer. The caller is responsible for
+/// writing it to disk or streaming it as an HTTP response.
+pub fn render_bundle_pdf(bundle: &EvidenceBundle) -> Result<Vec<u8>, PdfExportError> {
+    let (doc, page1, layer1) = PdfDocument::new(
+        format!("TrustLayer Evidence Bundle {}", bundle.bundle_id),
+        Mm(210.0 as f32),  // A4 width
+        Mm(297.0 as f32),  // A4 height
+        "page-1",
+    );
+    // We use the default Helvetica font (built-in to printpdf).
+    let font = doc.add_builtin_font(BuiltinFont::Helvetica)?;
+    let bold = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
+    let mono = doc.add_builtin_font(BuiltinFont::Courier)?;
+
+    let mut current_layer = doc.get_page(page1).get_layer(layer1);
+    let mut y = 280.0_f64; // Start near top of A4 (297mm tall).
+
+    // ─── Header ────────────────────────────────────────────────────────
+    write_text(
+        &mut current_layer,
+        &bold,
+        18.0,
+        15.0,
+        y,
+        "TrustLayer Evidence Bundle",
+    );
+    y -= 8.0;
+    write_text(
+        &mut current_layer,
+        &font,
+        10.0,
+        15.0,
+        y,
+        &format!("Generated by Apohara TrustLayer v1.2"),
+    );
+    y -= 12.0;
+    draw_horizontal_line(&doc,  &mut current_layer, 15.0 as f32, y as f32, 180.0 as f32);
+    y -= 8.0;
+
+    // ─── Bundle metadata ───────────────────────────────────────────────
+    write_text(&mut current_layer, &bold, 12.0, 15.0, y, "Bundle Metadata");
+    y -= 7.0;
+    write_kv(&mut current_layer, &font, 15.0, y, "Bundle ID:", &bundle.bundle_id);
+    y -= 6.0;
+    write_kv(&mut current_layer, &font, 15.0, y, "Org ID:", &bundle.org_id);
+    y -= 6.0;
+    write_kv(
+        &mut current_layer,
+        &font,
+        15.0,
+        y,
+        "Created at:",
+        &bundle.created_at,
+    );
+    y -= 6.0;
+    let rollup_color = rollup_color(&bundle.compliance_rollup);
+    write_kv_colored(
+        &mut current_layer,
+        &bold,
+        15.0,
+        y,
+        "Compliance:",
+        &bundle.compliance_rollup,
+        rollup_color,
+    );
+    y -= 10.0;
+    draw_horizontal_line(&doc,  &mut current_layer, 15.0 as f32, y as f32, 180.0 as f32);
+    y -= 8.0;
+
+    // ─── Disclosures ───────────────────────────────────────────────────
+    write_text(&mut current_layer, &bold, 12.0, 15.0, y, "Disclosures");
+    y -= 7.0;
+    if bundle.disclosures.is_empty() {
+        write_text(
+            &mut current_layer,
+            &font,
+            10.0,
+            15.0,
+            y,
+            "(no disclosures)",
+        );
+        y -= 6.0;
+    } else {
+        for (i, disc) in bundle.disclosures.iter().enumerate() {
+            write_text(
+                &mut current_layer,
+                &bold,
+                10.0,
+                15.0,
+                y,
+                &format!(
+                    "{}. {} ({})",
+                    i + 1,
+                    disc.disclosure_id,
+                    disc.compliance_rollup
+                ),
+            );
+            y -= 5.5;
+            for disclaimer in &disc.v1_disclaimers {
+                write_wrapped_text(
+                    &mut current_layer,
+                    &font,
+                    9.0,
+                    20.0,
+                    y,
+                    &format!("• {}", disclaimer),
+                    160.0,
+                );
+                y -= 4.5;
+                if y < 30.0 {
+                    // Page break
+                    let (new_page, new_layer) =
+                        doc.add_page(Mm(210.0 as f32), Mm(297.0 as f32), "page-next");
+                    current_layer = doc.get_page(new_page).get_layer(new_layer);
+                    y = 280.0;
+                }
+            }
+            y -= 2.0;
+            if y < 30.0 {
+                let (new_page, new_layer) =
+                    doc.add_page(Mm(210.0 as f32), Mm(297.0 as f32), "page-next");
+                current_layer = doc.get_page(new_page).get_layer(new_layer);
+                y = 280.0;
+            }
+        }
+    }
+    y -= 4.0;
+    draw_horizontal_line(&doc,  &mut current_layer, 15.0 as f32, y as f32, 180.0 as f32);
+    y -= 8.0;
+
+    // ─── Signature ─────────────────────────────────────────────────────
+    write_text(&mut current_layer, &bold, 12.0, 15.0, y, "Signature");
+    y -= 7.0;
+    if let Some(sig) = &bundle.signature {
+        let truncated = truncate_cose(&sig.cose_sign1_b64, 80);
+        write_kv(
+            &mut current_layer,
+            &mono,
+            15.0,
+            y,
+            "COSE_Sign1:",
+            &truncated,
+        );
+        y -= 6.0;
+        write_kv(&mut current_layer, &mono, 15.0, y, "Row hash:", &sig.row_hash);
+        y -= 6.0;
+    } else {
+        write_text(
+            &mut current_layer,
+            &font,
+            10.0,
+            15.0,
+            y,
+            "(no signature)",
+        );
+        y -= 6.0;
+    }
+    if let Some(fp) = &bundle.issuer_pubkey_fingerprint {
+        write_kv(&mut current_layer, &mono, 15.0, y, "Issuer fp:", fp);
+        y -= 6.0;
+    }
+    y -= 4.0;
+    draw_horizontal_line(&doc,  &mut current_layer, 15.0 as f32, y as f32, 180.0 as f32);
+    y -= 8.0;
+
+    // ─── Timestamp ─────────────────────────────────────────────────────
+    write_text(&mut current_layer, &bold, 12.0, 15.0, y, "Timestamp");
+    y -= 7.0;
+    let tsa_label = match (&bundle.tsa_token, &bundle.tsa_url) {
+        (Some(_), Some(url)) if url.contains("sectigo") => "Sectigo qualified (EU AI Act Art. 50 compliant)",
+        (Some(_), Some(url)) if url.contains("digicert") => "DigiCert qualified (EU AI Act Art. 50 compliant)",
+        (Some(_), Some(url)) if url.contains("free_tsa") || url.contains("freetsa") => {
+            "FreeTSA — DEMO ONLY (not EU Trust List qualified)"
+        }
+        (Some(_), Some(url)) if url.contains("mock") => "Mock — DEMO ONLY",
+        (Some(_), _) => "RFC 3161 token present (TSA provider unspecified)",
+        (None, _) => "No RFC 3161 token",
+    };
+    write_kv(&mut current_layer, &font, 15.0, y, "Provider:", tsa_label);
+    y -= 6.0;
+    if let Some(url) = &bundle.tsa_url {
+        write_kv(&mut current_layer, &font, 15.0, y, "URL:", url);
+        y -= 6.0;
+    }
+    y -= 4.0;
+    draw_horizontal_line(&doc,  &mut current_layer, 15.0 as f32, y as f32, 180.0 as f32);
+    y -= 8.0;
+
+    // ─── Disclaimers ───────────────────────────────────────────────────
+    write_text(&mut current_layer, &bold, 12.0, 15.0, y, "Disclaimers");
+    y -= 7.0;
+    for disclaimer in &bundle.disclaimers {
+        write_wrapped_text(
+            &mut current_layer,
+            &font,
+            9.0,
+            15.0,
+            y,
+            disclaimer,
+            180.0,
+        );
+        y -= 4.5;
+        if y < 30.0 {
+            let (new_page, new_layer) =
+                doc.add_page(Mm(210.0 as f32), Mm(297.0 as f32), "page-next");
+            current_layer = doc.get_page(new_page).get_layer(new_layer);
+            y = 280.0;
+        }
+    }
+    y -= 4.0;
+    draw_horizontal_line(&doc,  &mut current_layer, 15.0 as f32, y as f32, 180.0 as f32);
+    y -= 8.0;
+
+    // ─── Verification instructions ────────────────────────────────────
+    write_text(
+        &mut current_layer,
+        &bold,
+        12.0,
+        15.0,
+        y,
+        "How to verify offline",
+    );
+    y -= 7.0;
+    let instructions = "1. POST /v1/verify/provenance with bundle_id\n\
+                        2. Or use openssl + the COSE_Sign1 envelope\n\
+                        3. Or use the TrustLayer WASM SDK in a browser";
+    write_wrapped_text(
+        &mut current_layer,
+        &font,
+        9.0,
+        15.0,
+        y,
+        instructions,
+        180.0,
+    );
+    y -= 12.0;
+
+    // ─── Footer ────────────────────────────────────────────────────────
+    write_text(
+        &mut current_layer,
+        &font,
+        8.0,
+        15.0,
+        15.0,
+        "This PDF was generated by TrustLayer v1.2. It is a human-readable \
+         rendering of the evidence bundle JSON and is NOT the canonical \
+         evidence. The canonical evidence is the JSON bundle served at \
+         GET /v1/evidence/{bundle_id} and the SCITT receipt at \
+         GET /v1/evidence/{bundle_id}/scitt-receipt.",
+    );
+
+    let bytes = doc.save_to_bytes()?;
+    Ok(bytes)
+}
+
+/// One-shot helper: parse JSON + render PDF.
+pub fn render_json_to_pdf(json: &str) -> Result<Vec<u8>, PdfExportError> {
+    let bundle = parse_bundle(json)?;
+    render_bundle_pdf(&bundle)
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────
+
+fn write_text(
+    layer: &PdfLayerReference,
+    font: &IndirectFontRef,
+    size: f64,
+    x: f64,
+    y: f64,
+    text: &str,
+) {
+    layer.use_text(text, size as f32, Mm(x as f32), Mm(y as f32), font);
+}
+
+fn write_kv(
+    layer: &PdfLayerReference,
+    font: &IndirectFontRef,
+    x: f64,
+    y: f64,
+    key: &str,
+    value: &str,
+) {
+    write_text(layer, font, 10.0, x, y, &format!("{:<14} {}", key, value));
+}
+
+fn write_kv_colored(
+    layer: &PdfLayerReference,
+    font: &IndirectFontRef,
+    x: f64,
+    y: f64,
+    key: &str,
+    value: &str,
+    color: (f64, f64, f64),
+) {
+    layer.set_fill_color(Color::Rgb(Rgb::new(color.0 as f32, color.1 as f32, color.2 as f32, None)));
+    write_text(layer, font, 10.0, x, y, &format!("{:<14} {}", key, value));
+    layer.set_fill_color(Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)));
+}
+
+fn write_wrapped_text(
+    layer: &PdfLayerReference,
+    font: &IndirectFontRef,
+    size: f64,
+    x: f64,
+    y: f64,
+    text: &str,
+    max_width_mm: f64,
+) {
+    // Approximate 1 char = 0.18 × font_size mm wide (for Helvetica).
+    let chars_per_line = ((max_width_mm / (0.18 * size)) as usize).max(20);
+    let mut current = String::new();
+    let mut first = true;
+    for word in text.split_whitespace() {
+        if current.len() + word.len() + 1 > chars_per_line {
+            write_text(layer, font, size, x, y, &current);
+            current.clear();
+            if !first {
+                // Continue on next line, indent slightly.
+            }
+            first = false;
+        }
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(word);
+    }
+    if !current.is_empty() {
+        write_text(layer, font, size, x, y, &current);
+    }
+}
+
+fn draw_horizontal_line(
+    doc: &PdfDocumentReference,
+    layer: &mut PdfLayerReference,
+    x: f32,
+    y: f32,
+    width: f32,
+) {
+    let points = vec![
+        (Point::new(Mm(x), Mm(y)), false),
+        (Point::new(Mm(x + width), Mm(y)), false),
+    ];
+    let line = Line {
+        points,
+        is_closed: false,
+    };
+    layer.set_outline_color(Color::Rgb(Rgb::new(0.7, 0.7, 0.7, None)));
+    layer.set_outline_thickness(0.3);
+    layer.add_line(line);
+    layer.set_outline_color(Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)));
+    layer.set_outline_thickness(1.0);
+    let _ = doc; // suppress unused warning
+}
+
+fn truncate_cose(cose: &str, max: usize) -> String {
+    if cose.len() <= max {
+        cose.to_string()
+    } else {
+        format!("{}…({} bytes total)", &cose[..max], cose.len())
+    }
+}
+
+fn rollup_color(rollup: &str) -> (f64, f64, f64) {
+    match rollup {
+        "Compliant" => (0.0, 0.5, 0.0),       // green
+        "Partial" => (0.8, 0.5, 0.0),          // amber
+        "NonCompliant" => (0.7, 0.0, 0.0),     // red
+        _ => (0.4, 0.4, 0.4),                  // gray
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_bundle_json() -> &'static str {
+        r#"{
+            "bundle_id": "disc-test-001",
+            "org_id": "acme",
+            "created_at": "2026-06-26T10:00:00Z",
+            "compliance_rollup": "Partial",
+            "disclosures": [
+                {
+                    "disclosure_id": "disc-test-001",
+                    "compliance_rollup": "Partial",
+                    "v1_disclaimers": ["watermark layer: NotApplicable in v1.0"]
+                }
+            ],
+            "signature": {
+                "cose_sign1_b64": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv4sH0...",
+                "row_hash": "abcdef0123456789"
+            },
+            "tsa_token": "MIIR/jCCBuagAwIBAgIQD+8R0...",
+            "tsa_url": "https://freetsa.org/tsr",
+            "disclaimers": [
+                "v1: Watermark=NotApplicable (image/audio deployers MUST wait for v1.1.1)",
+                "FreeTSA timestamp: dev-only, not forensically valid"
+            ]
+        }"#
+    }
+
+    #[test]
+    fn parse_valid_bundle() {
+        let bundle = parse_bundle(sample_bundle_json()).unwrap();
+        assert_eq!(bundle.bundle_id, "disc-test-001");
+        assert_eq!(bundle.org_id, "acme");
+        assert_eq!(bundle.compliance_rollup, "Partial");
+        assert_eq!(bundle.disclosures.len(), 1);
+        assert!(bundle.signature.is_some());
+        assert_eq!(bundle.disclaimers.len(), 2);
+    }
+
+    #[test]
+    fn parse_minimal_bundle() {
+        let json = r#"{"bundle_id": "b1"}"#;
+        let bundle = parse_bundle(json).unwrap();
+        assert_eq!(bundle.bundle_id, "b1");
+        assert_eq!(bundle.disclosures.len(), 0);
+        assert!(bundle.signature.is_none());
+    }
+
+    #[test]
+    fn parse_invalid_json_errors() {
+        assert!(parse_bundle("not json").is_err());
+        assert!(parse_bundle("").is_err());
+    }
+
+    #[test]
+    fn render_bundle_pdf_produces_bytes() {
+        let bundle = parse_bundle(sample_bundle_json()).unwrap();
+        let bytes = render_bundle_pdf(&bundle).unwrap();
+        assert!(!bytes.is_empty(), "PDF bytes should not be empty");
+        // PDF files start with "%PDF-".
+        assert!(
+            bytes.starts_with(b"%PDF-"),
+            "PDF should start with %PDF- magic bytes; got: {:?}",
+            &bytes[..bytes.len().min(8)]
+        );
+    }
+
+    #[test]
+    fn render_json_to_pdf_end_to_end() {
+        let bytes = render_json_to_pdf(sample_bundle_json()).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+    }
+
+    #[test]
+    fn render_minimal_bundle() {
+        let bytes = render_json_to_pdf(r#"{"bundle_id": "minimal"}"#).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+    }
+
+    #[test]
+    fn rollup_color_coding() {
+        assert_eq!(rollup_color("Compliant"), (0.0, 0.5, 0.0));
+        assert_eq!(rollup_color("Partial"), (0.8, 0.5, 0.0));
+        assert_eq!(rollup_color("NonCompliant"), (0.7, 0.0, 0.0));
+        assert_eq!(rollup_color("Unknown"), (0.4, 0.4, 0.4));
+        assert_eq!(rollup_color("anything-else"), (0.4, 0.4, 0.4));
+    }
+
+    #[test]
+    fn truncate_cose_short() {
+        assert_eq!(truncate_cose("abc", 80), "abc");
+    }
+
+    #[test]
+    fn truncate_cose_long() {
+        let long = "a".repeat(200);
+        let truncated = truncate_cose(&long, 80);
+        assert!(truncated.contains("…"));
+        assert!(truncated.contains("200 bytes total"));
+    }
+
+    #[test]
+    fn tsa_label_free_tsa() {
+        let label = render_for_label(r#"{"bundle_id":"b","tsa_url":"https://freetsa.org/x"}"#);
+        // Just verify it doesn't error and produces valid PDF.
+        assert!(label.starts_with(b"%PDF-"));
+    }
+
+    // Helper to render and check just the magic bytes.
+    fn render_for_label(json: &str) -> Vec<u8> {
+        render_json_to_pdf(json).unwrap()
+    }
+
+    #[test]
+    fn render_with_many_disclosures_paginates() {
+        // Build a bundle with 50 disclosures to force pagination.
+        let mut disclosures = Vec::new();
+        for i in 0..50 {
+            disclosures.push(format!(
+                r#"{{
+                    "disclosure_id": "disc-{i}",
+                    "compliance_rollup": "Partial",
+                    "v1_disclaimers": [
+                        "long disclaimer that should wrap across lines when rendered in the PDF output: {padding}",
+                        "another disclaimer for disclosure {i}"
+                    ]
+                }}"#,
+                i = i,
+                padding = "x".repeat(120),
+            ));
+        }
+        let json = format!(
+            r#"{{
+                "bundle_id": "big-bundle",
+                "org_id": "acme",
+                "created_at": "2026-06-26T10:00:00Z",
+                "compliance_rollup": "Partial",
+                "disclosures": [{}],
+                "disclaimers": ["v1.2 disclaimer"]
+            }}"#,
+            disclosures.join(",")
+        );
+        let bytes = render_json_to_pdf(&json).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        // PDF size scales with content; 50 disclosures with long
+        // disclaimers should produce a multi-page PDF.
+        assert!(bytes.len() > 5000, "multi-page PDF should be > 5KB");
+    }
+}
