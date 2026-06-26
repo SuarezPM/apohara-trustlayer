@@ -1,0 +1,37 @@
+## TrustLayer Full Demo — captured 2026-06-26T16:07:11Z
+## Repository: https://github.com/SuarezPM/apohara-trustlayer
+## Commit: dca5ca7bb3a588f6f998151714ebe078a5771cef
+## Exit code: 0
+## (re-run with: make demo-full)
+
+```
+============================= test session starts ==============================
+platform linux -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- /home/thelinconx/.cache/uv/builds-v0/.tmpTFW9a3/bin/python
+cachedir: .pytest_cache
+rootdir: /home/thelinconx/Mi_Universo/Mundo_Apohara/apohara-trustlayer
+configfile: pytest.ini
+plugins: asyncio-1.4.0, cov-7.1.0, anyio-4.14.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+tests/e2e/test_third_party_can_generate_verify_and_audit.py::test_in_process 2026-06-26 13:07:10 [info     ] control_plane.startup          env=dev org_id=apohara service=trustlayer-control-plane tsa_provider=mock
+2026-06-26 13:07:10 [info     ] disclosure.generate.requested  ai_system_id=test-system-v1 deployer=Acme strategies=['article_50', 'dora'] tsa_provider=mock
+2026-06-26 13:07:10 [info     ] disclosure.generated           disclosure_id=1dbe085d-ca98-4dac-8857-b55e9df03ab6 rollup=Partial
+  in-process PASS: disclosure_id=1dbe085d..., rollup=Partial
+PASSED
+tests/e2e/test_third_party_can_generate_verify_and_audit.py::test_curl_subprocess   curl-subprocess PASS: disclosure_id=ad133071..., verify_status=PASS
+PASSED2026-06-26 13:07:11 [info     ] control_plane.shutdown         service=trustlayer-control-plane
+
+
+=============================== warnings summary ===============================
+tests/e2e/test_third_party_can_generate_verify_and_audit.py::test_in_process
+  /home/thelinconx/.cache/uv/archive-v0/up6sgt8NrGKGWDHq/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/e2e/test_third_party_can_generate_verify_and_audit.py::test_in_process
+  /home/thelinconx/Mi_Universo/Mundo_Apohara/apohara-trustlayer/services/control_plane/app/domain/chains.py:95: UserWarning: tl-ffi not importable; falling back to hashlib.sha256 (INSECURE for prod).
+    hasher = _hasher()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 2 passed, 2 warnings in 1.13s =========================
+```
