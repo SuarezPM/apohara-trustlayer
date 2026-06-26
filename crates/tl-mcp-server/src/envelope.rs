@@ -80,9 +80,21 @@ pub fn build_envelope(
     parts.push(String::new());
 
     for (label, content) in untrusted_blocks {
-        parts.push(format!("<APOHARA_UNTRUSTED:{}:{} BEGIN>", label, nonce));
+        // Sentinel format: `<APOHARA_UNTRUSTED:<label>:<nonce> BEGIN>:<nonce>`
+        // and `<APOHARA_UNTRUSTED:<label>:<nonce> END>:<nonce>`. The nonce
+        // appears in BOTH positions: (a) inside the label for label-binding,
+        // and (b) right after BEGIN>/END> for sentinel-binding. An attacker
+        // who controls a block's content cannot close the block with a
+        // forged sentinel (random per-request nonce is unguessable).
+        parts.push(format!(
+            "<APOHARA_UNTRUSTED:{}:{} BEGIN>:{}",
+            label, nonce, nonce
+        ));
         parts.push(content.value.clone());
-        parts.push(format!("<APOHARA_UNTRUSTED:{}:{} END>", label, nonce));
+        parts.push(format!(
+            "<APOHARA_UNTRUSTED:{}:{} END>:{}",
+            label, nonce, nonce
+        ));
         parts.push(String::new());
     }
 
