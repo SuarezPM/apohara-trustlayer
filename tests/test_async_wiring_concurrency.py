@@ -104,6 +104,11 @@ async def test_async_route_handles_100_concurrent_requests() -> None:
 
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
+    # v1.2 (post-EXA research + runtime debugging 2026-06-26): the
+    # org_resolver middleware is pure ASGI (`OrgResolverASGIMiddleware`).
+    # Without it, every request returns 401 (loud per IC-3).
+    from app.middleware import OrgResolverASGIMiddleware
+    app.add_middleware(OrgResolverASGIMiddleware)
 
     # 5. Issue 100 concurrent GETs + measure wall-clock.
     # Capture the seeded IDs so we can query them.
@@ -118,7 +123,8 @@ async def test_async_route_handles_100_concurrent_requests() -> None:
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         tasks = [
-            client.get(f"/v1/evidence/{row_id}") for row_id in row_ids
+            client.get(f"/v1/evidence/{row_id}", headers={"X-Org-Id": "apohara"})
+            for row_id in row_ids
         ]
         # Interleave a sleep task to prove the event loop is responsive.
         sleep_task = asyncio.create_task(asyncio.sleep(0.01))
@@ -167,11 +173,19 @@ async def test_async_route_404_for_missing_bundle() -> None:
 
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
+    # v1.2 (post-EXA research + runtime debugging 2026-06-26): the
+    # org_resolver middleware is pure ASGI (`OrgResolverASGIMiddleware`).
+    # Without it, every request returns 401 (loud per IC-3).
+    from app.middleware import OrgResolverASGIMiddleware
+    app.add_middleware(OrgResolverASGIMiddleware)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        r = await client.get("/v1/evidence/does-not-exist")
+        r = await client.get(
+            "/v1/evidence/does-not-exist",
+            headers={"X-Org-Id": "apohara"},
+        )
     assert r.status_code == 404
     body = r.json()
     assert body["error"] == "not_found"

@@ -39,12 +39,35 @@ from app.api.evidence import SUPPORTED_TYPES  # noqa: E402
 # They live here because the content negotiation tests are the primary
 # user of the AutoCreateSession pattern.
 def _extract_bundle_id_from_stmt(stmt):
-    """Best-effort extraction of the bundle_id from a SQLAlchemy stmt."""
+    """Best-effort extraction of the bundle_id from a SQLAlchemy stmt.
+
+    v1.2 (post-org_id filter): the where clause is now
+        where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    which produces a `BooleanClauseList` (AND) with two
+    `BinaryExpression` children. We need to find the comparison
+    against `DisclosureRecord.id` specifically — `whereclause.right`
+    would give us the org_id value (wrong).
+
+    SQLAlchemy 2.0 API: use `clause.get_children()` to iterate the
+    AND operands; each child is a `BinaryExpression(left, op, right)`
+    where `left` is the column and `right` is a `BindParameter` with
+    `.value`.
+    """
     try:
-        right = stmt.whereclause.right
-        if hasattr(right, "value"):
+        clause = stmt.whereclause
+        # Iterate the AND tree to find the DisclosureRecord.id comparison.
+        for child in clause.get_children():
+            left_col = getattr(child, "left", None)
+            if left_col is not None and getattr(left_col, "name", None) == "id":
+                right_val = getattr(child, "right", None)
+                if hasattr(right_val, "value"):
+                    return right_val.value
+                return str(right_val)
+        # Fallback: single-condition stmt (pre-v1.2 shape).
+        right = getattr(clause, "right", None)
+        if right is not None and hasattr(right, "value"):
             return right.value
-        return str(right)
+        return str(right) if right is not None else None
     except Exception:
         return None
 

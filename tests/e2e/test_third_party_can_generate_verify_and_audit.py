@@ -38,11 +38,16 @@ from typing import Iterator
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # 3 levels up = repo root
 CONTROL_PLANE_DIR = REPO_ROOT / "services" / "control_plane"
 # Tests run from the repo root, so the control_plane dir is at:
 #   REPO_ROOT/services/control_plane
 # But pytest from the repo root has cwd=repo root, so CONTROL_PLANE_DIR is correct.
+
+# v1.2: ensure `from app.main import app` works in the in-process test.
+# pytest.ini adds `services` to pythonpath, but `app` lives at
+# services/control_plane/app, so we need control_plane on sys.path.
+sys.path.insert(0, str(CONTROL_PLANE_DIR))
 
 
 # =============================================================================
@@ -86,7 +91,25 @@ def _uvicorn_server(port: int) -> Iterator[str]:
         "TL_DATABASE_URL": "sqlite+aiosqlite:///:memory:",  # not used in current scaffold
         "TL_ALLOW_HASHLIB_FALLBACK": "true",  # CI/dev only; production fails loud
     }
+    # Use `uv run` to ensure uvicorn + all deps are available in the
+    # subprocess (sys.executable may not have uvicorn on its sys.path
+    # when pytest is invoked via `uv run --with pytest --with uvicorn`).
     cmd = [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "uvicorn",
+        "--with",
+        "fastapi",
+        "--with",
+        "structlog",
+        "--with",
+        "pydantic",
+        "--with",
+        "pydantic-settings",
+        "--with",
+        "sqlalchemy",
         sys.executable,
         "-m",
         "uvicorn",
@@ -163,8 +186,13 @@ def test_in_process(in_process_client):
     """
     client = in_process_client
 
+    # v1.2: org_resolver middleware requires org_id (JWT or X-Org-Id).
+    # The in-process TestClient gets the real app, so it has the
+    # middleware wired. Pass X-Org-Id for tenant isolation.
+    org_headers = {"X-Org-Id": "apohara"}
+
     # 1. Generate a disclosure (auth not enforced in v1 scaffold).
-    r = client.post("/v1/disclosure/generate", json=REQUEST_BODY)
+    r = client.post("/v1/disclosure/generate", json=REQUEST_BODY, headers=org_headers)
     assert r.status_code == 201, f"generate failed: {r.status_code} {r.text}"
     disclosure = r.json()
     assert disclosure["disclosure_id"]
@@ -178,12 +206,13 @@ def test_in_process(in_process_client):
     r = client.post(
         "/v1/verify/provenance",
         json={"cose_sign1_b64": receipt_b64},
+        headers=org_headers,
     )
     assert r.status_code == 200, f"verify failed: {r.status_code} {r.text}"
     verification = r.json()
     assert verification["overall_status"] in ("PASS", "FAIL")
 
-    # 3. Health check.
+    # 3. Health check (public path, no org_id required).
     r = client.get("/health")
     assert r.status_code == 200
     health = r.json()
@@ -234,6 +263,7 @@ def test_curl_subprocess():
                 "curl", "-sS", "-X", "POST",
                 f"{base_url}/v1/disclosure/generate",
                 "-H", "Content-Type: application/json",
+                "-H", "X-Org-Id: apohara",  # v1.2 multi-tenant: org_id required
                 "--data-binary", f"@{payload_file}",
                 "-w", "\n%{http_code}",
             ]
@@ -268,6 +298,7 @@ def test_curl_subprocess():
                     "curl", "-sS", "-X", "POST",
                     f"{base_url}/v1/verify/provenance",
                     "-H", "Content-Type: application/json",
+                    "-H", "X-Org-Id: apohara",  # v1.2 multi-tenant: org_id required
                     "--data-binary", f"@{verify_file}",
                     "-w", "\n%{http_code}",
                 ]

@@ -117,12 +117,12 @@ def _build_client(bundles=None):
 
 def _make_bundle(bundle_id: str) -> dict:
     return {
-        "bundle_id": bundle_id, "org_id": "acme",
+        "bundle_id": bundle_id,
+        "org_id": "acme",  # Must match the test client's org_id
         "row_hash": "abc123def456",
         "cose_sign1_b64": "AABBCCDD",  # synthetic placeholder
         "issuer_pubkey_fingerprint": "11" * 32,
         "compliance_rollup": "Partial",
-                "org_id": "apohara",
     }
 
 

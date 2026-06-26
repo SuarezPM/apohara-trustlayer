@@ -42,12 +42,16 @@ def test_tsa_fail_fast_compile_test():
     assert result.returncode == 0, (
         f"cargo test tsa::tests failed:\n{result.stdout[-2000:]}\n{result.stderr[-2000:]}"
     )
-    # Check that both fail-fast tests appear in output.
+    # Check that all 5 init tests appear in output.
     assert "init_fails_fast_when_env_unset" in result.stdout
     assert "init_rejects_invalid_env_value" in result.stdout
     assert "init_accepts_mock_explicitly" in result.stdout
     assert "init_accepts_free_tsa" in result.stdout
-    assert "init_deferred_digicert" in result.stdout
+    # v1.1.0: the test was renamed from `init_deferred_digicert` to
+    # `init_digicert_succeeds_with_default_chain_fixture` because
+    # digicert is no longer DeferredToV11 — it now loads the chain
+    # from TL_DIGICERT_CHAIN_PEM_FILE (default: frozen fixture).
+    assert "init_digicert_succeeds_with_default_chain_fixture" in result.stdout
 
 
 def test_control_plane_disclaimers_field():
@@ -99,6 +103,7 @@ def test_control_plane_disclaimers_field():
     assert result.returncode == 0, (
         f"e2e in-process test failed:\n{result.stdout[-1000:]}"
     )
-    # The test prints "disclaimers" or "rollup" — if it passed, disclaimers
-    # were verified to be in the response.
-    assert "disclaimers" in result.stdout or "rollup" in result.stdout
+    # The e2e test itself asserts `len(disclosure["disclaimers"]) == 4`
+    # (AC-22). If the test passed, disclaimers were verified. The
+    # previous print-based check was fragile because pytest -v doesn't
+    # capture stdout by default.

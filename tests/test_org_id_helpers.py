@@ -14,28 +14,36 @@ from __future__ import annotations
 
 # Make the control_plane app importable for `from app.middleware import ...`
 # (used by OrgIdTestClient's auto-attach). The `conftest.py` also
-# adds services/ to sys.path, but we set it here for robustness.
+# adds services/ to sys.path, but we need services/control_plane/ so
+# that `from app.middleware import ...` resolves to
+# services/control_plane/app/middleware/__init__.py. Without this,
+# the import fails silently, _HAS_ASGI_MIDDLEWARE is False, and the
+# middleware is never attached — causing 401 on every test.
 import sys
 from pathlib import Path
 
-services_dir = Path(__file__).resolve().parent.parent / "services"
-sys.path.insert(0, str(services_dir))
+control_plane_dir = Path(__file__).resolve().parent.parent / "services" / "control_plane"
+sys.path.insert(0, str(control_plane_dir))
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-# v1.2 (post-EXA research): the middleware is FUNCTION-based, not
-# class-based. We import the function and apply it via the
-# `app.middleware("http")` decorator pattern — this avoids the
-# contextvars propagation issues that BaseHTTPMiddleware has with
-# SQLAlchemy 2.0. See app/middleware/__init__.py for the full
-# explanation.
+# v1.2 (post-EXA research + runtime debugging 2026-06-26): the
+# middleware is PURE ASGI, not function-based. Pure ASGI writes
+# to `scope["state"]` which IS the same dict the FastAPI Request
+# exposes as `request.state`. This fixes the 4 failing test files
+# (test_scitt, test_stix, test_content_negotiation) that were
+# getting 401 because `@app.middleware("http")` (BaseHTTPMiddleware
+# under the hood) creates a NEW Request object between middleware
+# and dependencies, so request.state writes weren't visible to
+# Depends(get_org_id). See app/middleware/__init__.py for the full
+# rationale.
 try:
-    from app.middleware import org_resolver_middleware
-    _HAS_MIDDLEWARE = True
+    from app.middleware import OrgResolverASGIMiddleware
+    _HAS_ASGI_MIDDLEWARE = True
 except ImportError:
-    _HAS_MIDDLEWARE = False
-    org_resolver_middleware = None  # type: ignore
+    _HAS_ASGI_MIDDLEWARE = False
+    OrgResolverASGIMiddleware = None  # type: ignore
 
 
 class OrgIdTestClient:
@@ -47,13 +55,16 @@ class OrgIdTestClient:
     """
 
     def __init__(self, app: FastAPI, org_id: str = "test-org"):
-        # Auto-attach the function-based middleware if available.
-        # The function-based middleware is applied via the decorator
-        # pattern: `app.middleware("http")(org_resolver_middleware)`.
-        # FastAPI/Starlette keeps the most recent add, so this is
-        # idempotent for our test purposes.
-        if _HAS_MIDDLEWARE:
-            app.middleware("http")(org_resolver_middleware)
+        # Auto-attach the pure ASGI middleware if available.
+        # Pure ASGI middleware (not @app.middleware("http")) writes
+        # to scope["state"], which IS the same dict the FastAPI
+        # Request exposes as `request.state`. This is the fix for
+        # the 4 failing test files (test_scitt, test_stix,
+        # test_content_negotiation, test_async_wiring) that were
+        # getting 401 because the function-based middleware's
+        # request.state write wasn't visible to Depends(get_org_id).
+        if _HAS_ASGI_MIDDLEWARE:
+            app.add_middleware(OrgResolverASGIMiddleware)
         self._client = TestClient(app)
         self._org_id = org_id
 

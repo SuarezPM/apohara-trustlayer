@@ -34,7 +34,7 @@ from app.api.evidence import (  # noqa: E402
 )
 
 
-def _build_app_with_inmemory(lookup: InMemoryBundleLookup):
+def _build_app_with_inmemory(lookup: InMemoryBundleLookup, org_id: str = "acme"):
     """Build a FastAPI app with the evidence router + a custom async
     session that serves the in-memory bundle lookup. Used for fast
     unit tests of the route without a real DB.
@@ -44,6 +44,10 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup):
     returns a `_SyncSessionAdapter` wrapping the in-memory lookup.
     The adapter's `execute(stmt)` simulates a SELECT on
     `disclosure_records` by delegating to `lookup.lookup(bundle_id)`.
+
+    v1.2-US-1: `org_id` is the tenant identity injected by the test
+    client via the X-Org-Id header. The session adapter uses the
+    WHERE clause's org_id filter to enforce tenant isolation.
     """
     from fastapi import FastAPI
     from tests.test_org_id_helpers import OrgIdTestClient
@@ -107,7 +111,7 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup):
     app = FastAPI()
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
-    return OrgIdTestClient(app, org_id="acme")
+    return OrgIdTestClient(app, org_id=org_id)
 
 
 def _make_empty_client():
@@ -234,6 +238,133 @@ class _LookupWith(InMemoryBundleLookup):
 # This is in test_async_wiring_concurrency.py; we keep the fast unit
 # tests here for backward-compat with the v1.1.0 PR. The async test
 # is a separate file because it requires a real async DB setup.
+
+
+# =============================================================================
+# v1.2-US-1: multi-tenant isolation tests
+# =============================================================================
+#
+# Per Plan v1.2 Block 4 v1.2-US-1 (closes auditor-3 honest-fail
+# `multi_tenant_isolation` + auditor-2 multi-tenant gating):
+#
+# These tests prove that tenant A (acme) CANNOT see tenant B's
+# (globex) evidence bundles. The proof is:
+#
+#   1. Seed a bundle owned by "acme" into the lookup.
+#   2. Query as acme → 200 (sees own bundle).
+#   3. Query as globex → 404 (bundle exists but is filtered by org_id).
+#
+# The 404 (not 403) is the correct response per multi-tenant SaaS
+# best practice: don't leak the existence of cross-tenant resources.
+# This is the exact behavior an auditor verifies when they check
+# the `multi_tenant_isolation` DORA strategy check.
+
+
+def _seed_acme_bundle(lookup: InMemoryBundleLookup, bundle_id: str) -> None:
+    """Seed a bundle owned by org_id='acme' into the lookup."""
+    lookup.add(bundle_id, {
+        "id": bundle_id,
+        "org_id": "acme",
+        "bundle_id": bundle_id,
+        "created_at": "2026-06-25T12:00:00Z",
+        "row_hash": "deadbeef" * 8,
+        "prev_hash": "cafebabe" * 8,
+        "cose_sign1_b64": "Z2VuZXJhdGVkLWJ5LXRlc3Q=",
+        "tsa_token_b64": None,
+        "tsa_url": None,
+        "ai_system_id": "system-acme",
+        "deployer_name": "acme-corp",
+        "deployer_country": "US",
+        "deployer_sector": "tech",
+        "artifact_kind": "text",
+        "artifact_content_hash": "abcdef" * 8,
+        "disclosure_text": "acme disclosure",
+        "compliance_rollup": "Compliant",
+        "compliance_layers": {"disclosure": "Compliant"},
+        "disclaimers": ["v1.2-US-1: acme-owned bundle (multi-tenant test)"],
+    })
+
+
+def test_acme_can_see_own_bundle() -> None:
+    """Tenant acme can see their own bundle (positive control)."""
+    lookup = InMemoryBundleLookup()
+    _seed_acme_bundle(lookup, "acme-bundle-1")
+    client = _build_app_with_inmemory(lookup, org_id="acme")
+    r = client.get("/v1/evidence/acme-bundle-1")
+    assert r.status_code == 200, f"got {r.status_code}: {r.text}"
+    body = r.json()
+    assert body["bundle_id"] == "acme-bundle-1"
+    # The bundle includes the acme-owned signature (row_hash is unique
+    # to acme-corp deployer_name in the seed).
+    assert body["signature"]["row_hash"] == "deadbeef" * 8
+
+
+def test_globex_cannot_see_acme_bundle() -> None:
+    """Tenant globex gets 404 for acme's bundle (tenant isolation).
+
+    Per Plan v1.2 Block 4 v1.2-US-1: cross-tenant access MUST be
+    blocked. The response is 404 (not 403) to avoid leaking the
+    existence of the cross-tenant resource — the canonical multi-tenant
+    SaaS pattern.
+    """
+    lookup = InMemoryBundleLookup()
+    _seed_acme_bundle(lookup, "acme-bundle-1")
+    # Query as globex — must NOT see acme's bundle.
+    client = _build_app_with_inmemory(lookup, org_id="globex")
+    r = client.get("/v1/evidence/acme-bundle-1")
+    assert r.status_code == 404, (
+        f"TENANT ISOLATION BROKEN: globex got {r.status_code} "
+        f"for acme's bundle: {r.text}"
+    )
+    body = r.json()
+    assert body["error"] == "not_found"
+    # The disclosure_id in the 404 is the bundle_id the client asked
+    # for — we DO echo it back so the client can log it. We do NOT
+    # leak that the bundle exists in another tenant.
+    assert body["disclosure_id"] == "acme-bundle-1"
+
+
+def test_acme_globex_isolation_bidirectional() -> None:
+    """Full bidirectional isolation proof.
+
+    Seed one bundle per tenant. Each tenant can see their own bundle
+    but gets 404 for the other's. This is the auditor-verifiable
+    proof that closes auditor-3 v1.0.x honest-fail `multi_tenant_isolation`.
+    """
+    lookup = InMemoryBundleLookup()
+    _seed_acme_bundle(lookup, "acme-bundle-1")
+    # Add a globex bundle with the same shape but different org_id.
+    lookup.add("globex-bundle-1", {
+        "id": "globex-bundle-1",
+        "org_id": "globex",
+        "bundle_id": "globex-bundle-1",
+        "created_at": "2026-06-25T12:00:00Z",
+        "row_hash": "12345678" * 8,
+        "prev_hash": "87654321" * 8,
+        "cose_sign1_b64": "Z2xvYmV4LXNpZ25lZA==",
+        "disclosure_text": "globex disclosure",
+        "compliance_rollup": "Compliant",
+        "compliance_layers": {"disclosure": "Compliant"},
+        "disclaimers": ["v1.2-US-1: globex-owned bundle"],
+    })
+
+    # acme sees their own bundle (200), not globex's (404).
+    acme_client = _build_app_with_inmemory(lookup, org_id="acme")
+    r_own = acme_client.get("/v1/evidence/acme-bundle-1")
+    assert r_own.status_code == 200
+    r_cross = acme_client.get("/v1/evidence/globex-bundle-1")
+    assert r_cross.status_code == 404, (
+        f"TENANT ISOLATION BROKEN (acme→globex): got {r_cross.status_code}"
+    )
+
+    # globex sees their own bundle (200), not acme's (404).
+    globex_client = _build_app_with_inmemory(lookup, org_id="globex")
+    r_own = globex_client.get("/v1/evidence/globex-bundle-1")
+    assert r_own.status_code == 200
+    r_cross = globex_client.get("/v1/evidence/acme-bundle-1")
+    assert r_cross.status_code == 404, (
+        f"TENANT ISOLATION BROKEN (globex→acme): got {r_cross.status_code}"
+    )
 
 
 def _extract_bundle_id_from_stmt(stmt):

@@ -58,15 +58,16 @@ def create_app() -> FastAPI:
     # 32+ byte HMAC secret via env var. Tests use `X-Org-Id` directly
     # (no secret required).
     #
-    # v1.2 (post-EXA research): we use a FUNCTION-based middleware via
-    # the `@app.middleware("http")` decorator pattern instead of
-    # `app.add_middleware(OrgResolverMiddleware, ...)`. The
-    # BaseHTTPMiddleware approach was failing in tests because it
-    # spawns a new async task per request, breaking SQLAlchemy 2.0's
-    # contextvars-based session.execute() propagation. See
-    # app/middleware/__init__.py for the full explanation.
-    from app.middleware import org_resolver_middleware
-    app.middleware("http")(org_resolver_middleware)
+    # v1.2 (post-EXA research + runtime debugging 2026-06-26): we use
+    # a PURE ASGI middleware (`OrgResolverASGIMiddleware`) instead of
+    # `@app.middleware("http")` (which is BaseHTTPMiddleware under
+    # the hood and creates a NEW Request object between middleware
+    # and dependencies — breaking `request.state.org_id` propagation).
+    # Pure ASGI writes directly to `scope["state"]`, which IS the
+    # same dict the FastAPI Request exposes as `request.state`. See
+    # app/middleware/__init__.py for the full rationale.
+    from app.middleware import OrgResolverASGIMiddleware
+    app.add_middleware(OrgResolverASGIMiddleware)
 
     # Routers
     app.include_router(health.router, tags=["health"])

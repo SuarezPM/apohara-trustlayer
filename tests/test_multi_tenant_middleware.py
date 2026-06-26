@@ -71,17 +71,25 @@ def _make_jwt(org_id: str, secret: str = "test-secret-32-bytes-long-12345") -> s
 
 
 def _build_app(jwt_secret: str | None = None):
-    """Build a FastAPI app with the function-based org_resolver_middleware
+    """Build a FastAPI app with the ASGI-based OrgResolverASGIMiddleware
     + a /debug/org route that exposes request.state.org_id.
 
-    v1.2 (post-EXA research): the middleware is function-based
-    (`@app.middleware("http")` decorator pattern), NOT
-    BaseHTTPMiddleware. This avoids the contextvars propagation
-    issues that BaseHTTPMiddleware has with SQLAlchemy 2.0.
-    See app/middleware/__init__.py for the full explanation.
+    v1.2 (post-EXA research + runtime debugging 2026-06-26): the
+    middleware is PURE ASGI (`OrgResolverASGIMiddleware`), NOT
+    function-based (`@app.middleware("http")`) and NOT
+    BaseHTTPMiddleware. Both previous approaches failed:
+    - BaseHTTPMiddleware spawns a new task per request, breaking
+      SQLAlchemy 2.0's contextvars-based session.execute().
+    - @app.middleware("http") creates a NEW Request object between
+      middleware and dependencies, so request.state writes are
+      invisible to Depends(get_org_id).
+    Pure ASGI writes directly to scope["state"], which IS the same
+    dict the FastAPI Request exposes as request.state. This is the
+    canonical Starlette pattern. See app/middleware/__init__.py
+    for the full rationale.
     """
     from fastapi import FastAPI, Depends
-    from app.middleware import org_resolver_middleware, reset_jwt_secret_cache_for_tests
+    from app.middleware import OrgResolverASGIMiddleware, reset_jwt_secret_cache_for_tests
 
     # Reset the JWT secret cache so the env var is re-read for each
     # test (some tests change TL_JWT_SECRET between cases).
@@ -92,8 +100,8 @@ def _build_app(jwt_secret: str | None = None):
         os.environ.pop("TL_JWT_SECRET", None)
 
     app = FastAPI()
-    # Function-based middleware (NOT add_middleware(BaseHTTPMiddleware)).
-    app.middleware("http")(org_resolver_middleware)
+    # Pure ASGI middleware (not @app.middleware("http")).
+    app.add_middleware(OrgResolverASGIMiddleware)
 
     @app.get("/health")
     def health():
