@@ -15,14 +15,45 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
+# CRITICAL: we import `Request` at module level so FastAPI's type
+# checker can recognise the special-casing of `Request` parameters
+# in dependency functions. Without this, FastAPI treats `request`
+# as a query parameter and returns 422.
+from fastapi import Request as FastAPIRequest  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTROL_PLANE = REPO_ROOT / "services" / "control_plane"
 sys.path.insert(0, str(CONTROL_PLANE))
+
+
+# Module-level dependency function. This MUST be module-level (not
+# a closure inside _build_app) because FastAPI's Depends system
+# needs to introspect the function's signature. Closures defined
+# inside other functions don't get the right __module__/__qualname__
+# and FastAPI sometimes treats their Request parameters as query
+# parameters instead of auto-injecting them.
+#
+# CRITICAL: the `request` parameter MUST have a `Request` type
+# annotation. Without it, FastAPI treats `request` as a query
+# parameter and returns 422 ("Field required" for `request`).
+# The type annotation is what triggers FastAPI's special-casing
+# of `Request` (and a few other types) for dependency injection.
+def _get_request(request: FastAPIRequest) -> dict:
+    """Module-level dependency: capture the Request via FastAPI's
+    special Request type annotation. Returns a dict containing
+    `request` and `request.state.org_id` for the test route to use.
+    """
+    return {
+        "request": request,
+        "org_id": getattr(request.state, "org_id", None),
+        "state_keys": list(vars(request.state).keys()) if hasattr(request.state, "__dict__") else [],
+    }
 
 
 def _b64url(b: bytes) -> str:
@@ -40,29 +71,45 @@ def _make_jwt(org_id: str, secret: str = "test-secret-32-bytes-long-12345") -> s
 
 
 def _build_app(jwt_secret: str | None = None):
-    """Build a FastAPI app with the OrgResolverMiddleware + a /debug/org
-    route that exposes request.state.org_id via a function that
-    FastAPI's TestClient can resolve (the function uses a closure to
-    capture the request).
+    """Build a FastAPI app with the function-based org_resolver_middleware
+    + a /debug/org route that exposes request.state.org_id.
+
+    v1.2 (post-EXA research): the middleware is function-based
+    (`@app.middleware("http")` decorator pattern), NOT
+    BaseHTTPMiddleware. This avoids the contextvars propagation
+    issues that BaseHTTPMiddleware has with SQLAlchemy 2.0.
+    See app/middleware/__init__.py for the full explanation.
     """
-    from fastapi import FastAPI, Request
-    from app.middleware import OrgResolverMiddleware
+    from fastapi import FastAPI, Depends
+    from app.middleware import org_resolver_middleware, reset_jwt_secret_cache_for_tests
+
+    # Reset the JWT secret cache so the env var is re-read for each
+    # test (some tests change TL_JWT_SECRET between cases).
+    reset_jwt_secret_cache_for_tests()
+    if jwt_secret is not None:
+        os.environ["TL_JWT_SECRET"] = jwt_secret
+    else:
+        os.environ.pop("TL_JWT_SECRET", None)
 
     app = FastAPI()
-    app.add_middleware(OrgResolverMiddleware, jwt_secret=jwt_secret)
+    # Function-based middleware (NOT add_middleware(BaseHTTPMiddleware)).
+    app.middleware("http")(org_resolver_middleware)
 
     @app.get("/health")
     def health():
         return {"status": "ok"}
 
     # /debug/org returns a JSON snapshot of what the middleware set.
-    # The state container is read in a request scope (FastAPI's `Request`
-    # type is auto-injected by the framework).
+    # We use Depends with a module-level function (_get_request) to
+    # get the Request object. Module-level is critical: closures
+    # defined inside _build_app don't get the right __module__/
+    # __qualname__ and FastAPI treats the Request param as a query
+    # parameter (returning 422).
     @app.get("/debug/org")
-    def debug_org(req: Request):
+    def debug_org(ctx: dict = Depends(_get_request)):
         return {
-            "state_org_id": getattr(req.state, "org_id", None),
-            "state_keys": list(vars(req.state).keys()) if hasattr(req.state, "__dict__") else [],
+            "state_org_id": ctx["org_id"],
+            "state_keys": ctx["state_keys"],
         }
 
     return app
@@ -107,7 +154,6 @@ def test_middleware_returns_401_when_jwt_present_but_no_secret_configured() -> N
     assert resp.status_code == 401
 
 
-@pytest.mark.xfail(reason="FastAPI 0.138 BaseHTTPMiddleware state-scope propagation issue; middleware works correctly per /tmp/check4.py proof")
 def test_middleware_accepts_x_org_id_header() -> None:
     from fastapi.testclient import TestClient
 
@@ -116,12 +162,11 @@ def test_middleware_accepts_x_org_id_header() -> None:
         "/debug/org",
         headers={"X-Org-Id": "acme"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 200, f"got {resp.status_code}: {resp.text}"
     body = resp.json()
     assert body["state_org_id"] == "acme"
 
 
-@pytest.mark.xfail(reason="FastAPI 0.138 BaseHTTPMiddleware state-scope propagation issue; middleware works correctly per /tmp/check4.py proof")
 def test_middleware_accepts_valid_jwt() -> None:
     from fastapi.testclient import TestClient
 
@@ -131,7 +176,7 @@ def test_middleware_accepts_valid_jwt() -> None:
         "/debug/org",
         headers={"Authorization": f"Bearer {jwt}"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 200, f"got {resp.status_code}: {resp.text}"
     body = resp.json()
     assert body["state_org_id"] == "acme"
 
@@ -148,7 +193,6 @@ def test_middleware_rejects_invalid_jwt_signature() -> None:
     assert resp.status_code == 401
 
 
-@pytest.mark.xfail(reason="FastAPI 0.138 BaseHTTPMiddleware state-scope propagation issue; middleware works correctly per /tmp/check4.py proof")
 def test_middleware_tenant_isolation_acme_vs_globex() -> None:
     """Per Plan v1.2 Block 4 v1.2-US-1: 2 tenants cannot see each
     other's evidence. We simulate by checking that the org_id from

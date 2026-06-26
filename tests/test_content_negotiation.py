@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Test the content negotiation contract on GET /v1/evidence/{bundle_id}.
 
@@ -14,7 +15,8 @@ The bundle is synthetic for v1.0.5 (real lookup lands in US-12);
 the synthetic content is deterministic per bundle_id.
 """
 
-from __future__ import annotations
+
+from tests.test_org_id_helpers import OrgIdTestClient  # noqa: E402
 
 import json
 import re
@@ -81,7 +83,7 @@ def _make_client():
     session pattern).
     """
     from fastapi import FastAPI
-    from fastapi.testclient import TestClient
+    from fastapi.testclient import TestClient  # noqa: F401
     from app.api.evidence import (
         InMemoryBundleLookup,
         get_async_session_dep,
@@ -108,13 +110,15 @@ def _make_client():
     app = FastAPI()
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
-    return TestClient(app)
+    return OrgIdTestClient(app, org_id="apohara")
 
 
 def _make_empty_client():
     """TestClient for the 404 + 406 paths (no bundles injected)."""
+    from tests.test_org_id_helpers import OrgIdTestClient  # noqa: E402
+
     from fastapi import FastAPI
-    from fastapi.testclient import TestClient
+    from fastapi.testclient import TestClient  # noqa: F401
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,
@@ -130,7 +134,7 @@ def _make_empty_client():
     app = FastAPI()
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
-    return TestClient(app)
+    return OrgIdTestClient(app, org_id="apohara")
 
 
 # Hex64 regex for the BLAKE3 fingerprint.

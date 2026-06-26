@@ -10,8 +10,9 @@ Per plan v3.1 §Vertical Slice Spec Block 3.4:
 from __future__ import annotations
 
 import structlog
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.deps import get_org_id
 from app.domain.disclosure_service import generate_disclosure as service_generate
 from app.schemas import (
     DisclosureGenerateRequest,
@@ -29,6 +30,7 @@ router = APIRouter()
 )
 async def generate_disclosure_endpoint(
     req: DisclosureGenerateRequest,
+    org_id: str = Depends(get_org_id),
 ) -> DisclosureGenerateResponse:
     """Generate a signed, chained, timestamped disclosure.
 

@@ -51,6 +51,13 @@ class DisclosureRecord(Base):
     __tablename__ = "disclosure_records"
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    # v1.2-US-1: tenant isolation. Default "apohara" for backward compat
+    # with v1.0.x single-tenant deployments; production MUST run the
+    # `0002_reassign_org_id.py` migration to set per-tenant values.
+    # See Plan v1.2 Block 4 v1.2-US-1 (multi-tenant schema + JWT middleware).
+    org_id: Mapped[str] = mapped_column(
+        String(128), nullable=False, default="apohara", index=True,
+    )
     chain_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     row_number: Mapped[int] = mapped_column(BigInteger, nullable=False)
     prev_hash: Mapped[str] = mapped_column(String(64), nullable=False)

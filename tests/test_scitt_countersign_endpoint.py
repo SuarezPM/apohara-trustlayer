@@ -11,6 +11,7 @@ Uses the _SyncSessionAdapter pattern from test_real_evidence_lookup.py
 to avoid a real DB.
 """
 from __future__ import annotations
+from tests.test_org_id_helpers import OrgIdTestClient
 
 import sys
 from pathlib import Path
@@ -31,7 +32,7 @@ def _build_client(bundles=None):
         bundles: dict of bundle_id -> bundle dict; if None, empty lookup (404 expected).
     """
     from fastapi import FastAPI
-    from fastapi.testclient import TestClient
+    from fastapi.testclient import TestClient  # noqa: F401
     from app.api.evidence import get_async_session_dep, router as evidence_router
 
     bundles = bundles or {}
@@ -69,27 +70,54 @@ def _build_client(bundles=None):
 
     class _SyncSessionAdapter:
         async def execute(self, stmt):
+            # v1.2-US-1: extract both bundle_id AND org_id from the
+            # WHERE clause. The query is `id == X AND org_id == Y`
+            # (a BooleanClause). We walk the AND-clauses to extract
+            # both values from their respective inner expressions.
             whereclause = getattr(stmt, "whereclause", None)
             bundle_id = None
+            org_id_filter = None
             if whereclause is not None:
-                try:
-                    right = whereclause.right
-                    bundle_id = getattr(right, "value", str(right))
-                except AttributeError:
-                    bundle_id = None
-            if bundle_id is None or bundle_id not in bundles:
+                if hasattr(whereclause, "clauses"):
+                    for child in whereclause.clauses:
+                        try:
+                            k = getattr(child.left, "key", None)
+                            v = getattr(child.right, "value", None)
+                            if k == "id":
+                                bundle_id = v
+                            elif k == "org_id":
+                                org_id_filter = v
+                        except AttributeError:
+                            pass
+                elif whereclause is not None:
+                    try:
+                        k = getattr(whereclause.left, "key", None)
+                        v = getattr(whereclause.right, "value", None)
+                        if k == "id":
+                            bundle_id = v
+                        elif k == "org_id":
+                            org_id_filter = v
+                    except AttributeError:
+                        pass
+            if bundle_id is None:
                 return _NullResult()
-            return _RecordResult(bundles[bundle_id])
+            bundle = bundles.get(bundle_id)
+            if bundle is None:
+                return _NullResult()
+            # Multi-tenant filter: bundle's org_id must match the filter.
+            if org_id_filter is not None and bundle.get("org_id") != org_id_filter:
+                return _NullResult()
+            return _RecordResult(bundle)
 
     app = FastAPI()
     app.dependency_overrides[get_async_session_dep] = lambda: _SyncSessionAdapter()
     app.include_router(evidence_router, prefix="/v1")
-    return TestClient(app)
+    return OrgIdTestClient(app, org_id="acme")
 
 
 def _make_bundle(bundle_id: str) -> dict:
     return {
-        "bundle_id": bundle_id,
+        "bundle_id": bundle_id, "org_id": "acme",
         "row_hash": "abc123def456",
         "cose_sign1_b64": "AABBCCDD",  # synthetic placeholder
         "issuer_pubkey_fingerprint": "11" * 32,

@@ -14,10 +14,15 @@ How it works:
 Production deploys MUST set `TL_JWT_SECRET` (HMAC secret) so JWTs
 can be decoded. Tests use `X-Org-Id` directly without JWT.
 
-NOTE: this is a function-based middleware (NOT BaseHTTPMiddleware)
-because BaseHTTPMiddleware creates a fresh request scope per
-middleware, which would break state sharing with downstream
-function middlewares + routes.
+## Why function-based middleware, not BaseHTTPMiddleware
+
+EXA research (2025-11) confirmed that `BaseHTTPMiddleware` has
+known contextvars propagation issues: it spawns a new task, which
+breaks SQLAlchemy 2.0's session.execute() propagation. The fix per
+Starlette's own docs is to use either a function-based middleware
+(`@app.middleware("http")`) or a pure ASGI middleware. We use the
+function-based approach because it's the minimal-change path that
+preserves the same public surface.
 """
 from __future__ import annotations
 
@@ -26,12 +31,9 @@ import hashlib
 import hmac
 import json
 import os
-from typing import Awaitable, Callable
 
-from fastapi import Request, Response
+from fastapi import Request
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
 
 # Routes that DO NOT require org_id (public, no tenant binding).
@@ -98,66 +100,106 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + pad)
 
 
-# Use BaseHTTPMiddleware to access ASGI scope + send + receive
-# but with a stable state scope (set scope['state'] via Starlette
-# State so downstream can read it). The actual setting happens
-# in the inner ASGI wrapper below.
-class OrgResolverMiddleware(BaseHTTPMiddleware):
-    """BaseHTTPMiddleware wrapper for v1.2 multi-tenant org resolution.
+def _resolve_org_id(request: Request, jwt_secret: str | None) -> str | None:
+    """Resolve org_id from (1) JWT bearer or (2) X-Org-Id header.
 
-    Public API: add to FastAPI app via `app.add_middleware(OrgResolverMiddleware, jwt_secret=...)`.
+    Production paths:
+    1. JWT (Authorization: Bearer): org_id is the verified claim.
+    2. X-Org-Id header: org_id is the literal header value.
+    3. Missing both on non-public paths: 401 (loud, per IC-3).
     """
+    # 1. JWT
+    auth = request.headers.get("Authorization", "")
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+        if jwt_secret:
+            org = _decode_jwt_org_id(token, jwt_secret)
+            if org:
+                return org
+        else:
+            # No secret: reject bearer (per IC-3: no silent default).
+            return None
+    # 2. X-Org-Id header (test context)
+    x_org = request.headers.get("X-Org-Id", "").strip()
+    if x_org:
+        return x_org
+    return None
 
-    def __init__(self, app: ASGIApp, jwt_secret: str | None = None) -> None:
-        super().__init__(app)
-        self._jwt_secret = jwt_secret or os.environ.get("TL_JWT_SECRET")
 
-    async def dispatch(self, request, call_next):
-        path = request.url.path
-        if _is_public_path(path):
-            return await call_next(request)
+# Lazy-resolved JWT secret (resolved on first call to avoid reading
+# the env var at import time, which is critical for test isolation).
+#
+# CRITICAL: we use a module-level sentinel `_UNSET`. Using a fresh
+# `object()` for the comparison is a bug because `object()` creates
+# a NEW object on every evaluation, so the `is` check would never
+# be True. The module-level singleton is the correct pattern.
+_UNSET = object()
+_jwt_secret_cache: object = _UNSET
 
-        org_id = self._resolve_org_id(request)
-        if org_id is None:
-            return JSONResponse(
-                status_code=401,
-                content={
-                    "error": "org_id_required",
-                    "path": path,
-                    "hint": (
-                        "Provide an Authorization: Bearer <jwt> header with an "
-                        "`org_id` claim OR an X-Org-Id header. v1.2 multi-tenant "
-                        "deployments MUST resolve org_id for every authenticated "
-                        "request (per architect IC-3, no silent default)."
-                    ),
-                },
-                headers={"Content-Type": "application/json"},
-            )
 
-        # Set org_id on request.state. The state wrapper propagates
-        # through BaseHTTPMiddleware's scope correctly.
-        request.state.org_id = org_id
+def _get_jwt_secret() -> str | None:
+    global _jwt_secret_cache
+    if _jwt_secret_cache is _UNSET:
+        _jwt_secret_cache = os.environ.get("TL_JWT_SECRET")
+    if isinstance(_jwt_secret_cache, str) or _jwt_secret_cache is None:
+        return _jwt_secret_cache
+    return None
+
+
+def reset_jwt_secret_cache_for_tests() -> None:
+    """Reset the JWT secret cache. Used by tests that change
+    TL_JWT_SECRET between cases.
+    """
+    global _jwt_secret_cache
+    _jwt_secret_cache = _UNSET
+
+
+async def org_resolver_middleware(request: Request, call_next):
+    """Function-based FastAPI middleware: resolve org_id, set on
+    `request.state.org_id`, and short-circuit with 401 if missing.
+
+    Usage (in main.py):
+        from app.middleware import org_resolver_middleware
+        app.middleware(\"http\")(org_resolver_middleware)
+
+    This is a function-based middleware (vs BaseHTTPMiddleware) to
+    avoid the documented contextvars propagation issues that come
+    with BaseHTTPMiddleware's new-task model. SQLAlchemy 2.0's
+    session.execute() depends on contextvars, so a BaseHTTPMiddleware
+    in the stack can break the session.execute() path.
+
+    See tests/test_multi_tenant_middleware.py for the contract
+    and tests/test_real_evidence_lookup.py for the integration.
+    """
+    path = request.url.path
+    if _is_public_path(path):
         return await call_next(request)
 
-    def _resolve_org_id(self, request) -> str | None:
-        # 1. JWT (production path)
-        auth = request.headers.get("Authorization", "")
-        if auth.lower().startswith("bearer "):
-            token = auth[7:].strip()
-            if self._jwt_secret:
-                org = _decode_jwt_org_id(token, self._jwt_secret)
-                if org:
-                    return org
-            else:
-                # No secret: reject bearer (per IC-3: no silent default).
-                return None
+    secret = _get_jwt_secret()
+    org_id = _resolve_org_id(request, secret)
+    if org_id is None:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": "org_id_required",
+                "path": path,
+                "hint": (
+                    "Provide an Authorization: Bearer <jwt> header with an "
+                    "`org_id` claim OR an X-Org-Id header. v1.2 multi-tenant "
+                    "deployments MUST resolve org_id for every authenticated "
+                    "request (per architect IC-3, no silent default)."
+                ),
+            },
+            headers={"Content-Type": "application/json"},
+        )
 
-        # 2. X-Org-Id header (test context)
-        x_org = request.headers.get("X-Org-Id", "").strip()
-        if x_org:
-            return x_org
-
-        return None
+    # Set on request.state for the route handler (and downstream deps).
+    request.state.org_id = org_id
+    return await call_next(request)
 
 
-__all__ = ["OrgResolverMiddleware"]
+__all__ = [
+    "org_resolver_middleware",
+    "PUBLIC_PATHS",
+    "reset_jwt_secret_cache_for_tests",
+]

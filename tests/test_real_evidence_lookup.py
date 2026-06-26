@@ -46,7 +46,7 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup):
     `disclosure_records` by delegating to `lookup.lookup(bundle_id)`.
     """
     from fastapi import FastAPI
-    from fastapi.testclient import TestClient
+    from tests.test_org_id_helpers import OrgIdTestClient
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,
@@ -63,15 +63,41 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup):
             self._lookup = lookup
 
         async def execute(self, stmt):
-            # Extract the bundle_id from the WHERE clause of the
-            # SELECT. We use a duck-typed approach: the stmt has a
-            # whereclause; for our test queries it's `DisclosureRecord.id == bundle_id`.
-            # We just take the last positional arg as the bundle_id.
-            bundle_id = _extract_bundle_id_from_stmt(stmt)
+            # v1.2-US-1: extract both bundle_id and org_id from the
+            # WHERE clause. The query is `id == X AND org_id == Y`
+            # (a BooleanClause). We walk the AND-clauses to extract
+            # both values from their respective inner expressions.
+            whereclause = getattr(stmt, "whereclause", None)
+            bundle_id = None
+            org_id_filter = None
+            if whereclause is not None:
+                if hasattr(whereclause, "clauses"):
+                    for child in whereclause.clauses:
+                        try:
+                            k = getattr(child.left, "key", None)
+                            v = getattr(child.right, "value", None)
+                            if k == "id":
+                                bundle_id = v
+                            elif k == "org_id":
+                                org_id_filter = v
+                        except AttributeError:
+                            pass
+                elif whereclause is not None:
+                    try:
+                        k = getattr(whereclause.left, "key", None)
+                        v = getattr(whereclause.right, "value", None)
+                        if k == "id":
+                            bundle_id = v
+                        elif k == "org_id":
+                            org_id_filter = v
+                    except AttributeError:
+                        pass
             if bundle_id is None:
                 return _NullResult()
             bundle = self._lookup.lookup(bundle_id)
             if bundle is None:
+                return _NullResult()
+            if org_id_filter is not None and bundle.get("org_id") != org_id_filter:
                 return _NullResult()
             return _RecordResult(bundle)
 
@@ -81,7 +107,7 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup):
     app = FastAPI()
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
-    return TestClient(app)
+    return OrgIdTestClient(app, org_id="acme")
 
 
 def _make_empty_client():
@@ -98,6 +124,7 @@ def test_real_bundle_lookup_200() -> None:
     # bundle mirrors that output shape.
     lookup.add("real-bundle-1", {
         "id": "real-bundle-1",
+        "org_id": "acme",
         "bundle_id": "real-bundle-1",
         "created_at": "2026-06-25T12:00:00Z",
         "row_hash": "deadbeef" * 8,
@@ -146,7 +173,7 @@ def test_default_lookup_returns_404_when_not_initialized() -> None:
     provide a session that returns a null result (no records found).
     """
     from fastapi import FastAPI
-    from fastapi.testclient import TestClient
+    from tests.test_org_id_helpers import OrgIdTestClient
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,
@@ -158,7 +185,7 @@ def test_default_lookup_returns_404_when_not_initialized() -> None:
     app = FastAPI()
     app.dependency_overrides[get_async_session_dep] = get_session
     app.include_router(evidence_router, prefix="/v1")
-    client = TestClient(app)
+    client = OrgIdTestClient(app, org_id="acme")
 
     r = client.get("/v1/evidence/anything")
     assert r.status_code == 404
@@ -190,8 +217,8 @@ def test_no_accept_header_still_defaults_to_json() -> None:
     """Regression: no Accept header → application/json default."""
     client = _build_app_with_inmemory(InMemoryBundleLookup())
     # Pre-load a bundle so we get 200 instead of 404.
-    InMemoryBundleLookup().add("test", {"bundle_id": "test", "disclaimers": []})
-    client = _build_app_with_inmemory(_LookupWith({"test": {"bundle_id": "test", "disclaimers": []}}))
+    InMemoryBundleLookup().add("test", {"bundle_id": "test", "disclaimers": [], "org_id": "acme"})
+    client = _build_app_with_inmemory(_LookupWith({"test": {"bundle_id": "test", "disclaimers": [], "org_id": "acme"}}))
     r = client.get("/v1/evidence/test")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/json")

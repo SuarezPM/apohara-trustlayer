@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import disclosures, evidence, health, verify
 from app.config import get_settings
 
+
 settings = get_settings()
 log = structlog.get_logger()
 
@@ -48,6 +49,24 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
+
+    # v1.2-US-1: multi-tenant org resolution middleware. Resolves
+    # `org_id` from either (1) `Authorization: Bearer <jwt>` (HS256
+    # with `org_id` claim) or (2) `X-Org-Id: <id>` header (test context).
+    # Missing both on non-public paths → 401 (per architect IC-3:
+    # no silent default). Production MUST set `TL_JWT_SECRET` to a
+    # 32+ byte HMAC secret via env var. Tests use `X-Org-Id` directly
+    # (no secret required).
+    #
+    # v1.2 (post-EXA research): we use a FUNCTION-based middleware via
+    # the `@app.middleware("http")` decorator pattern instead of
+    # `app.add_middleware(OrgResolverMiddleware, ...)`. The
+    # BaseHTTPMiddleware approach was failing in tests because it
+    # spawns a new async task per request, breaking SQLAlchemy 2.0's
+    # contextvars-based session.execute() propagation. See
+    # app/middleware/__init__.py for the full explanation.
+    from app.middleware import org_resolver_middleware
+    app.middleware("http")(org_resolver_middleware)
 
     # Routers
     app.include_router(health.router, tags=["health"])

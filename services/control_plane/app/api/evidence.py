@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import DisclosureRecord
 from app.api.bundle_lookup import _record_to_bundle_dict
+from app.api.deps import get_org_id
 
 # v1.1.0.x+1+2: closed CRÍTICO 2 (66-byte COSE_Sign1 placeholder) by
 # using the real tl-ffi signing function. This path is ONLY for the
@@ -155,6 +156,10 @@ class InMemoryBundleLookup(BundleLookup):
             cose_sign1 = b"\x84\x00" + b"\x00" * 64
         return {
             "bundle_id": bundle_id,
+            # v1.2-US-1: org_id for multi-tenant filtering. Default
+            # "apohara" for backward compat with v1.0.x single-tenant
+            # tests; production wires per-tenant values.
+            "org_id": "apohara",
             "created_at": "2026-06-25T00:00:00Z",
             "disclosures": [
                 {
@@ -318,6 +323,7 @@ def get_bundle_lookup(request: Request) -> BundleLookup:
 @router.get("/evidence/{bundle_id}/stix")
 async def get_stix_bundle(
     bundle_id: str,
+    org_id: str = Depends(get_org_id),
     session: AsyncSession = Depends(get_async_session_dep),
 ) -> Response:
     """Return a STIX 2.1 bundle for an evidence bundle (v1.1.1-US-4).
@@ -339,7 +345,7 @@ async def get_stix_bundle(
     Microsoft Sentinel, Elastic Security all have STIX 2.1 ingestion).
     """
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id)
+    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 
@@ -490,6 +496,7 @@ async def get_stix_bundle(
 @router.get("/evidence/{bundle_id}/scitt-receipt")
 async def get_scitt_receipt(
     bundle_id: str,
+    org_id: str = Depends(get_org_id),
     session: AsyncSession = Depends(get_async_session_dep),
 ) -> Response:
     """Return the counter-signed SCITT receipt for a bundle.
@@ -508,7 +515,7 @@ async def get_scitt_receipt(
     `disclaimers` field makes this honest.
     """
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id)
+    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 
@@ -563,6 +570,7 @@ async def get_scitt_receipt(
 async def get_evidence_bundle(
     bundle_id: str,
     accept: str | None = Header(default=None),
+    org_id: str = Depends(get_org_id),
     session: AsyncSession = Depends(get_async_session_dep),
 ) -> Response:
     """Download a complete evidence bundle with content negotiation.
@@ -593,7 +601,7 @@ async def get_evidence_bundle(
         )
 
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id)
+    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
     if record is None:
