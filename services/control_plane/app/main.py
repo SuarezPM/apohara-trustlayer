@@ -69,6 +69,14 @@ def create_app() -> FastAPI:
     from app.middleware import OrgResolverASGIMiddleware
     app.add_middleware(OrgResolverASGIMiddleware)
 
+    # v3.0 W1.4: EU AI Act Article 50(2) disclosure middleware.
+    # Adds `X-Disclosure-AI` header to every response (except public paths).
+    # Per EU AI Office Code of Practice on Transparency (10 June 2026).
+    # Per Plan v3.0 W1.4 — closes the EU AI Act Art. 50 marking gap
+    # before the 2 August 2026 deadline (37 days from this commit).
+    from app.middleware.article50 import Article50DisclosureMiddleware
+    app.add_middleware(Article50DisclosureMiddleware)
+
     # Routers
     app.include_router(health.router, tags=["health"])
     app.include_router(disclosures.router, prefix="/v1", tags=["disclosures"])
