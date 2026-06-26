@@ -214,6 +214,133 @@ pub(crate) fn parse_scitt_receipt_pure(
 // WASM bindings (thin shims around the pure logic)
 // ============================================================================
 
+// ============================================================================
+// Watermark detection (Kirchenbauer z-test, byte-level)
+// ============================================================================
+//
+// SDK-level detector for the Kirchenbauer et al. (2023) text watermark.
+// The full algorithm lives in `tl-watermark` (which depends on c2patool,
+// AudioSeal, etc.); pulling those into WASM would blow the bundle size
+// budget. Instead we ship a self-contained z-test here that operates
+// on UTF-8 bytes as token ids with vocab_size = 256.
+//
+// The statistical test is identical: green_count ~ Binom(n, gamma) under
+// the null hypothesis, z = (observed - expected) / std_dev, threshold 4.0.
+//
+// `text` is the UTF-8 encoded string. `gamma` defaults to 0.25. The
+// 32-byte `key` is hashed with `blake3` per position to derive the
+// green list (deterministic; shared secret between producer and detector).
+
+/// Default green-list fraction (Kirchenbauer et al. 2023: gamma=0.25).
+pub(crate) const DEFAULT_GAMMA: f32 = 0.25;
+/// Default z-score threshold (one-sided p < 0.00003).
+pub(crate) const DEFAULT_THRESHOLD: f64 = 4.0;
+/// Vocab size for byte-level detection: 256 (one byte = one "token").
+pub(crate) const BYTE_VOCAB_SIZE: u32 = 256;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WatermarkDetection {
+    /// True iff z_score > threshold.
+    pub detected: bool,
+    /// Signed z-score under null hypothesis of no watermark.
+    pub z_score: f64,
+    /// Number of bytes that fell in the green list.
+    pub green_count: u32,
+    /// Total bytes analysed.
+    pub total_count: u32,
+    /// Green-list fraction used.
+    pub gamma: f32,
+    /// Z-score threshold used.
+    pub threshold: f64,
+}
+
+/// Pure logic: byte-level Kirchenbauer z-test.
+///
+/// `text` is interpreted as a UTF-8 string; each byte is one token id.
+/// The 32-byte `key` seeds the per-position green list via BLAKE3.
+pub(crate) fn detect_watermark_pure(
+    text: &str,
+    key: &[u8; 32],
+    gamma: f32,
+    threshold: f64,
+) -> Result<WatermarkDetection, WasmError> {
+    if gamma <= 0.0 || gamma >= 1.0 {
+        return Err(WasmError::InvalidJson(format!("gamma must be in (0,1): got {}", gamma)));
+    }
+    if threshold <= 0.0 {
+        return Err(WasmError::InvalidJson(format!("threshold must be > 0: got {}", threshold)));
+    }
+
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    if n == 0 {
+        return Ok(WatermarkDetection {
+            detected: false,
+            z_score: 0.0,
+            green_count: 0,
+            total_count: 0,
+            gamma,
+            threshold,
+        });
+    }
+
+    let green_size = ((gamma * BYTE_VOCAB_SIZE as f32) as u32).max(1);
+    let mut green_count: u32 = 0;
+
+    for (i, &tok) in bytes.iter().enumerate() {
+        let mut prng_seed = key.to_vec();
+        prng_seed.extend_from_slice(&(i as u32).to_le_bytes());
+        let hash = blake3::hash(&prng_seed);
+        let seed = u32::from_le_bytes([
+            hash.as_bytes()[0],
+            hash.as_bytes()[1],
+            hash.as_bytes()[2],
+            hash.as_bytes()[3],
+        ]);
+        // Check if `tok` is in the green list for this position.
+        for j in 0..green_size {
+            let candidate = seed
+                .wrapping_add(j.wrapping_mul(0x9E3779B1))
+                % BYTE_VOCAB_SIZE;
+            if candidate == tok as u32 {
+                green_count += 1;
+                break;
+            }
+        }
+    }
+
+    let n_f = n as f64;
+    let gamma_f = gamma as f64;
+    let expected = n_f * gamma_f;
+    let variance = n_f * gamma_f * (1.0 - gamma_f);
+    let std_dev = variance.sqrt();
+    let z = if std_dev > 0.0 {
+        (green_count as f64 - expected) / std_dev
+    } else {
+        0.0
+    };
+    let detected = z > threshold;
+
+    Ok(WatermarkDetection {
+        detected,
+        z_score: z,
+        green_count,
+        total_count: n as u32,
+        gamma,
+        threshold,
+    })
+}
+
+/// Native API: detect watermark in text (byte-level z-test).
+pub fn detect_watermark_native(text: &str) -> Result<WatermarkDetection, WasmError> {
+    // Default key (matches the Go SDK's DefaultWatermarkConfig).
+    let mut key = [0u8; 32];
+    for i in 0..32 {
+        key[i] = (i + 1) as u8;
+    }
+    detect_watermark_pure(text, &key, DEFAULT_GAMMA, DEFAULT_THRESHOLD)
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wasm_bindings {
     use super::*;
@@ -249,6 +376,17 @@ mod wasm_bindings {
     #[wasm_bindgen]
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    /// Run the byte-level Kirchenbauer z-test on the input text.
+    ///
+    /// Uses a fixed default key (1, 2, 3, ..., 32) and gamma=0.25,
+    /// threshold=4.0. Returns a JS object with `detected`, `z_score`,
+    /// `green_count`, `total_count`, `gamma`, `threshold`.
+    #[wasm_bindgen]
+    pub fn detect_watermark(text: &str) -> Result<JsValue, JsError> {
+        let out = detect_watermark_native(text)?;
+        serde_wasm_bindgen::to_value(&out).map_err(JsError::from)
     }
 }
 
@@ -481,5 +619,35 @@ mod tests {
     fn sdk_version_is_semver() {
         let v = sdk_version();
         assert!(v.split('.').count() >= 2);
+    }
+
+    #[test]
+    fn detect_watermark_empty_text_returns_zero() {
+        let out = detect_watermark_native("").unwrap();
+        assert!(!out.detected);
+        assert_eq!(out.total_count, 0);
+        assert_eq!(out.green_count, 0);
+    }
+
+    #[test]
+    fn detect_watermark_long_random_text_is_not_detected() {
+        // 5000 ASCII bytes of pseudo-random data; with gamma=0.25 and
+        // the fixed default key, the z-score should be well below 4.
+        let bytes: Vec<u8> = (0..5000u32)
+            .map(|i| (((i as u64).wrapping_mul(1103515245).wrapping_add(12345)) >> 16) as u8 & 0x7F)
+            .collect();
+        let text = String::from_utf8(bytes).unwrap();
+        let out = detect_watermark_native(&text).unwrap();
+        assert!(!out.detected, "z={} green={}/{}", out.z_score, out.green_count, out.total_count);
+        assert_eq!(out.total_count, 5000);
+    }
+
+    #[test]
+    fn detect_watermark_rejects_bad_gamma() {
+        // gamma out of (0, 1) must error.
+        let mut key = [0u8; 32];
+        key[0] = 1;
+        assert!(detect_watermark_pure("hello", &key, 0.0, 4.0).is_err());
+        assert!(detect_watermark_pure("hello", &key, 1.0, 4.0).is_err());
     }
 }
