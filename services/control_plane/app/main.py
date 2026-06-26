@@ -8,7 +8,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import disclosures, evidence, health, verify
+from app.api import disclosures, evidence, health, pld, verify
 from app.config import get_settings
 
 
@@ -82,6 +82,11 @@ def create_app() -> FastAPI:
     app.include_router(disclosures.router, prefix="/v1", tags=["disclosures"])
     app.include_router(verify.router, prefix="/v1", tags=["verify"])
     app.include_router(evidence.router, prefix="/v1", tags=["evidence"])
+    # v3.0 W2: PLD 2024/2853 compliance shield (disclosure order response,
+    # defect rebuttal pack, ISO 42001 SoA, NIST AI 600-1 profile, regulatory
+    # deadline countdown). The killer feature is the rebuttal pack that
+    # SHIFTS THE BURDEN back to the plaintiff under PLD Art. 10.
+    app.include_router(pld.router, prefix="/v1", tags=["pld-shield"])
 
     return app
 
