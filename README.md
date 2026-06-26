@@ -322,6 +322,91 @@ Track at: https://github.com/SuarezPM/apohara-trustlayer/milestones
 
 ---
 
+## v1.2.1 + v2.0 Milestone — COMPLETE (2026-06-26)
+
+All items from the v1.2.1 (Q3 2026) and v2.0 (Q4 2026) roadmap have been
+shipped in commits `af63447` through `d3fda89` + `beb2fdf`. Test status:
+**585+ Rust tests passing + 88 Python tests passing, 0 failures.**
+
+| Item | Status | Commit | Tests |
+|------|--------|--------|-------|
+| ISO 42001 + NIST AI RMF mappers (real) | ✅ DONE | `a4f4be7` | 6 + 7 |
+| Key rotation runtime (NIST SP 800-57 baseline) | ✅ DONE | `af63447` | 12 |
+| WASM SDK (`tl-wasm`, browser/edge verification) | ✅ DONE | `305fb3e` | 17 |
+| PDF evidence export (`printpdf` 0.7, multi-section A4) | ✅ DONE | `4b5b7e6` | 11 |
+| Kirchenbauer text watermark (real z-test) | ✅ DONE | `089c07f` | 11 |
+| Qualified TSP EU Trust List validation (eIDAS Art. 67) | ✅ DONE | `d3fda89` | 17 |
+| tl-mcp-server prompt envelope (pre-existing fix) | ✅ DONE | `beb2fdf` | 8 |
+
+### Key rotation runtime (`crates/tl-evidence/src/key_rotation.rs`)
+
+Per NIST SP 800-57 Part 1 §5.3.6 (Cryptographic Key Management / Key
+Transition). Implements:
+- `KeyRotationPolicy` — configurable rotation interval (default 90 days)
+  + grace period (default 30 days) + optional warn threshold.
+- `KeyRotationEvent` — append-only audit record with old/new key ids,
+  timestamp, reason (`Scheduled`/`Compromised`/`AlgorithmMigration`/
+  `Operational`/`Initial`), and operator.
+- `KeyStore` — tracks active key + grace keys. `verify_key_acceptable()`
+  returns `Ok` for active+grace, `KeyRetired` for expired grace,
+  `KeyNotFound` for unknown.
+
+### WASM SDK (`crates/tl-wasm/`)
+
+Browser/edge verification SDK for evidence bundles WITHOUT a
+network round-trip. Exposes (via `wasm-bindgen` + native API):
+- `verify_bundle_hash(json)` — recompute BLAKE3 of canonical bundle
+  JSON and compare to `row_hash`. Detects tampering.
+- `compute_canonical_hash(json)` — key-order-independent hash.
+- `validate_org_id(id)` — DNS-safe per Architect IC-4.
+- `parse_scitt_receipt(json)` — extract displayable fields.
+
+Architecture: pure logic in `pub(crate)` helpers + thin `wasm_bindgen`
+shims. `cargo test` runs all 17 tests natively (no wasm32 target
+needed). Bundle size target: < 100KB gzipped.
+
+### PDF evidence export (`crates/tl-evidence/src/bundle_pdf.rs`)
+
+Human-readable PDF rendering of evidence bundles for auditors
+who need to print, sign, and attach to regulatory files. Multi-section
+A4 layout with compliance color coding (green/amber/red/gray for
+Compliant/Partial/NonCompliant/Unknown per most-restrictive-wins
+rollup). Uses `printpdf` 0.7 (same version as `themis-orchestrator/pdf`
+for cross-crate consistency). Auto-detects TSA provider label from URL
+(FreeTSA/Sectigo/DigiCert/Mock). Wraps + paginates long content.
+
+### Kirchenbauer text watermark (`crates/tl-watermark/src/lib.rs`)
+
+Upgraded from marker-append stub to the real algorithm per
+Kirchenbauer et al. (2023) "A Watermark for Large Language Models":
+- `bias_logits(logits, position)` — sampling-side hook. Adds δ to
+  green-list token logits before softmax.
+- `detect_tokens(tokens, vocab_size)` — real z-test. Counts green-list
+  tokens, computes `z = (observed - γN) / sqrt(γ(1-γ)N)`. Threshold:
+  `z > 4.0` (one-sided p < 0.00003).
+- `DetectionStats` — structured result with z-score, green count,
+  total count, gamma. `confidence()` maps z-score to [0, 1] via
+  piecewise normal-CDF approximation.
+
+### Qualified TSP EU Trust List (`crates/tl-evidence/src/tsa/eu_trust_list.rs`)
+
+Validates TSA certificate chain for EU AI Act Art. 50(2) regulatory
+defensibility per eIDAS Article 67 + ETSI EN 319 421:
+- Policy OID check — leaf cert must assert a QTSP OID
+  (`0.4.0.194112.1.2` or `0.4.0.194112.1.3`).
+- Root fingerprint check — chain must end at a known EU Trust List
+  root CA (SHA-256 fingerprint hardcoded for Sectigo + DigiCert).
+- `is_valid_for_eu_regulation()` — single-call regulatory check.
+
+### tl-mcp-server prompt envelope fix (`crates/tl-mcp-server/src/envelope.rs`)
+
+Fixed pre-existing test failure (commit `c11ccc9`). Sentinel format
+now includes the nonce in BOTH positions (label + `BEGIN>`/`END>`
+marker) for defense-in-depth per Spotlighting defense (Hines et al.
+arXiv 2403.14720).
+
+---
+
 ## Verification
 
 ```bash
