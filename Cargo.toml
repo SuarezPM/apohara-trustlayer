@@ -30,6 +30,8 @@ members = [
     # v1.0.5 (Plan v1.2 Block 2 US-1): tl-scitt — SCITT-native receipts
     "crates/tl-scitt",
     # v1.1.0 (Plan v1.2 Block 3 US-3): tl-policy — DORA + EU AI Act + ISO + NIST strategies
+    # v1.1.0 (Plan v1.1 Block 4 v1.1.0-US-11): tl-wasm — browser/edge verification SDK
+    "crates/tl-wasm",
     "crates/tl-policy",
     # v1.1.1 (Plan v1.2 Block 4 v1.1.1): tl-watermark — c2pa + AudioSeal + Kirchenbauer
     "crates/tl-watermark",
