@@ -87,6 +87,7 @@ pub use digicert::{DigiCertTsaClient, DEFAULT_DIGICERT_ENDPOINT};
 // v1.1.0.x+1+6: Sectigo qualified TSP — PRIMARY per user decision
 // (TsaClient::Qualified::default() = Sectigo primary, DigiCert fallback).
 // Closes auditor-4 BRECHA 2. See ./tsa/sectigo.rs for the full implementation.
+pub mod eu_trust_list;
 pub mod sectigo;
 pub use sectigo::{SectigoTsaClient, DEFAULT_SECTIGO_ENDPOINT};
 
