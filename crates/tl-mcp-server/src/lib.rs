@@ -1,5 +1,7 @@
 //! tl-mcp-server lib (v3.0 W3.3: expanded to 36 tools across 10 modules).
 
+pub mod backends;
+pub mod backends_global;
 pub mod envelope;
 pub mod rule_of_two;
 pub mod tools_v2;
