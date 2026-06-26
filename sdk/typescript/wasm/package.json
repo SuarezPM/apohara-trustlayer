@@ -1,0 +1,16 @@
+{
+  "name": "tl-wasm",
+  "collaborators": [
+    "Pablo M. Suarez <suarezpm@csnat.unt.edu.ar>"
+  ],
+  "description": "WASM SDK for TrustLayer — browser/edge verification of evidence bundles (v1.1.0)",
+  "version": "0.1.0",
+  "license": "MIT OR Apache-2.0",
+  "files": [
+    "tl_wasm_bg.wasm",
+    "tl_wasm.js",
+    "tl_wasm.d.ts"
+  ],
+  "main": "tl_wasm.js",
+  "types": "tl_wasm.d.ts"
+}
