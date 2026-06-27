@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import disclosures, dora, evidence, health, pld, verify
+from app.api import cross_jurisdiction, disclosures, dora, evidence, health, pld, verify
 from app.config import get_settings
 
 
@@ -170,6 +170,13 @@ def create_app() -> FastAPI:
     # DORA Art. 9-21 (ICT risk, incident reporting, DOR testing, third-
     # party risk, CTPPs, info register, regulator cooperation).
     app.include_router(dora.router, prefix="/v1", tags=["dora"])
+
+    # W10.1: Cross-jurisdiction compliance profiles (EU AI Act, UK AI
+    # Bill, US EO 14110, PRC GenAI Measures). Exposes the 4 profiles
+    # the auditor flagged as "NotImplemented" in the v1.0 README.
+    app.include_router(
+        cross_jurisdiction.router, prefix="/v1", tags=["cross-jurisdiction"]
+    )
 
     return app
 

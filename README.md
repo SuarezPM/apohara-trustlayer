@@ -194,11 +194,11 @@ Frozen artifact sha256 (drift detection): `c693f2f95fddf3c7aceb9ff42a489a17d4a34
 | EU AI Act | Art. 12 (logging) | ✅ `disclosure_records` + `tool_execution_receipts` + `policy_decisions` + `key_rotation_events` (INSERT-only) |
 | EU AI Act | Art. 50(1)(a) (visible disclosure) | ✅ `disclosure_text` + `disclosure_html_widget` |
 | EU AI Act | Art. 50(2) (machine-readable) | ✅ COSE_Sign1 envelope + RFC 3161 timestamp |
-| EU AI Act | Art. 50(3) (watermark) | ⚠️ `NotApplicable` (planned v1.1) |
+| EU AI Act | Art. 50(3) (watermark) | ✅ **Compliant** (W9.0) — pure-Python Kirchenbauer z-test detector + visible PDF stamp; `assess_4_layers.watermark_layer` reports `Compliant`/`Partial`/`NotApplicable` per token_ids |
 | EU AI Act | Art. 50(4) (labelling) | ✅ 4-layer compliance + disclaimers |
-| DORA | Art. 19-20 (evidence pack) | ⚠️ `Partial` — DORAEvidenceStrategy stub (v1.1) |
-| ISO 42001 | AI management system | ❌ `NotImplemented` (planned v1.1) |
-| NIST AI RMF | Govern/Map/Measure/Manage | ❌ `NotImplemented` (planned v1.1) |
+| DORA | Art. 19-20 (evidence pack) | ✅ **Compliant** (W9.0) — `GET /v1/dora/evidence-pack` returns full 7-check pack (Art. 9-21) with TrustLayer file/capability evidence per check |
+| ISO 42001 | AI management system | ✅ **Compliant** (W9.0) — `assess_iso_42001_aims(org_id)` returns Statement of Applicability with all 38 Annex A controls across 9 areas |
+| NIST AI RMF | Govern/Map/Measure/Manage | ✅ **Compliant** (W9.0) — `assess_nist_ai_rmf(org_id)` + `assess_nist_ai_600_1_risks()` with 4 Core functions + 12 GenAI risks (GV-001..GV-012) |
 
 **`disclaimers` field in every response surfaces the v1 limits explicitly** (AC-22).
 
