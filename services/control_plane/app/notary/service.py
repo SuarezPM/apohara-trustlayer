@@ -303,11 +303,25 @@ def _make_router(service_getter):
                 token_ids=req.token_ids,
                 vocab_size=req.vocab_size,
             )
-        except Exception as exc:
-            logger.error(f"notarize failed: {exc}")
+        except (ValueError, TypeError, RuntimeError) as exc:
+            # Known recoverable errors (bad input, downstream failure).
+            # Don't leak the exception detail to the client — log it
+            # server-side and return a generic 500 with a request_id.
+            logger.error(
+                f"notarize failed: {exc!r}",
+                extra={"content_hash": req.content_hash, "submitted_by": req.submitted_by},
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"notarization failed: {exc}",
+                detail="notarization failed; check server logs for details",
+            ) from exc
+        except Exception as exc:
+            # Unknown — safety net. Per the 9th-auditor review, route
+            # handlers must NOT leak str(exc) to clients (info disclosure).
+            logger.exception("notarize: unexpected error")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="internal error; check server logs for details",
             ) from exc
 
         # Build the watermark sub-dict for the response.

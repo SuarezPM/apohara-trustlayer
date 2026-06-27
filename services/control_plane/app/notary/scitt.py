@@ -7,9 +7,12 @@ failure. No DB, no PDF, no orchestrator.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import os
 from typing import Optional
+
+import httpx  # core dep — top-level (httpx is always available)
 
 logger = logging.getLogger(__name__)
 
@@ -126,14 +129,20 @@ class SCITTClient:
                 # SCITT TS returns JSON with entry_id + optional receipt.
                 try:
                     body = resp.json()
-                except Exception:
+                except json.JSONDecodeError:
                     body = {}
 
             entry_id = body.get("entry_id") or body.get("entryId") or None
             log_id = body.get("log_id") or body.get("logId") or None
             return entry_id, log_id, entry_url
+        except httpx.HTTPError as e:
+            # Transport / SCITT-reachable errors. Log with context for
+            # debugging, return None (degraded mode per README).
+            logger.error(f"SCITT HTTP error for {self.ts_url}: {e!r}")
+            return None, None, None
         except Exception as e:
-            logger.error(f"SCITT submit failed for {self.ts_url}: {e}")
+            # Unknown — keep broad catch as degraded-mode safety net.
+            logger.exception(f"SCITT unexpected error for {self.ts_url}")
             return None, None, None
 
 # ============================================================================
