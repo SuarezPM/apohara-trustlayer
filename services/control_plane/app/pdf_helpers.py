@@ -35,7 +35,7 @@ def safe_html(s: Optional[str]) -> str:
     )
 
 
-def kv_table(rows: list[list[str]]):
+def kv_table(rows: list[list[str]]) -> "Table":
     """Render a 2-column key/value table.
 
     Returns a reportlab.platypus.Table styled with grey borders, 1.8"
@@ -75,7 +75,9 @@ def kv_table(rows: list[list[str]]):
     return table
 
 
-def watermark_stamp(label: str, *, bg_hex: str = "#e8f5e9", text_color_hex: str = "#1b5e20"):
+def watermark_stamp(
+    label: str, *, bg_hex: str = "#e8f5e9", text_color_hex: str = "#1b5e20"
+) -> "Paragraph":
     """Build a centred colored Paragraph stamp (no rotation, broadest compat).
 
     Returns a reportlab.platypus.Paragraph with a coloured background
