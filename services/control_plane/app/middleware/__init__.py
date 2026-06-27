@@ -255,24 +255,6 @@ class OrgResolverASGIMiddleware:
 
         await self.app(scope, receive, send)
 
-
-# Backwards-compatible alias: the function-based name still works for
-# callers that import it directly. It now raises — callers should use
-# OrgResolverASGIMiddleware via `app.add_middleware(...)`.
-def org_resolver_middleware(request: Request, call_next: Callable[..., Awaitable]):
-    """DEPRECATED: use OrgResolverASGIMiddleware via app.add_middleware().
-
-    This function-based form is kept only for tests that monkey-patch
-    the import name. It exists as a stub because the function-based
-    approach silently fails (request.state not propagated to deps).
-    """
-    raise RuntimeError(
-        "org_resolver_middleware() function form is deprecated and non-functional. "
-        "Use `app.add_middleware(OrgResolverASGIMiddleware)` instead. See "
-        "app/middleware/__init__.py for the rationale."
-    )
-
-
 __all__ = [
     "OrgResolverASGIMiddleware",
     "PUBLIC_PATHS",

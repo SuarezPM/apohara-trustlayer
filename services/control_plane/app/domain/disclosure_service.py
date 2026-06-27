@@ -49,22 +49,6 @@ def _layer_not_applicable(reason: str) -> ComplianceLayerStatus:
     return ComplianceLayerStatus(status="NotApplicable", reason=reason)
 
 
-def policy_evaluate(disclosure_id: str, regulation: str) -> dict:
-    """THREAT: This stub function returns a static decision based on the
-    regulation name. In production this MUST be replaced by the actual
-    Strategy pattern dispatcher (plan v3.1 §Vertical Slice Spec Block 3.4):
-    - Article50PolicyStrategy: checks EU AI Act Art. 50 compliance.
-    - DORAEvidenceStrategy: checks DORA Art. 19-20 evidence pack.
-    - OrgSpecificPolicyStrategy: org-customized rules.
-
-    For v1, this stub is sufficient for the e2e flow but the strategy
-    dispatcher must be wired before production deploy. The MITIGATION
-    here is that the disclosure records ARE persisted via the
-    disclosure_records table with the static decision; audit trail
-    is intact even if the rule logic is naive.
-    """
-
-
 def assess_4_layers(req: DisclosureGenerateRequest) -> ComplianceAssessment:
     """Per plan v3.1 ADR-004: 4 independent compliance layers.
 
