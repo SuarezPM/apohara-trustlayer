@@ -51,14 +51,11 @@ import json
 import logging
 import os
 import sqlite3
-import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-
-from pydantic import BaseModel, Field
 
 # Module-level so FastAPI's openapi generator can resolve the
 # `NotarizeRequest` / `NotarizeResponse` forward refs in the
@@ -73,11 +70,9 @@ from fastapi import APIRouter, HTTPException, Request, status  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # 1. Database (SQLite for dev, PostgreSQL-ready for prod)
 # ============================================================================
-
 
 class NotaryDB:
     """SQLite-backed NotaryService persistence.
@@ -236,15 +231,12 @@ class NotaryDB:
             # `dict(r)` fails. Use `dict(zip(r.keys(), r))` instead.
             return [dict(zip(r.keys(), r)) for r in rows]
 
-
 # ============================================================================
 # 2. RFC 3161 QTSP client (Actalis Italia as primary eIDAS QTSP)
 # ============================================================================
 
-
 class QTSPError(Exception):
     """Error from the RFC 3161 QTSP client."""
-
 
 class QTSPClient:
     """RFC 3161 client. Production wire-up (W8.2.1 — rfc3161-client 1.0.6).
@@ -336,15 +328,12 @@ class QTSPClient:
             logger.error(f"QTSP timestamp failed for {self.tsa_url}: {e}")
             return None, None, None
 
-
 # ============================================================================
 # 3. SCITT ledger client (scittles for self-host, DataTrails for public)
 # ============================================================================
 
-
 class SCITTError(Exception):
     """Error from the SCITT ledger client."""
-
 
 class SCITTClient:
     """SCITT Transparency Service client per IETF RFC 9943.
@@ -465,11 +454,9 @@ class SCITTClient:
             logger.error(f"SCITT submit failed for {self.ts_url}: {e}")
             return None, None, None
 
-
 # ============================================================================
 # 4. PDF + QR generation
 # ============================================================================
-
 
 class CertificateArtifactGenerator:
     """Generate the PDF certificate + verification QR.
@@ -511,10 +498,10 @@ class CertificateArtifactGenerator:
                 Spacer,
                 Table,
                 TableStyle,
-                KeepTogether,
+
             )
             from reportlab.graphics.barcode.qr import QrCodeWidget
-            from reportlab.graphics.shapes import Drawing, String
+            from reportlab.graphics.shapes import Drawing
             from reportlab.pdfbase import pdfmetrics
         except ImportError as imp_err:
             logger.error(
@@ -691,16 +678,13 @@ class CertificateArtifactGenerator:
     def _watermark_stamp_drawing(cert: dict):
         """Build a centered colored Paragraph with the Art. 50(3) watermark stamp.
 
-        Renders a visible stamp box so the watermark status is visually
-        obvious on the printed certificate. Green = Compliant, Red =
-        watermark absent, Grey = not in scope.
+        Thin wrapper around `app.pdf_helpers.watermark_stamp`: builds the
+        label from `cert["watermark_result"]` (populated by
+        `kirchenbauer_detect`) and delegates rendering to the shared helper.
 
-        Reads `cert["watermark_result"]` populated by
-        `kirchenbauer_detect` (see app/watermark_strategy.py).
+        Green = Compliant, Red = watermark absent, Grey = not in scope.
         """
-        from reportlab.platypus import Paragraph
-        from reportlab.lib.styles import ParagraphStyle
-        from reportlab.lib import colors
+        from app.pdf_helpers import watermark_stamp
 
         wm = cert.get("watermark_result") or {}
         z = wm.get("z_score")
@@ -712,108 +696,40 @@ class CertificateArtifactGenerator:
                 f"<font size='10'>Kirchenbauer z={z:.2f} (above {threshold} "
                 f"threshold, p &lt; 0.00003)</font>"
             )
-            bg = colors.HexColor("#e8f5e9")  # light green
-        elif detected is False:
+            return watermark_stamp(label, bg_hex="#e8f5e9", text_color_hex="#1b5e20")
+        if detected is False:
             label = (
                 f"<b>EU AI Act Art. 50(3) Watermark Absent</b><br/>"
                 f"<font size='10'>Kirchenbauer z={z:.2f} (below {threshold} "
                 f"threshold; submitter should re-generate with a watermarked "
                 f"LLM serving stack)</font>"
             )
-            bg = colors.HexColor("#ffebee")  # light red
-        else:
-            label = (
-                "<b>EU AI Act Art. 50(3) — Not in Scope</b><br/>"
-                "<font size='9'>No token_ids supplied (text/hashes/binary "
-                "are out of scope per Code of Practice §3.2). LLM serving "
-                "stacks: pre-detect via POST /v1/disclosure/generate.</font>"
-            )
-            bg = colors.HexColor("#f5f5f5")  # light grey
-
-        style = ParagraphStyle(
-            "watermark_stamp",
-            alignment=1,  # CENTER
-            fontSize=12,
-            leading=15,
-            backColor=bg,
-            borderColor=colors.grey,
-            borderWidth=0.5,
-            borderPadding=10,
-            spaceAfter=4,
+            return watermark_stamp(label, bg_hex="#ffebee", text_color_hex="#b71c1c")
+        label = (
+            "<b>EU AI Act Art. 50(3) — Not in Scope</b><br/>"
+            "<font size='9'>No token_ids supplied (text/hashes/binary "
+            "are out of scope per Code of Practice §3.2). LLM serving "
+            "stacks: pre-detect via POST /v1/disclosure/generate.</font>"
         )
-        return Paragraph(label, style)
+        return watermark_stamp(label, bg_hex="#f5f5f5", text_color_hex="#616161")
 
     @staticmethod
     def _kv_table(rows: list[list[str]]):
-        """Render a 2-column key/value table."""
-        from reportlab.lib import colors
-        from reportlab.platypus import Table, TableStyle, Paragraph
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.units import inch
+        """Render a 2-column key/value table (thin wrapper)."""
+        from app.pdf_helpers import kv_table
 
-        body_style = getSampleStyleSheet()["BodyText"]
-        table = Table(
-            [[Paragraph(f"<b>{k}</b>", body_style),
-              Paragraph(_safe_html(v), body_style)]
-             for k, v in rows],
-            colWidths=[1.8 * inch, 4.7 * inch],
-        )
-        table.setStyle(
-            TableStyle(
-                [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
-        return table
+        return kv_table(rows)
 
     @staticmethod
     def _write_minimal_pdf(pdf_path: Path, cert_id: str) -> None:
-        """Last-resort minimal valid PDF (no reportlab)."""
-        body = (
-            f"BT /F1 12 Tf 50 750 Td (TrustLayer Notary (degraded)) Tj "
-            f"0 -20 Td (Cert: {cert_id}) Tj "
-            f"0 -40 Td (reportlab unavailable; install with: uv add reportlab) Tj ET"
-        )
-        pdf_content = (
-            "%PDF-1.4\n"
-            "1 0 obj <<>> endobj\n"
-            f"2 0 obj << /Length {len(body)} >> stream\n{body}\nendstream endobj\n"
-            "3 0 obj << /Type /Pages /Kids [4 0 R] /Count 1 >> endobj\n"
-            "4 0 obj << /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] "
-            "/Resources << /Font << /F1 5 0 R >> >> /Contents 2 0 R >> endobj\n"
-            "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n"
-            "xref\n0 6\n0000000000 65535 f \n"
-            "0000000010 00000 n \n0000000050 00000 n \n0000000400 00000 n \n"
-            "0000000500 00000 n \n0000000550 00000 n \n"
-            "trailer << /Size 6 /Root 1 0 R >>\nstartxref\n600\n%%EOF\n"
-        ).encode("latin-1")
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_content)
+        """Last-resort minimal valid PDF (no reportlab) — thin wrapper."""
+        from app.pdf_helpers import write_minimal_pdf
 
-
-def _safe_html(s: str) -> str:
-    """Minimal HTML escape for Paragraph payloads."""
-    if not s:
-        return ""
-    return (
-        str(s)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
+        write_minimal_pdf(pdf_path, cert_id)
 
 # ============================================================================
 # 5. NotaryService production (W8.5)
 # ============================================================================
-
 
 class NotaryServiceProduction:
     """Production NotaryService. W8.5.
@@ -1027,11 +943,9 @@ class NotaryServiceProduction:
 
         return cert_record
 
-
 # ============================================================================
 # 6. FastAPI router (W8.5.2 — POST /v1/notarize)
 # ============================================================================
-
 
 def _make_router(service_getter):
     """Build the FastAPI router bound to a lazy service accessor.
@@ -1123,7 +1037,6 @@ def _make_router(service_getter):
         )
 
     return router
-
 
 # `router` is bound at module import time without a live service —
 # main.py installs the live service into app.state at startup, and
