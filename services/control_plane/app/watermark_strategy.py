@@ -178,3 +178,104 @@ __all__ = [
     "DEFAULT_Z_THRESHOLD",
     "DEFAULT_GAMMA",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Embedding helpers (sampling-side hook for LLM serving stacks)
+# ---------------------------------------------------------------------------
+
+
+def kirchenbauer_bias_logits(
+    logits: list[float],
+    position: int,
+    key: bytes,
+    vocab_size: Optional[int] = None,
+    gamma: float = DEFAULT_GAMMA,
+    delta: float = 2.0,
+) -> list[float]:
+    """Sampling-side hook: bias logits at green-list positions.
+
+    Pure-Python port of `KirchenbauerTextWatermark::bias_logits` in
+    `crates/tl-watermark/src/lib.rs`. LLM serving stacks call this
+    on every logit vector before softmax, making green-list tokens
+    exponentially more likely during sampling.
+
+    Args:
+        logits: logit vector of length vocab_size.
+        position: token position (0-indexed).
+        key: 32-byte secret watermark key.
+        vocab_size: vocab size; default `len(logits)`.
+        gamma: green-list fraction (default 0.25).
+        delta: logit bias added to green-list tokens (default 2.0).
+
+    Returns:
+        New logit vector with `delta` added to each green-list token's
+        logit. The input list is not mutated.
+    """
+    if vocab_size is None:
+        vocab_size = len(logits)
+    if vocab_size <= 0:
+        return list(logits)
+    if not (0.0 < gamma < 1.0):
+        raise ValueError(f"gamma must be in (0, 1), got {gamma}")
+    key32 = (key + b"\x00" * 32)[:32] if len(key) < 32 else key[:32]
+    green = _green_list_for_position(key32, position, vocab_size, gamma)
+    biased = list(logits)
+    for i in range(min(vocab_size, len(biased))):
+        if i in green:
+            biased[i] += delta
+    return biased
+
+
+def kirchenbauer_embed_tokens(
+    tokens: list[int],
+    key: bytes,
+    vocab_size: Optional[int] = None,
+    gamma: float = DEFAULT_GAMMA,
+) -> list[int]:
+    """Offline embed: produce a watermarked token sequence with high z-score.
+
+    For each position, if the input token is NOT in the green list,
+    replace it with a deterministic green-list token. The result has
+    z -> infinity (every token is green) and is therefore provably
+    watermarked.
+
+    Use case: batch-embed pre-generated text where you want every token
+    to be detectable. For real-time LLM serving, use
+    `kirchenbauer_bias_logits` instead.
+
+    Args:
+        tokens: original token ids.
+        key: 32-byte secret watermark key.
+        vocab_size: vocab size; default `max(tokens) + 1`.
+        gamma: green-list fraction (default 0.25).
+
+    Returns:
+        Token sequence of equal length, all tokens in green list.
+    """
+    if not tokens:
+        return list(tokens)
+    if vocab_size is None:
+        vocab_size = max(tokens) + 1
+    if not (0.0 < gamma < 1.0):
+        raise ValueError(f"gamma must be in (0, 1), got {gamma}")
+    key32 = (key + b"\x00" * 32)[:32] if len(key) < 32 else key[:32]
+    out: list[int] = []
+    for pos, tok in enumerate(tokens):
+        green = _green_list_for_position(key32, pos, vocab_size, gamma)
+        if tok in green:
+            out.append(tok)
+        else:
+            out.append(min(green))
+    return out
+
+
+__all__ = [
+    "WatermarkResult",
+    "kirchenbauer_detect",
+    "detect_or_not_applicable",
+    "kirchenbauer_bias_logits",
+    "kirchenbauer_embed_tokens",
+    "DEFAULT_Z_THRESHOLD",
+    "DEFAULT_GAMMA",
+]
