@@ -62,11 +62,18 @@ async def lifespan(app: FastAPI):
         output_dir=settings.notary_output_dir
     )
     app.state.notary_db = db
+    # W8.3.1: HSM-backed signing. get_signer() returns
+    # AWSKmsMLDSASigner (production) / ThalesLunaPqcSigner (on-prem HSM)
+    # / EphemeralEd25519Signer (dev). main.py logs which one is in use.
+    from app.hsm_adapter import get_signer
+    signer = get_signer()
+    app.state.signer = signer  # exposed for /v1/admin/signer endpoint
     app.state.notary_service = NotaryServiceProduction(
         db=db,
         qtsp=qtsp,
         scitt=scitt,
         artifact_gen=artifact_gen,
+        signer=signer,
         issuer=f"did:web:{settings.org_id}",
         key_id="notary-key-1",
     )

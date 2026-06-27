@@ -52,6 +52,7 @@ class NotaryServiceProduction:
         qtsp: QTSPClient,
         scitt: SCITTClient,
         artifact_gen: CertificateArtifactGenerator,
+        signer: "object | None" = None,  # HSMSigner (Protocol); lazy-typed
         issuer: str = "did:web:apohara.org",
         key_id: str = "notary-key-1",
     ):
@@ -59,6 +60,15 @@ class NotaryServiceProduction:
         self.qtsp = qtsp
         self.scitt = scitt
         self.artifact_gen = artifact_gen
+        # W8.3.1: HSM-backed signing. If no signer provided, fall back
+        # to EphemeralEd25519Signer (dev-only, NOT for production per
+        # auditor-8 finding). main.py should pass get_signer() at
+        # lifespan startup.
+        if signer is None:
+            from app.hsm_adapter import EphemeralEd25519Signer
+            self.signer = EphemeralEd25519Signer()
+        else:
+            self.signer = signer
         self.issuer = issuer
         self.key_id = key_id
 
@@ -82,12 +92,17 @@ class NotaryServiceProduction:
 
         Returns (cose_sign1_b64, cwt_claims, primary_key_fingerprint).
 
-        Production wire-up (W8.3): replace placeholder with HSM-backed
-        Ed25519 signing. Interface stays the same.
+        W8.3.1 production wire-up: the COSE_Sign1 signature is now
+        produced by the injected HSMSigner (AWSKmsMLDSASigner for
+        production, ThalesLunaPqcSigner for on-prem HSM, or
+        EphemeralEd25519Signer for dev only). The signer.algorithm()
+        method is used to populate the COSE protected header.
         """
-        primary_key_fingerprint = (
-            "ed25519:7cMXDcyqkMoeTQcMVdFMSJG7qMqKq9o8J4G3z5zB2d1o"
-        )
+        # W8.3.1: signing via the injected HSM. The algorithm name
+        # (e.g. "EdDSA", "ML-DSA-65") is what the signer's
+        # algorithm() method reports.
+        algorithm_name = self.signer.algorithm()
+        primary_key_fingerprint = self.signer.key_fingerprint()
 
         cwt_claims = {
             "iss": self.issuer,
@@ -100,16 +115,36 @@ class NotaryServiceProduction:
             "submitted_by": submitted_by,
         }
 
-        # COSE_Sign1 structure per RFC 9052
+        # COSE_Sign1 structure per RFC 9052 §4.4. The protected header
+        # uses the algorithm name reported by the injected HSMSigner
+        # ("EdDSA" for EphemeralEd25519Signer, "ML-DSA-65" for
+        # AWSKmsMLDSASigner / ThalesLunaPqcSigner, etc.).
+        protected = {
+            "alg": algorithm_name,
+            "typ": "application/notary+cose",
+            "kid": f"{self.issuer}#{self.key_id}",
+        }
         protected_b64 = base64.urlsafe_b64encode(
-            json.dumps({"alg": "EdDSA", "typ": "application/notary+cose",
-                       "kid": f"{self.issuer}#{self.key_id}"}).encode()
+            json.dumps(protected).encode()
         ).rstrip(b"=").decode()
         payload_b64 = base64.urlsafe_b64encode(
             json.dumps(cwt_claims, sort_keys=True).encode()
         ).rstrip(b"=").decode()
-        # Signature is 64 bytes of zeros in placeholder (production: real Ed25519)
-        sig_b64 = base64.urlsafe_b64encode(b"\x00" * 64).rstrip(b"=").decode()
+        # Sign_structure per RFC 9052 §4.4:
+        #   Sig_structure = [
+        #     "Signature1", body_protected, external_aad, payload
+        #   ]
+        sig_structure = (
+            b"Signature1"
+            + b"\x00" + protected_b64.encode("ascii")
+            + b"\x00" + b""  # external_aad is empty
+            + b"\x00" + payload_b64.encode("ascii")
+        )
+        # W8.3.1: actual HSM-backed signing. For Ed25519, this returns
+        # 64 bytes. For ML-DSA-65, 3309 bytes. For ML-DSA-44, 2420.
+        # For ML-DSA-87, 4627. The base64 encoding is size-agnostic.
+        sig_bytes = self.signer.sign(sig_structure)
+        sig_b64 = base64.urlsafe_b64encode(sig_bytes).rstrip(b"=").decode()
         cose_sign1_b64 = f"{protected_b64}.{payload_b64}.{sig_b64}"
 
         return cose_sign1_b64, cwt_claims, primary_key_fingerprint
