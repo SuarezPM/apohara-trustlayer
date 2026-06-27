@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import disclosures, evidence, health, pld, verify
+from app.api import disclosures, dora, evidence, health, pld, verify
 from app.config import get_settings
 
 
@@ -164,6 +164,12 @@ def create_app() -> FastAPI:
         app.include_router(
             catalyst_production.router, tags=["catalyst"]
         )
+
+    # W9.0: DORA (Regulation (EU) 2022/2554) evidence pack — replaces the
+    # v1.0 "Partial" stub with a real 7-check evidence pack covering
+    # DORA Art. 9-21 (ICT risk, incident reporting, DOR testing, third-
+    # party risk, CTPPs, info register, regulator cooperation).
+    app.include_router(dora.router, prefix="/v1", tags=["dora"])
 
     return app
 
