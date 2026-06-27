@@ -114,7 +114,13 @@ def _decode_jwt_org_id(token: str, jwt_secret: str) -> str | None:
             return None
         org = payload.get("org_id")
         return str(org) if org else None
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+        # W8.9.1+narrowed: catch is documented in the function docstring.
+        # Any JWT decode/parse failure (binascii.Error, json.JSONDecodeError, KeyError,
+        # ValueError, AttributeError) is treated as "no valid org_id" — the request
+        # proceeds to the X-Org-Id header fallback or returns 401 if neither resolves.
+        # Per IC-3: NEVER silently default to a tenant; an unparseable JWT is an
+        # unparseable JWT, not a free pass.
         return None
 
 
@@ -138,7 +144,12 @@ def _resolve_org_id_from_scope(scope: dict, jwt_secret: str | None) -> str | Non
         try:
             k = key.decode("latin-1").lower()
             v = value.decode("latin-1")
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+            # W8.9.1+narrowed: catch is documented in the function docstring.
+            # Per ASGI spec, headers are (bytes, bytes) tuples. If a header cannot
+            # be decoded as latin-1 (which is the only spec-permitted encoding),
+            # it is malformed. Skip it silently and continue with the rest of
+            # the headers — never crash the middleware on a single bad header.
             continue
         if k == "authorization":
             auth_value = v

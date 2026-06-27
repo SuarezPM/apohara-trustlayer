@@ -191,21 +191,26 @@ def create_app() -> FastAPI:
     # W10.1: Cross-jurisdiction compliance profiles (EU AI Act, UK AI
     # Bill, US EO 14110, PRC GenAI Measures). Exposes the 4 profiles
     # the auditor flagged as "NotImplemented" in the v1.0 README.
+    # The router already declares prefix="/v1/jurisdictions", so we
+    # do NOT add an extra "/v1" here (would otherwise produce the
+    # double-prefixed "/v1/v1/jurisdictions").
     app.include_router(
-        cross_jurisdiction.router, prefix="/v1", tags=["cross-jurisdiction"]
+        cross_jurisdiction.router, tags=["cross-jurisdiction"]
     )
 
     # W8.9.1: Adversarial scenarios harness (OASB v0.3.2 + AgentDojo
     # v0.1.35 + MITRE ATLAS 2026). Exposes the CordonEnforcer mapping
     # for the auditor-flagged "NotImplemented" adversarial testing.
+    # Router already declares prefix="/v1/adversarial".
     app.include_router(
-        adversarial.router, prefix="/v1", tags=["adversarial"]
+        adversarial.router, tags=["adversarial"]
     )
 
     # W12: ISO 23894:2023 risk scoring dashboard (CISO Pro $199/mo
     # tier surface). 5 process stages + NIST AI RMF crosswalk.
+    # Router already declares prefix="/v1/risk-scoring".
     app.include_router(
-        risk_scoring.router, prefix="/v1", tags=["risk-scoring"]
+        risk_scoring.router, tags=["risk-scoring"]
     )
 
     return app

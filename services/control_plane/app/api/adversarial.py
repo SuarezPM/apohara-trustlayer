@@ -182,7 +182,10 @@ def post_run_scenario(
     result = run_scenario(scenario)
     return ScenarioRunResponse(
         scenario_code=result["scenario_code"],
-        suite=result["suite"],
+        # `run_scenario()` returns metadata derived from the scenario
+        # dataclass; `suite` is on the scenario itself (not the result
+        # dict) so we read it from the catalog lookup.
+        suite=scenario.suite,
         name=result["name"],
         severity=result["severity"],
         verdict=result["verdict"],

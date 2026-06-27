@@ -10,6 +10,7 @@ from app.risk_scoring.iso_23894 import (
     RiskTreatment,
     assess_iso_23894_risk,
 )
+from app.risk_scoring.db import DBRiskRegister, get_db_session_factory, RiskRecord
 
 __all__ = [
     "ISO23894Stage",
@@ -20,5 +21,8 @@ __all__ = [
     "Risk",
     "RiskScoreSummary",
     "RiskRegister",
+    "DBRiskRegister",
+    "RiskRecord",
+    "get_db_session_factory",
     "assess_iso_23894_risk",
 ]

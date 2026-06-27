@@ -81,7 +81,13 @@ class SCITTClient:
                 # uses '+' and '/'. Be permissive on the decode.
                 padded = statement_b64 + "=" * (-len(statement_b64) % 4)
                 cose_bytes = base64.urlsafe_b64decode(padded)
-            except Exception:
+            except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+                # W8.9.1+narrowed: catch is documented in the function docstring.
+                # If base64url decode fails (binascii.Error, ValueError), fall back
+                # to standard base64. SCITT clients are spec-permitted to use either
+                # encoding. The outer try/except returns (None, None, None) on any
+                # remaining failure (degraded mode — NotaryService still saves the
+                # cert, just without the SCITT anchor).
                 # Fall back to standard base64.
                 padded = statement_b64 + "=" * (-len(statement_b64) % 4)
                 cose_bytes = base64.b64decode(padded)

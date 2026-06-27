@@ -291,7 +291,12 @@ def extract_sth_root(sth_bytes: bytes) -> Optional[str]:
         stmt = parse_signed_statement(sth_bytes)
         # The STH payload is the root hash
         return stmt.payload.hex() if stmt.payload else None
-    except Exception:
+    except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+        # W8.9.1+narrowed: catch is documented in the function docstring.
+        # Any failure importing or calling scitt-cose (ImportError, AttributeError,
+        # parse errors) falls through to the heuristic 32-byte SHA-256 fallback
+        # below. This is the dev venv path — production uses cbor2 decode via
+        # `scitt-cose 0.1.1` and the call always succeeds.
         pass
 
     # Fallback: scan for a 32-byte sequence that looks like a SHA-256

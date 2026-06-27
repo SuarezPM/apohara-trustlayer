@@ -78,12 +78,56 @@ def test_cordon_enforcer_verdict_synthesizer_only_sees_fingerprints() -> None:
         assert m.verdict_synthesizer_visibility == "fingerprints_only"
 
 
-def test_run_scenario_returns_scaffolded_verdict() -> None:
+def test_run_scenario_returns_real_verdict() -> None:
+    """W8.9.2 — every registered scenario must return PASS or FAIL
+    (no longer NOT_RUN), backed by an auditable check that names the
+    actual CordonEnforcer control that maps to the scenario.
+    """
     s = OASB_SCENARIOS[0]
     result = run_scenario(s)
     assert result["scenario_code"] == s.code
     assert result["name"] == s.name
     assert result["severity"] == s.severity
-    # Production run replaces "NOT_RUN" with PASS/FAIL.
-    assert result["verdict"] == "NOT_RUN"
-    assert "W8.9.1" in str(result["audit_log"])
+    # W8.9.2: every registered check returns PASS or FAIL.
+    assert result["verdict"] in {"PASS", "FAIL"}
+    # Audit log mentions the W8.9.2 control check (not the W8.9.1 scaffold).
+    assert any("W8.9.2" in line or "importable" in line or "present" in line
+               or "Cargo.lock" in line or "apohara-agentguard" in line
+               for line in result["audit_log"]), (
+        f"audit_log should name the CordonEnforcer control checked: "
+        f"{result['audit_log']}"
+    )
+
+
+def test_all_registered_scenarios_return_real_verdict() -> None:
+    """W8.9.2 — every OASB + AgentDojo + ATLAS scenario returns PASS
+    or FAIL (no NOT_RUN). Each scenario maps to a registered control
+    check in `_CONTROL_CHECKS`.
+    """
+    from app.adversarial_scaffold import _CONTROL_CHECKS
+    all_scenarios = OASB_SCENARIOS + AGENTDOJO_ATTACKS + ATLAS_TECHNIQUES
+    # Every scenario must be registered in _CONTROL_CHECKS.
+    for s in all_scenarios:
+        assert s.code in _CONTROL_CHECKS, (
+            f"scenario {s.code} not registered in _CONTROL_CHECKS"
+        )
+    # Every registered check returns PASS or FAIL.
+    for s in all_scenarios:
+        result = run_scenario(s)
+        assert result["verdict"] in {"PASS", "FAIL"}, (
+            f"scenario {s.code} returned {result['verdict']}; "
+            f"expected PASS or FAIL"
+        )
+
+
+def test_run_scenario_audit_log_documents_control() -> None:
+    """Each scenario's audit_log names the specific control that was
+    checked (so the verdict is auditable, not a black-box).
+    """
+    all_scenarios = OASB_SCENARIOS + AGENTDOJO_ATTACKS + ATLAS_TECHNIQUES
+    for s in all_scenarios:
+        result = run_scenario(s)
+        assert isinstance(result["audit_log"], list)
+        assert len(result["audit_log"]) >= 1, (
+            f"{s.code} audit_log is empty: {result}"
+        )
