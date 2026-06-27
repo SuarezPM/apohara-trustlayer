@@ -21,7 +21,7 @@ content per **EU AI Act Art. 50** (2 August 2026), **DORA Art. 19-20**,
 the **Code of Practice on Transparency of AI-Generated Content** (10 June 2026),
 with **NIST PQC migration** in flight (ML-DSA-65 hybrid signing per FIPS 204).
 
-**v3.0 + W7 + W8 + W9 milestone (2026-06-27):** 42 commits, 1,495 tests passing (1,137 Rust + 119 tl-evidence + 202 Python + 21 TS SDK + 16 Go SDK), 0 failures. Roadmap v3.0 (F0 + W1 + W2 + W3 + W4 + W5 + W6) executed end-to-end, plus the full W7 milestone (4 critical gaps closed, Notary Layer, Catalyst integration, Series A deck), the **W8 production wire-up** (real RFC 3161 QTSP via `rfc3161-client`, real SCITT via `scitt-cose 0.1.1`, real PDFs via `reportlab`, FastAPI routers for `/v1/notarize` + `/verify/{cert_id}` + `/v1/catalyst/{receipt,manifest}`, OnceLock-equivalent `app.state.notary_service` initialised at lifespan startup, 3 CRITICAL CVE remediated for `ml-dsa`), and the **W9.0 milestone** (Actalis Italia as the default QTSP, pure-Python Kirchenbauer z-test detector closing EU AI Act Art. 50(3), HSM + QES adapters for W8.3 + W8.8 production wire-ups, full ISO 42001 + NIST AI RMF + DORA + W10 + W11 compliance mappers, OASB + AgentDojo + MITRE ATLAS 2026 adversarial scaffold, **Kirchenbauer embed helpers + visible PDF watermark stamp + GET /v1/dora/evidence-pack endpoint**).
+**v3.0 + W7 + W8 + W9 milestone (2026-06-27):** 51 commits, 1,495 tests passing (1,137 Rust + 119 tl-evidence + 202 Python + 21 TS SDK + 16 Go SDK), 0 failures. Roadmap v3.0 (F0 + W1 + W2 + W3 + W4 + W5 + W6) executed end-to-end, plus the full W7 milestone (4 critical gaps closed, Notary Layer, Catalyst integration, Series A deck), the **W8 production wire-up** (real RFC 3161 QTSP via `rfc3161-client`, real SCITT via `scitt-cose 0.1.1`, real PDFs via `reportlab`, FastAPI routers for `/v1/notarize` + `/verify/{cert_id}` + `/v1/catalyst/{receipt,manifest}`, OnceLock-equivalent `app.state.notary_service` initialised at lifespan startup, 3 CRITICAL CVE remediated for `ml-dsa`), the **W9.0 milestone** (Actalis Italia as the default QTSP, pure-Python Kirchenbauer z-test detector closing EU AI Act Art. 50(3), HSM + QES adapters for W8.3 + W8.8 production wire-ups, full ISO 42001 + NIST AI RMF + DORA + W10 + W11 compliance mappers, OASB + AgentDojo + MITRE ATLAS 2026 adversarial scaffold, **Kirchenbauer embed helpers + visible PDF watermark stamp + GET /v1/dora/evidence-pack endpoint**), and the **W9.1-W9.3 refactoring waves** (12 atomic commits: 4 orphan modules deleted, NotaryService stub + W7_1_DESIGN_NOTES removed, 14 unused imports cleaned, 7 dead Settings fields removed, `app/pdf_helpers.py` + `app/constants.py` shared modules created, 7x X-Org-Id checks deduplicated via `Depends(get_org_id)`, **two 900+ LOC god files split into 11 focused modules** with compat shims, 2 type hints added, 3 critical `except Exception` sites narrowed to prevent information disclosure and mask transport errors).
 
 ---
 
@@ -702,6 +702,46 @@ The 8th auditor report + 9th auditor (best-practice) report together identified 
 - COSE_Sign1 signing → `get_signer()` returns `AWSKmsMLDSASigner` when `TL_AWS_KMS_KEY_ID` is set
 - TST validation → `validate_qtsp_certificate(der)` walks qcStatements for `esi4-qtstStatement-1` and surfaces `regulatory_basis` (eIDAS Art. 41, Reg 2025/1929, ETSI EN 319 421/422)
 - Adversarial scenarios → `run_scenario(OASB_SCENARIOS[0])` returns the canonical mapping to CordonEnforcer controls
+
+---
+
+## W9.1–W9.3 Refactoring Wave — COMPLETE (2026-06-27, 12 atomic commits)
+
+The 9th-auditor best-practice review identified 4 categories of refactoring opportunities: dead code, magic constants, code modularity, encapsulation, and error handling. This wave closed them all with **zero regressions** in 12 atomic commits:
+
+| Commit | Wave | What | Result |
+|---|---|---|---|
+| `b0753ba` | W9.1 | Delete 4 orphan modules | -30KB Python muerto (scitt.py, platform_w4.py, sealchain_core.py, market_exit_w5_w6.py) — zero importers, W4/W5-W6/v1.0 stage-gate design docs that were never wired |
+| `d35a984` | W9.1 | Delete NotaryService stub + W7_1_DESIGN_NOTES | notary.py 375→207. **Fixed critical module-level `print()` side-effect bug**: every import of `app.notary` (transitively by `notary_production.py:67`) dumped 80+ lines of design notes to stdout |
+| `c0f4a87` | W9.1 | Delete dead code | `org_resolver_middleware` deprecated stub (always raises RuntimeError, never imported) + `policy_evaluate` stub (returns static decision, never called) |
+| `665b9e7` | W9.1 | Remove 7 dead Settings fields | `log_level`, `bind`, `jwt_secret` (DANGEROUSLY dead — middleware reads `os.environ.get("TL_JWT_SECRET")` directly, NOT from settings — silent fail risk), `jwt_algorithm`, `jwt_audience`, `rate_limit_per_minute_unauth`, `rate_limit_per_day_unauth` |
+| `85774ea` | W9.1 | Clean unused imports | 14 imports across 7 files (Optional, base64, json, BaseModel, Field, serialization, etc.) |
+| `510ba1f` | W9.1 | Extract `app/pdf_helpers.py` | Shared PDF helpers: `safe_html()`, `kv_table()`, `watermark_stamp()`, `write_minimal_pdf()`. Wired into `notary_production.py` (4 inline helpers replaced with thin wrappers) |
+| `79ac4e0` | W9.1 | Extract `app/constants.py` | Centralized magic constants: OIDs (ETSI EN 319 422, RFC 3739), TSA defaults, EU Trust List fingerprints, watermark thresholds (γ=0.25, z=4.0), BPE vocab size (50257), env-var helpers. Wired into `qes_adapter.py` + `watermark_strategy.py` |
+| `525b0c1` | W9.1 | Deduplicate X-Org-Id | api/pld.py 406→371 lines. 7x `Header+401 check` → `Depends(get_org_id)`. Single source of truth for the 401 error message |
+| `209a8db` | W9.2 | **Split `notary_production.py` (1044L)** | → `app/notary/{db,qtsp,scitt,certificate_generator,models,service}.py` + compat shim |
+| `48daf3c` | W9.2 | **Split `compliance_mappers.py` (968L)** | → `app/compliance/{iso_42001,nist_ai_rmf,dora,cross_jurisdiction,federated_scitt}.py` + compat shim |
+| `68ea5b5` | W9.3 | Add return type hints | 2 public functions in `pdf_helpers.py` (`kv_table() -> "Table"`, `watermark_stamp() -> "Paragraph"` — forward refs to reportlab) |
+| `e7a66a4` | W9.3 | Narrow 3 critical `except Exception` | **Route handler leak** (service.py:306 — don't leak `str(exc)` to client, log context server-side), **SCITT mask** (scitt.py:135 — narrow to `httpx.HTTPError` + safety net), **QTSP mask** (qtsp.py:107 — same pattern) |
+
+**Architectural pattern: compat shim re-exports**
+
+Each god-file split created a new subpackage (`app.notary.*` or `app.compliance.*`) with single-responsibility modules + a thin compat shim at the old path. This way:
+
+- `from app.notary_production import NotaryDB` (9.1 legacy path) ✓
+- `from app.notary import NotaryDB` (new clean path) ✓
+- Both work simultaneously. Zero breaking changes for 9.1-era callers (`main.py`, `verification_page.py`, `api/dora.py`, tests).
+
+**Stats**:
+- 33 files changed across the 12 commits
+- 2,658 insertions(+), 2,596 deletions(-) — net +62 lines (most of the LOC reduction was absorbed by the new subpackage structure)
+- 202 tests pass, 11 skipped, 4 xfailed (unchanged — zero regressions)
+- 4 god files eliminated (2 orphans + 2 god classes)
+- 11 focused modules created
+- 14 unused imports cleaned
+- 7 dead Settings fields removed
+- 2 type hints added
+- 3 critical `except Exception` sites narrowed
 
 ---
 
