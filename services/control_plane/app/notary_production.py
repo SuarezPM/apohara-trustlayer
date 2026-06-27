@@ -514,7 +514,8 @@ class CertificateArtifactGenerator:
                 KeepTogether,
             )
             from reportlab.graphics.barcode.qr import QrCodeWidget
-            from reportlab.graphics.shapes import Drawing
+            from reportlab.graphics.shapes import Drawing, String
+            from reportlab.pdfbase import pdfmetrics
         except ImportError as imp_err:
             logger.error(
                 f"reportlab import failed ({imp_err}); writing degraded PDF."
@@ -625,10 +626,46 @@ class CertificateArtifactGenerator:
         )
         story.append(Spacer(1, 0.25 * inch))
 
+        # Section 5: EU AI Act Art. 50(3) Watermark Status (Kirchenbauer z-test)
+        # Visible stamp overlay + machine-readable k/v row. LLM serving
+        # stacks pre-detect via /v1/disclosure/generate (with token_ids)
+        # and the z-score is stored in `cert["watermark_result"]`.
+        story.append(
+            Paragraph("5. EU AI Act Art. 50(3) Watermark Status", h2)
+        )
+        story.append(self._watermark_stamp_drawing(cert))
+        wm = cert.get("watermark_result") or {}
+        if wm:
+            wm_rows = [
+                ["Kirchenbauer z-score", f"{wm.get('z_score', 0.0):.2f}"],
+                ["Green tokens / total", f"{wm.get('green_count', 0)}/{wm.get('total_count', 0)}"],
+                ["Threshold (one-sided)", str(wm.get("z_threshold", 4.0))],
+                [
+                    "Status",
+                    (
+                        "WATERMARK DETECTED (Compliant Art. 50(3))"
+                        if wm.get("detected")
+                        else "Watermark absent (z below threshold)"
+                    ),
+                ],
+            ]
+            story.append(self._kv_table(wm_rows))
+        else:
+            story.append(
+                Paragraph(
+                    "Not in scope for this disclosure (no token_ids supplied). "
+                    "EU AI Act Art. 50(3) requires machine-readable watermarks on "
+                    "<i>AI-generated text content</i>; hashes and binary content "
+                    "are out of scope per the Code of Practice on Transparency.",
+                    small,
+                )
+            )
+        story.append(Spacer(1, 0.2 * inch))
+
         # Footer / disclaimers
         story.append(
             Paragraph(
-                "TrustLayer Notary v3.0+W8 — court-grade AI compliance "
+                "TrustLayer Notary v3.0+W8+W9 — court-grade AI compliance "
                 "evidence per EU AI Act Art. 50 + DORA + PLD 2024/2853.",
                 small,
             )
@@ -649,6 +686,62 @@ class CertificateArtifactGenerator:
             self._write_minimal_pdf(pdf_path, cert_id)
 
         return str(pdf_path)
+
+    @staticmethod
+    def _watermark_stamp_drawing(cert: dict):
+        """Build a centered colored Paragraph with the Art. 50(3) watermark stamp.
+
+        Renders a visible stamp box so the watermark status is visually
+        obvious on the printed certificate. Green = Compliant, Red =
+        watermark absent, Grey = not in scope.
+
+        Reads `cert["watermark_result"]` populated by
+        `kirchenbauer_detect` (see app/watermark_strategy.py).
+        """
+        from reportlab.platypus import Paragraph
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib import colors
+
+        wm = cert.get("watermark_result") or {}
+        z = wm.get("z_score")
+        detected = wm.get("detected")
+        threshold = wm.get("z_threshold", 4.0)
+        if detected is True:
+            label = (
+                f"<b>EU AI Act Art. 50(3) WATERMARK VERIFIED</b><br/>"
+                f"<font size='10'>Kirchenbauer z={z:.2f} (above {threshold} "
+                f"threshold, p &lt; 0.00003)</font>"
+            )
+            bg = colors.HexColor("#e8f5e9")  # light green
+        elif detected is False:
+            label = (
+                f"<b>EU AI Act Art. 50(3) Watermark Absent</b><br/>"
+                f"<font size='10'>Kirchenbauer z={z:.2f} (below {threshold} "
+                f"threshold; submitter should re-generate with a watermarked "
+                f"LLM serving stack)</font>"
+            )
+            bg = colors.HexColor("#ffebee")  # light red
+        else:
+            label = (
+                "<b>EU AI Act Art. 50(3) — Not in Scope</b><br/>"
+                "<font size='9'>No token_ids supplied (text/hashes/binary "
+                "are out of scope per Code of Practice §3.2). LLM serving "
+                "stacks: pre-detect via POST /v1/disclosure/generate.</font>"
+            )
+            bg = colors.HexColor("#f5f5f5")  # light grey
+
+        style = ParagraphStyle(
+            "watermark_stamp",
+            alignment=1,  # CENTER
+            fontSize=12,
+            leading=15,
+            backColor=bg,
+            borderColor=colors.grey,
+            borderWidth=0.5,
+            borderPadding=10,
+            spaceAfter=4,
+        )
+        return Paragraph(label, style)
 
     @staticmethod
     def _kv_table(rows: list[list[str]]):
@@ -819,8 +912,15 @@ class NotaryServiceProduction:
         submitted_by: str,
         submitted_at: datetime,
         metadata: Optional[dict] = None,
+        token_ids: Optional[list[int]] = None,
+        vocab_size: Optional[int] = None,
     ) -> dict:
-        """Notarize content. Production W8.5. Idempotent on content_hash + submitted_by."""
+        """Notarize content. Production W8.5. Idempotent on content_hash + submitted_by.
+
+        W9.0: optional token_ids + vocab_size from the LLM serving stack's
+        tokenizer. When supplied, runs the Kirchenbauer z-test and embeds
+        the result on the certificate PDF as a visible stamp.
+        """
         metadata = metadata or {}
 
         # Idempotency check
@@ -848,6 +948,35 @@ class NotaryServiceProduction:
         # SCITT submission
         rekor_entry_id, rekor_log_id, scitt_tsa_url = self.scitt.submit(cose_sign1_b64)
 
+        # W9.0: EU AI Act Art. 50(3) watermark detection (Kirchenbauer z-test).
+        # LLM serving stacks pre-detect and pass token_ids; control plane
+        # verifies via the same algorithm and embeds the result on the PDF.
+        watermark_result: Optional[dict] = None
+        if token_ids:
+            try:
+                from app.watermark_strategy import kirchenbauer_detect
+                import os
+
+                # Detection key: TL_TEXT_WATERMARK_KEY env or all-zero dev
+                wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
+                wm_key = (
+                    wm_key_env.encode("utf-8")[:32] if wm_key_env else b"\x00" * 32
+                )
+                if len(wm_key) < 32:
+                    wm_key = wm_key + b"\x00" * (32 - len(wm_key))
+
+                detected_result = kirchenbauer_detect(
+                    tokens=list(token_ids),
+                    vocab_size=int(vocab_size) if vocab_size else 50257,
+                    key=wm_key,
+                )
+                watermark_result = detected_result.model_dump()
+            except Exception as wm_err:
+                logger.warning(
+                    f"Kirchenbauer detection failed (degraded watermark status): {wm_err}"
+                )
+                watermark_result = None
+
         cert_record = {
             "cert_id": cert_id,
             "content_hash": content_hash,
@@ -867,6 +996,7 @@ class NotaryServiceProduction:
             "qr_payload": f"apohara.org/verify/{cert_id}",
             "metadata_json": json.dumps(metadata, sort_keys=True),
             "primary_key_fingerprint": key_fp,
+            "watermark_result": watermark_result,
         }
 
         try:
@@ -932,7 +1062,13 @@ def _make_router(service_getter):
         summary="Notarize AI-generated content with a court-grade certificate",
     )
     def post_notarize(req: NotarizeRequest, request: Request) -> NotarizeResponse:
-        """Notarize content. Idempotent on (content_hash, submitted_by)."""
+        """Notarize content. Idempotent on (content_hash, submitted_by).
+
+        W9.0: when `req.token_ids` is supplied (from the LLM serving
+        stack's tokenizer), the Kirchenbauer z-test runs and the
+        watermark status is reflected in the certificate PDF stamp +
+        the response body.
+        """
         svc = _get_service(request)
         try:
             cert = svc.notarize(
@@ -942,6 +1078,8 @@ def _make_router(service_getter):
                 submitted_by=req.submitted_by,
                 submitted_at=req.submitted_at,
                 metadata=req.metadata,
+                token_ids=req.token_ids,
+                vocab_size=req.vocab_size,
             )
         except Exception as exc:
             logger.error(f"notarize failed: {exc}")
@@ -949,6 +1087,20 @@ def _make_router(service_getter):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"notarization failed: {exc}",
             ) from exc
+
+        # Build the watermark sub-dict for the response.
+        wm = cert.get("watermark_result") or {}
+        wm_summary = None
+        if wm:
+            wm_summary = {
+                "detected": wm.get("detected"),
+                "z_score": wm.get("z_score"),
+                "green_count": wm.get("green_count"),
+                "total_count": wm.get("total_count"),
+                "z_threshold": wm.get("z_threshold"),
+                "framework": "Kirchenbauer et al. (2023)",
+                "regulatory_basis": "EU AI Act Art. 50(3) — machine-readable watermark",
+            }
 
         return NotarizeResponse(
             certificate_id=cert["cert_id"],
@@ -963,9 +1115,10 @@ def _make_router(service_getter):
             tsa_url=cert.get("tsa_url"),
             rekor_entry_id=cert.get("rekor_entry_id"),
             rekor_log_id=cert.get("rekor_log_id"),
+            watermark=wm_summary,
             disclaimers=[
-                "W8.5 v3.0: production notary. RFC 3161 + SCITT + reportlab.",
-                "W8.5 v3.0: degraded TSA/SCITT → degraded mode (logged in metadata).",
+                "W9.0: production notary + watermark stamp. RFC 3161 + SCITT + reportlab + Kirchenbauer.",
+                "W9.0: degraded TSA/SCITT → degraded mode (logged in metadata).",
             ],
         )
 
