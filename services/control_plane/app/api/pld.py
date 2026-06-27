@@ -13,23 +13,21 @@ Endpoints:
 - GET  /v1/nist-ai-600-1/risks: List NIST AI 600-1 GenAI risks + mitigations.
 - GET  /v1/nist-ai-600-1/profile: Overall profile compliance score.
 
-All endpoints:
-- Require `X-Org-Id` header (multi-tenant isolation, v2.0)
-- Emit `X-Disclosure-AI` header (Art. 50(2), W1.4)
-- Emit `X-TrustLayer-Request-ID` header (operational audit)
-- Emit `X-Response-Time-Ms` header (performance monitoring)
+All endpoints use `Depends(get_org_id)` for multi-tenant org_id resolution
+(set by `OrgResolverASGIMiddleware` via X-Org-Id header or JWT).
+Emits `X-Disclosure-AI` (Art. 50(2)), `X-TrustLayer-Request-ID`, and
+`X-Response-Time-Ms` headers via `Article50DisclosureMiddleware`.
 """
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.api.deps import get_org_id
 from app.pld_shield import (
-    PLDDisclosureOrder,
     PLDDisclosureResponse,
     PLDDefectRebuttalPack,
     ISO42001StatementOfApplicability,
@@ -80,7 +78,7 @@ class DisclosureOrderRequest(BaseModel):
 )
 async def generate_disclosure_response(
     request: DisclosureOrderRequest,
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> PLDDisclosureResponse:
     """Generate a PLD disclosure order response.
 
@@ -88,18 +86,13 @@ async def generate_disclosure_response(
     production, this would query the database for the relevant evidence
     bundles, attach COSE/SCITT receipts, and sign the response.
     """
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required (multi-tenant isolation)",
-        )
 
     logger.info(
         "pld.disclosure_response.generated",
         extra={
             "order_id": request.order_id,
             "product_id": request.product_id,
-            "org_id": x_org_id,
+            "org_id": org_id,
             "scope": request.scope,
         },
     )
@@ -164,20 +157,15 @@ class RebuttalPackRequest(BaseModel):
 )
 async def generate_rebuttal_pack(
     request: RebuttalPackRequest,
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> PLDDefectRebuttalPack:
     """Generate a PLD Art. 10 defect rebuttal pack."""
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required (multi-tenant isolation)",
-        )
 
     logger.info(
         "pld.rebuttal_pack.generated",
         extra={
             "product_id": request.product_id,
-            "org_id": x_org_id,
+            "org_id": org_id,
             "bundle_count": len(request.trustlayer_evidence_bundle_ids),
         },
     )
@@ -254,14 +242,9 @@ async def generate_rebuttal_pack(
 )
 async def get_regulatory_deadline(
     regulation: str,
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> dict:
     """Return days until a regulatory deadline."""
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required",
-        )
 
     deadlines = {
         "eu-ai-act-art-50": EU_AI_ACT_ART_50_DEADLINE,
@@ -303,14 +286,9 @@ async def get_regulatory_deadline(
     ),
 )
 async def get_iso42001_soa(
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> ISO42001StatementOfApplicability:
     """Generate the ISO/IEC 42001 SoA."""
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required",
-        )
 
     controls = list(ISO_42001_CONTROLS)
     summary = {
@@ -336,14 +314,9 @@ async def get_iso42001_soa(
     summary="List all ISO/IEC 42001 Annex A controls",
 )
 async def list_iso42001_controls(
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> dict:
     """List all ISO/IEC 42001 Annex A controls with status."""
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required",
-        )
 
     return {
         "controls": [c.model_dump() for c in ISO_42001_CONTROLS],
@@ -361,14 +334,9 @@ async def list_iso42001_controls(
     summary="List NIST AI 600-1 GenAI risks + TrustLayer mitigations",
 )
 async def list_nist_risks(
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> dict:
     """List all NIST AI 600-1 GenAI risks with TrustLayer mitigations."""
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required",
-        )
 
     return {
         "risks": [r.model_dump() for r in NIST_AI_600_1_RISKS],
@@ -381,14 +349,9 @@ async def list_nist_risks(
     summary="Overall NIST AI 600-1 GenAI profile compliance score",
 )
 async def get_nist_profile_compliance(
-    x_org_id: Optional[str] = Header(default=None, alias="X-Org-Id"),
+    org_id: str = Depends(get_org_id),
 ) -> dict:
     """Return overall NIST AI 600-1 GenAI profile compliance score."""
-    if not x_org_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Org-Id header required",
-        )
 
     applicable = [r for r in NIST_AI_600_1_RISKS if r.applicable_to_trustlayer]
     mitigated = [r for r in applicable if len(r.mitigations) > 0]
