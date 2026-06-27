@@ -86,11 +86,64 @@ def assess_4_layers(req: DisclosureGenerateRequest) -> ComplianceAssessment:
         )
     )
 
-    # Layer 3: watermark — v1 has PassthroughWatermark (NotApplicable).
-    # Per AC-22: be explicit about this.
-    watermark_layer = _layer_not_applicable(
-        reason="Watermark hooks exposed but no provider configured (v1 limitation)",
+    # Layer 3: watermark — EU AI Act Art. 50(3) per Kirchenbauer z-test.
+    # W9.0 wires the pure-Python port of `KirchenbauerTextWatermark::detect_tokens`
+    # from crates/tl-watermark/src/lib.rs into the 4-layer assessment.
+    # Detection key is derived per-deployment from TL_TEXT_WATERMARK_KEY
+    # (set per-deployment to a 32-byte secret; defaults to a dev key in
+    # the control plane if unset). Tokenizers live in the LLM serving
+    # stack — the control plane accepts `token_ids` and runs z-test.
+    import os
+    from app.watermark_strategy import detect_or_not_applicable
+
+    wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
+    # In dev (no env set), use a stable per-deployment placeholder key
+    # so tests are deterministic. Production MUST set this to a
+    # 32-byte secret in TL_TEXT_WATERMARK_KEY.
+    if wm_key_env:
+        wm_key = wm_key_env.encode("utf-8")[:32]
+        if len(wm_key) < 32:
+            wm_key = wm_key + b"\x00" * (32 - len(wm_key))
+    else:
+        wm_key = b"\x00" * 32
+
+    # token_ids is optional on the request; honour it when present.
+    wm_token_ids = None
+    if hasattr(req, "options") and getattr(req.options, "token_ids", None):
+        wm_token_ids = list(req.options.token_ids)
+    wm_vocab = 50257  # GPT-2/3/4 BPE default
+    if hasattr(req, "options") and getattr(req.options, "vocab_size", None):
+        wm_vocab = int(req.options.vocab_size)
+
+    wm_result = detect_or_not_applicable(
+        text=None,  # control plane never tokenizes itself
+        token_ids=wm_token_ids,
+        vocab_size=wm_vocab,
+        key=wm_key,
     )
+    if wm_result["status"] == "Compliant":
+        watermark_layer = _layer_compliant()
+        watermark_layer.reason = wm_result["reason"]
+    elif wm_result["status"] == "Partial":
+        watermark_layer = _layer_partial(
+            missing=wm_result.get("missing", []),
+            reason=wm_result["reason"],
+        )
+    elif wm_result["status"] == "NotImplemented":
+        # Same status as the previous "NotApplicable" but with a
+        # reason that names the tokenizer gap.
+        watermark_layer = _layer_not_applicable(
+            reason=wm_result["reason"],
+        )
+    else:
+        # NotApplicable or unknown → keep the v1 semantics: explicit
+        # NotApplicable when no text/token_ids are supplied.
+        watermark_layer = _layer_not_applicable(
+            reason=wm_result.get(
+                "reason",
+                "Watermark layer not in scope for this disclosure.",
+            ),
+        )
 
     # Layer 4: retention — INSERT-only audit tables + 3-5 year retention.
     # Per AC-22: partial because v1 single-tenant doesn't have multi-tenant

@@ -41,6 +41,24 @@ class DisclosureOptions(BaseModel):
     policy_strategies: list[Literal["article_50", "dora"]] = Field(
         default_factory=lambda: ["article_50", "dora"],
     )
+    # W9.0: EU AI Act Art. 50(3) watermark detection.
+    # Supply `token_ids` from your LLM serving stack's tokenizer to
+    # enable Kirchenbauer z-test detection (see app.watermark_strategy).
+    # `vocab_size` defaults to 50257 (GPT-2/3/4 BPE) if not provided.
+    token_ids: list[int] | None = Field(
+        default=None,
+        description=(
+            "Token ids from your LLM serving stack's tokenizer. Used by "
+            "the EU AI Act Art. 50(3) watermark z-test detector."
+        ),
+    )
+    vocab_size: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Tokenizer vocabulary size. Default 50257 (GPT-2/3/4 BPE) if unset."
+        ),
+    )
 
 
 class DisclosureGenerateRequest(BaseModel):
