@@ -20,11 +20,9 @@ class Settings(BaseSettings):
 
     # Service
     service_name: str = "trustlayer-control-plane"
-    log_level: str = Field(default="info")
     environment: str = Field(default="dev")  # dev | staging | prod
 
     # HTTP
-    bind: str = "0.0.0.0:8000"
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
 
     # Database (per plan v3.1 §Risks R6: append-only audit tables)
@@ -32,12 +30,6 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://trustlayer:trustlayer@localhost:5432/trustlayer",
         description="PostgreSQL connection string (asyncpg).",
     )
-
-    # Auth (R10: keys never enter Python process)
-    # Tokens are issued by an external IDP and validated here.
-    jwt_secret: str = Field(default="dev-only-secret-replace-in-prod", description="HS256 secret")
-    jwt_algorithm: str = "HS256"
-    jwt_audience: str = "trustlayer"
 
     # Org identity (Architect IC-4: OrgId newtype, env-driven, NO silent default)
     # Per Architect approval gate (IC-4 reconciliation): the env var IS
@@ -49,10 +41,6 @@ class Settings(BaseSettings):
         default="apohara",
         description="TL_ORG_ID env var. Default 'apohara' is demo-only. Production MUST set explicitly.",
     )
-
-    # Rate limiting (per AC-32: 60 req/min unauth, 1000 req/day)
-    rate_limit_per_minute_unauth: int = 60
-    rate_limit_per_day_unauth: int = 1000
 
     # TSA provider (Architect IC-3: fail-fast on unset/invalid)
     tsa_provider: str = Field(default="mock")  # mock | free_tsa | digicert
