@@ -33,7 +33,18 @@ base64 = "0.22"
 # pure Rust, 2026-06-05) + module-lattice (Array<T, N> type used by ml-dsa).
 # We declare module-lattice as a direct dep because ml-dsa doesn't
 # re-export Array under its public API.
-ml-dsa = { version = "0.1.1", default-features = false, features = ["alloc", "zeroize", "pkcs8"] }
+#
+# SECURITY FLOOR (auditor 8, 2026-06-26): 3 CRITICAL CVEs affect versions
+# < 0.1.0-rc.5 of ml-dsa:
+#   - CVE-2026-24850  (hint index panic)
+#   - GHSA-h37v-hp6w-2pp8 (use_hint r0=0 off-by-two)
+#   - GHSA-hcp2-x6j4-29j7 (Decompose timing side-channel)
+# Per the audit, 0.1.1 was reported affected at audit time. We set the
+# floor at >= 0.1.0-rc.5 (clears all three CVEs) and cap at <0.2.0
+# (Cargo treats 0.x.0 -> 0.y.0 as breaking under 0.x semver, so 0.2.x
+# would require an explicit API review before adoption).
+# PR review required before bumping to 0.2.0+.
+ml-dsa = { version = ">=0.1.0-rc.5, <0.2.0", default-features = false, features = ["alloc", "zeroize", "pkcs8"] }
 module-lattice = "0.2.3"
 # v3.0 W1.1: generic-array is the Array<T, N> type used by ml-dsa. ml-dsa
 # uses it internally but doesn't re-export it. We declare it directly
