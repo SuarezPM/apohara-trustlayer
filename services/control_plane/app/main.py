@@ -9,7 +9,16 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import cross_jurisdiction, disclosures, dora, evidence, health, pld, verify
+from app.api import (
+    adversarial,
+    cross_jurisdiction,
+    disclosures,
+    dora,
+    evidence,
+    health,
+    pld,
+    verify,
+)
 from app.config import get_settings
 
 
@@ -183,6 +192,13 @@ def create_app() -> FastAPI:
     # the auditor flagged as "NotImplemented" in the v1.0 README.
     app.include_router(
         cross_jurisdiction.router, prefix="/v1", tags=["cross-jurisdiction"]
+    )
+
+    # W8.9.1: Adversarial scenarios harness (OASB v0.3.2 + AgentDojo
+    # v0.1.35 + MITRE ATLAS 2026). Exposes the CordonEnforcer mapping
+    # for the auditor-flagged "NotImplemented" adversarial testing.
+    app.include_router(
+        adversarial.router, prefix="/v1", tags=["adversarial"]
     )
 
     return app
