@@ -60,6 +60,11 @@ PUBLIC_PATHS: frozenset[str] = frozenset(
         # Content negotiation + version endpoints
         "/v1/version",
         "/v1/.well-known/scitt-keys",
+        # W8.7: Public certificate verification — third parties can
+        # verify without org_id (the cert_id is itself the proof).
+        # Both the L1 HTML page and the L1 JSON API are public.
+        "/verify",
+        "/v1/verify",
     }
 )
 
@@ -67,7 +72,16 @@ PUBLIC_PATHS: frozenset[str] = frozenset(
 def _is_public_path(path: str) -> bool:
     if path in PUBLIC_PATHS:
         return True
-    for prefix in ("/docs", "/redoc", "/openapi.json", "/static"):
+    for prefix in (
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/static",
+        # W8.7: public verify pages (HTML + JSON) — the cert_id in the
+        # URL is the access token, no org_id needed.
+        "/verify/",
+        "/v1/verify/",
+    ):
         if path.startswith(prefix):
             return True
     return False

@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     # TSA provider (Architect IC-3: fail-fast on unset/invalid)
     tsa_provider: str = Field(default="mock")  # mock | free_tsa | digicert
 
+    # W8 Notary Layer (production wire-up)
+    # The DB is SQLite for dev (W8.4 production would be Postgres); the
+    # output dir is where reportlab writes the certificate PDFs.
+    notary_db_path: str = Field(
+        default="notary.db",
+        description="TL_NOTARY_DB_PATH — SQLite path for NotaryDB.",
+    )
+    notary_output_dir: str = Field(
+        default="artifacts/notary",
+        description="TL_NOTARY_OUTPUT_DIR — where certificate PDFs are written.",
+    )
+
     # Compliance status (per AC-22: response envelope includes disclaimers)
     v1_disclaimers: list[str] = Field(
         default_factory=lambda: [

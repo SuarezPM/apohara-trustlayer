@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
@@ -18,15 +19,69 @@ log = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown hooks."""
+    """Startup/shutdown hooks.
+
+    W8.5: instantiate the production NotaryService and all its backends
+    (NotaryDB, QTSPClient, SCITTClient, CertificateArtifactGenerator)
+    once at startup and stash them on `app.state`. The notary router
+    reads `app.state.notary_service` lazily per request (the Python
+    equivalent of Rust's `OnceLock<NotaryService>` — one initialisation,
+    many reads, no per-request reconfiguration). We also call
+    `init_verification_routes(db)` so the public verify page can read
+    from the same DB instance.
+    """
     log.info(
         "control_plane.startup",
         service=settings.service_name,
         env=settings.environment,
         org_id=settings.org_id,
         tsa_provider=settings.tsa_provider,
+        notary_db_path=settings.notary_db_path,
+        notary_output_dir=settings.notary_output_dir,
     )
+
+    # Lazy imports — keep lifespan cold-start path light, and let
+    # tests override individual backends without triggering the full
+    # wire-up.
+    from app.notary_production import (
+        CertificateArtifactGenerator,
+        NotaryDB,
+        NotaryServiceProduction,
+        QTSPClient,
+        SCITTClient,
+    )
+    from app.verification_page import init_verification_routes
+
+    # Ensure the artifact output dir exists.
+    Path(settings.notary_output_dir).mkdir(parents=True, exist_ok=True)
+
+    db = NotaryDB(db_path=settings.notary_db_path)
+    qtsp = QTSPClient(timeout=10.0)
+    scitt = SCITTClient(timeout=10.0)
+    artifact_gen = CertificateArtifactGenerator(
+        output_dir=settings.notary_output_dir
+    )
+    app.state.notary_db = db
+    app.state.notary_service = NotaryServiceProduction(
+        db=db,
+        qtsp=qtsp,
+        scitt=scitt,
+        artifact_gen=artifact_gen,
+        issuer=f"did:web:{settings.org_id}",
+        key_id="notary-key-1",
+    )
+
+    # Verification routes read from the same DB.
+    init_verification_routes(db)
+
+    log.info(
+        "control_plane.notary_ready",
+        db_path=settings.notary_db_path,
+        output_dir=settings.notary_output_dir,
+    )
+
     yield
+
     log.info("control_plane.shutdown", service=settings.service_name)
 
 
@@ -87,6 +142,28 @@ def create_app() -> FastAPI:
     # deadline countdown). The killer feature is the rebuttal pack that
     # SHIFTS THE BURDEN back to the plaintiff under PLD Art. 10.
     app.include_router(pld.router, prefix="/v1", tags=["pld-shield"])
+
+    # W8 production routers (W8.5 / W8.6 / W8.7):
+    # - verification_page: L1 HTML verify page + L1 JSON verify API
+    # - notary_production: POST /v1/notarize
+    # - catalyst_production: POST /v1/catalyst/receipt + /v1/catalyst/manifest
+    from app import (
+        catalyst_production,
+        notary_production,
+        verification_page,
+    )
+
+    app.include_router(
+        verification_page.router, tags=["verify-page"]
+    )
+    if getattr(notary_production, "router", None) is not None:
+        app.include_router(
+            notary_production.router, tags=["notary"]
+        )
+    if getattr(catalyst_production, "router", None) is not None:
+        app.include_router(
+            catalyst_production.router, tags=["catalyst"]
+        )
 
     return app
 
