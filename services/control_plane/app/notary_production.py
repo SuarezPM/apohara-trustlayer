@@ -268,8 +268,14 @@ class QTSPClient:
     """
 
     def __init__(self, tsa_url: Optional[str] = None, timeout: float = 10.0):
+        # W9.0: default to Actalis Italia (free test endpoint, RFC 3161,
+        # eIDAS-qualified when paired with the qualified cert chain via
+        # the W8.8 QES adapter). Actalis is the primary QTSP per the
+        # 8th auditor report and the EU Trust List. Set TL_TSA_URL to
+        # override (e.g. http://timestamp.sectigo.com, https://freetsa.org/tsr
+        # for fully unauthenticated dev, or your private HSM-backed TS).
         self.tsa_url = tsa_url or os.environ.get(
-            "TL_TSA_URL", "https://freetsa.org/tsr"
+            "TL_TSA_URL", "http://timestamp.actalis.com"
         )
         self.timeout = timeout
 
