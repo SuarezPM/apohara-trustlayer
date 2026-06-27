@@ -17,6 +17,7 @@ from app.api import (
     evidence,
     health,
     pld,
+    risk_scoring,
     verify,
 )
 from app.config import get_settings
@@ -199,6 +200,12 @@ def create_app() -> FastAPI:
     # for the auditor-flagged "NotImplemented" adversarial testing.
     app.include_router(
         adversarial.router, prefix="/v1", tags=["adversarial"]
+    )
+
+    # W12: ISO 23894:2023 risk scoring dashboard (CISO Pro $199/mo
+    # tier surface). 5 process stages + NIST AI RMF crosswalk.
+    app.include_router(
+        risk_scoring.router, prefix="/v1", tags=["risk-scoring"]
     )
 
     return app
