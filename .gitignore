@@ -61,3 +61,21 @@ CLAUDE.md
 
 # bg-shell (background shell state from prior sessions)
 .bg-shell/
+
+# OMO (oh-my-opencode) runtime artifacts (continuation state, run queues)
+.omo/
+**/.omo/
+
+# SQLite databases (test artifacts; the schema lives in migrations/)
+*.db
+*.sqlite
+*.sqlite3
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+
+# NotaryService + control plane test artifacts (PDF certificates, SQLite DBs,
+# generated disclosures). Production usage writes to PG via Alembic; these
+# are the dev/test scratch space and should never be committed.
+artifacts/
+**/artifacts/
