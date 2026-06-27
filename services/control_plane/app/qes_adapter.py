@@ -63,30 +63,38 @@ logger = logging.getLogger(__name__)
 
 # ============================================================================
 # OIDs (per ETSI EN 319 422 v1.1.1 Annex B + Reg (EU) 2025/1929)
+# Re-exported from `app.constants` (single source of truth). Kept as
+# module-level names for backwards compatibility with existing callers
+# (`tests/test_hsm_and_qes.py` imports `OID_ETSI_TSTS` etc.).
 # ============================================================================
 
 
-# OID 0.4.0.19422.1 — id-etsi-tsts (root of the qualified-TSP profile OID tree)
-OID_ETSI_TSTS = "0.4.0.19422.1"
+# Re-exported from app.constants for single-source-of-truth:
+# OID_ETSI_TSTS = "0.4.0.19422.1" — id-etsi-tsts
+# OID_ES_I4_QTST_STATEMENT_1 = "0.4.0.19422.1.1" — esi4-qtstStatement-1
+# OID_QC_TSTS = "0.4.0.194112.1.2" — id-qc-tsts
+# OID_QC_TSTS_ARCH = "0.4.0.194112.1.3" — id-qc-tsts-arch
+# OID_QC_STATEMENTS = "1.3.6.1.5.5.7.1.3" — qcStatements X.509v3 extension
+from app.constants import (
+    EU_TRUST_LIST_FINGERPRINTS,
+    OID_ES_I4_QTST_STATEMENT_1,
+    OID_ETSI_TSTS,
+    OID_QC_STATEMENTS,
+    OID_QC_TSTS,
+    OID_QC_TSTS_ARCH,
+)
 
-# OID 0.4.0.19422.1.1 — id-etsi-tsts-EuQCompliance (esi4-qtstStatement-1)
-# The actual identifier inside the qcStatements extension that
-# certifies a TST as a qualified electronic time-stamp.
-OID_ES_I4_QTST_STATEMENT_1 = "0.4.0.19422.1.1"
-
-# OID 0.4.0.194112.1.2 — id-qc-tsts (qualified TST in QCStatement profile)
-OID_QC_TSTS = "0.4.0.194112.1.2"
-
-# OID 0.4.0.194112.1.3 — id-qc-tsts-arch (qualified TST archival)
-OID_QC_TSTS_ARCH = "0.4.0.194112.1.3"
-
-# EU Trust List root CA fingerprints (per Reg (EU) 2025/1929):
-# - Actalis EU Qualified TimeStamp CA G1
-EU_TRUST_LIST_FINGERPRINTS = {
-    "actalis_eu_qualified_ts_ca_g1": "23207BF8C3D6275E24F665B4D950CE0D3EC6AA43",
-    "sectigo_eidas_qualified": "65396F09DFA1B2DA989C4B0D9C95E22708D0B99C",
-    "digicert_eidas_qualified": "A03198AD1D4676E29EBC79C28F41CC75784B3B0F",
-}
+__all__ = [
+    "QESValidationResult",
+    "OID_ETSI_TSTS",
+    "OID_ES_I4_QTST_STATEMENT_1",
+    "OID_QC_TSTS",
+    "OID_QC_TSTS_ARCH",
+    "OID_QC_STATEMENTS",
+    "EU_TRUST_LIST_FINGERPRINTS",
+    "validate_qtsp_certificate",
+    "qtsp_qualified_for_jurisdiction",
+]  # noqa: E501
 
 
 # ============================================================================

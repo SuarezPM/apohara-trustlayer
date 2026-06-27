@@ -19,12 +19,15 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-
-# z > 4.0 → p < 0.00003 one-sided. Standard Kirchenbauer cutoff.
-DEFAULT_Z_THRESHOLD: float = 4.0
-
-# Green-list fraction per Kirchenbauer §3.1.
-DEFAULT_GAMMA: float = 0.25
+# Single source of truth for watermark defaults (see app.constants).
+# Re-exported here for backwards-compatibility with callers that
+# import these names from app.watermark_strategy.
+from app.constants import (
+    DEFAULT_BPE_VOCAB_SIZE,
+    DEFAULT_GAMMA,
+    DEFAULT_Z_THRESHOLD,
+    env_text_watermark_key,
+)
 
 
 class WatermarkResult(BaseModel):
