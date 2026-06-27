@@ -31,11 +31,9 @@ controls that satisfy each regulatory requirement.
 """
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Optional
 
-from pydantic import BaseModel, Field
+
 
 # ============================================================================
 # 1. ISO/IEC 42001:2023 — full Annex A (38 reference control objectives)

@@ -23,15 +23,10 @@ import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.api.deps import get_org_id
 from app.compliance_mappers import assess_dora_evidence_pack
-from app.middleware.article50 import (
-    DISCLOSURE_VALUE,
-    REQUEST_ID_HEADER,
-    RESPONSE_TIME_HEADER,
-)
 
 logger = logging.getLogger(__name__)
 

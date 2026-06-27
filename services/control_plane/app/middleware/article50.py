@@ -18,7 +18,6 @@ for the full rationale on why we use pure ASGI for all TrustLayer middleware.
 """
 from __future__ import annotations
 
-import json
 import logging
 import time
 import uuid

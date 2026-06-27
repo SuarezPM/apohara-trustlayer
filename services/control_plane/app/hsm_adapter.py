@@ -33,7 +33,7 @@ import logging
 import os
 from typing import Optional, Protocol
 
-from cryptography.hazmat.primitives import serialization
+
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 logger = logging.getLogger(__name__)
