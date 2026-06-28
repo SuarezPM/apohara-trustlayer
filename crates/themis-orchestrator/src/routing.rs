@@ -150,16 +150,45 @@ pub fn backend_for_agent(agent_name: &str) -> AgentBackend {
 pub fn build_routed_dispatch(
     featherless_metrics: FeatherlessMetricsHandle,
 ) -> HashMap<String, Arc<dyn LlmBackend>> {
+    build_routed_dispatch_with(featherless_metrics, None)
+}
+
+/// Same as [`build_routed_dispatch`] but applies model-id overrides
+/// from a `RoutingConfig` when present. Production code paths that
+/// don't load a `routing.toml` continue to use the compile-time
+/// constants — `cfg: None` short-circuits to the original behavior.
+pub fn build_routed_dispatch_with(
+    featherless_metrics: FeatherlessMetricsHandle,
+    cfg: Option<&crate::routing_config::RoutingConfig>,
+) -> HashMap<String, Arc<dyn LlmBackend>> {
     let mut m: HashMap<String, Arc<dyn LlmBackend>> = HashMap::new();
+
+    // P3.3: resolve model ids with optional TOML override. The
+    // `from_env` constructors require `&'static str`, so we leak
+    // the 3 small config strings (one-time startup cost) to get
+    // a `'static` lifetime. The compile-time constants remain
+    // static, so no leak in the default case.
+    let fraud_model: &'static str = match cfg {
+        Some(c) => Box::leak(c.fraud_auditor_featherless_model().to_string().into_boxed_str()),
+        None => FRAUD_AUDITOR_FEATHERLESS_MODEL,
+    };
+    let gaap_model: &'static str = match cfg {
+        Some(c) => Box::leak(c.gaap_classifier_featherless_model().to_string().into_boxed_str()),
+        None => GAAP_CLASSIFIER_FEATHERLESS_MODEL,
+    };
+    let aiml_model: &'static str = match cfg {
+        Some(c) => Box::leak(c.aiml_api_model().to_string().into_boxed_str()),
+        None => AIML_API_MODEL,
+    };
 
     // --- fraud_auditor: Featherless (Qwen3-Coder-30B) ---
     let fraud_auditor_llm: Arc<dyn LlmBackend> =
-        match FeatherlessBackend::from_env(FRAUD_AUDITOR_FEATHERLESS_MODEL) {
+        match FeatherlessBackend::from_env(fraud_model) {
             Some(b) => {
                 let b = b.with_metrics(featherless_metrics.clone());
                 shared(b)
             }
-            None => match AIMLAPIBackend::from_env(AIML_API_MODEL) {
+            None => match AIMLAPIBackend::from_env(aiml_model) {
                 Some(b) => shared(b),
                 None => shared(MockLlmProvider::new("mock-fraud-auditor-fallback")),
             },
@@ -168,12 +197,12 @@ pub fn build_routed_dispatch(
 
     // --- gaap_classifier: Featherless (Llama-3.3-70B) — 3rd lineage ---
     let gaap_classifier_llm: Arc<dyn LlmBackend> =
-        match FeatherlessBackend::from_env(GAAP_CLASSIFIER_FEATHERLESS_MODEL) {
+        match FeatherlessBackend::from_env(gaap_model) {
             Some(b) => {
                 let b = b.with_metrics(featherless_metrics.clone());
                 shared(b)
             }
-            None => match AIMLAPIBackend::from_env(AIML_API_MODEL) {
+            None => match AIMLAPIBackend::from_env(aiml_model) {
                 Some(b) => shared(b),
                 None => shared(MockLlmProvider::new("mock-gaap-classifier-fallback")),
             },
@@ -181,7 +210,7 @@ pub fn build_routed_dispatch(
     m.insert("gaap_classifier".to_string(), gaap_classifier_llm);
 
     // --- 4 AIML API agents ---
-    let aiml: Arc<dyn LlmBackend> = match AIMLAPIBackend::from_env(AIML_API_MODEL) {
+    let aiml: Arc<dyn LlmBackend> = match AIMLAPIBackend::from_env(aiml_model) {
         Some(b) => shared(b),
         None => shared(MockLlmProvider::new("mock-aiml-fallback")),
     };

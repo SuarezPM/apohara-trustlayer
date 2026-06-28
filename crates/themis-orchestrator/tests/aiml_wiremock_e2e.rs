@@ -152,7 +152,7 @@ fn build_orchestrator_for(aiml_url: String) -> Orchestrator {
     let agents = themis_orchestrator::test_support::build_stub_agents(dispatch2, None);
     let rooms: Arc<dyn themis_orchestrator::room::BandRoom> =
         themis_orchestrator::room::MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     Orchestrator::new_with_rekor(rooms, agents, tenants, Some(build_rekor_client()))
 }
 

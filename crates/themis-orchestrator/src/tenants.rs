@@ -27,17 +27,75 @@ use uuid::Uuid;
 use crate::keyring::TenantKeyring;
 
 /// A tenant (fictitious company on a trust domain).
+///
+/// P4.6: fields are private. External code reads them via the
+/// `pub` getters below. The `Tenant::new()` constructor is the only
+/// public way to build a `Tenant` (matches `TenantRegistry::new(id, ...)`
+/// pattern); `with_default_tenants()` is the bulk factory. Fields
+/// are mutable only via `update_key_id` (key rotation) — every other
+/// field is set once at construction and stays read-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tenant {
     /// Tenant identifier (e.g. "stark", "wayne").
-    pub id: String,
+    id: String,
     /// Display name (e.g. "Stark Industries").
-    pub name: String,
+    name: String,
     /// Stable key identifier (for rotation logs).
-    pub key_id: String,
+    key_id: String,
     /// Hex-encoded Ed25519 public key (32 bytes = 64 hex chars).
     /// Derived from `SignerService::for_tenant(id).public_key_hex()`.
-    pub ed25519_public_key_hex: String,
+    ed25519_public_key_hex: String,
+}
+
+impl Tenant {
+    /// Build a tenant with all 4 fields. The two ed25519 fields
+    /// (public key + key id) are typically computed together by
+    /// the keyring, so they're paired here.
+    pub fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        key_id: impl Into<String>,
+        ed25519_public_key_hex: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            key_id: key_id.into(),
+            ed25519_public_key_hex: ed25519_public_key_hex.into(),
+        }
+    }
+
+    /// Tenant identifier (e.g. "stark", "wayne").
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Display name (e.g. "Stark Industries").
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Stable key identifier (for rotation logs).
+    pub fn key_id(&self) -> &str {
+        &self.key_id
+    }
+
+    /// Hex-encoded Ed25519 public key (32 bytes = 64 hex chars).
+    pub fn ed25519_public_key_hex(&self) -> &str {
+        &self.ed25519_public_key_hex
+    }
+
+    /// Update the `key_id` field (and only the key_id — for key
+    /// rotation). All other fields are immutable. The new key id
+    /// is paired with a freshly-derived public key from the keyring.
+    pub fn rotate_key(
+        &mut self,
+        new_key_id: String,
+        new_ed25519_public_key_hex: String,
+    ) {
+        self.key_id = new_key_id;
+        self.ed25519_public_key_hex = new_ed25519_public_key_hex;
+    }
 }
 
 /// A Band room identifier.
@@ -162,26 +220,26 @@ impl TenantRegistry {
     /// the demo signs with the baked seeds (so `themis-verify` works
     /// offline), and the keyring is the *dynamic* path for tenants
     /// that don't have a baked key file.
-    pub fn with_default_tenants() -> Self {
+    pub fn with_default_tenants() -> Result<Self, String> {
         Self::with_default_tenants_and_seed(load_master_seed_from_env())
     }
 
     /// Same as `with_default_tenants` but takes an explicit master
     /// seed. Used by tests and by callers that want to inject a
     /// seed without touching the env var.
-    pub fn with_default_tenants_and_seed(master_seed: [u8; 32]) -> Self {
+    pub fn with_default_tenants_and_seed(master_seed: [u8; 32]) -> Result<Self, String> {
         let mut tenants = HashMap::new();
         for (id, name, key_id) in [
             ("stark", "Stark Industries", "stark-prod-2026-01"),
             ("wayne", "Wayne Enterprises", "wayne-prod-2026-01"),
         ] {
             let signer =
-                themis_evidence::signer::SignerService::for_tenant(id).unwrap_or_else(|e| {
-                    panic!(
+                themis_evidence::signer::SignerService::for_tenant(id).map_err(|e| {
+                    format!(
                         "SignerService::for_tenant({id}) failed at startup: {e}. \
                          Seed file missing? Baked keys are at crates/themis-evidence/keys/."
                     )
-                });
+                })?;
             tenants.insert(
                 id.to_string(),
                 Tenant {
@@ -192,11 +250,11 @@ impl TenantRegistry {
                 },
             );
         }
-        Self {
+        Ok(Self {
             tenants,
             rooms: DashMap::new(),
             keyring: Arc::new(TenantKeyring::new(master_seed)),
-        }
+        })
     }
 
     /// Access the per-tenant keyring. The keyring is shared
@@ -274,7 +332,7 @@ mod tests {
 
     #[test]
     fn two_default_tenants_distinct() {
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         let stark = r.get("stark").unwrap();
         let wayne = r.get("wayne").unwrap();
         assert_eq!(stark.name, "Stark Industries");
@@ -296,7 +354,7 @@ mod tests {
 
     #[test]
     fn open_room_idempotent_for_same_pair() {
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         let a = r.open_room("stark", "inv-001").unwrap();
         let b = r.open_room("stark", "inv-001").unwrap();
         assert_eq!(a, b);
@@ -305,14 +363,14 @@ mod tests {
 
     #[test]
     fn open_room_rejects_unknown_tenant() {
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         let err = r.open_room("ghost", "inv-001").unwrap_err();
         assert!(matches!(err, TenantError::UnknownTenant(_)));
     }
 
     #[test]
     fn cross_tenant_room_read_denied() {
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         r.open_room("stark", "inv-001").unwrap();
         // wayne tries to read stark's room.
         let err = r.get_room("wayne", "stark", "inv-001").unwrap_err();
@@ -324,7 +382,7 @@ mod tests {
         // open_room takes the tenant_id as the owner; the registry
         // is keyed by (tenant_id, invoice_id) so the same invoice
         // id under two different tenants produces two distinct rooms.
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         let stark_room = r.open_room("stark", "inv-001").unwrap();
         let wayne_room = r.open_room("wayne", "inv-001").unwrap();
         assert_ne!(stark_room, wayne_room);
@@ -333,13 +391,13 @@ mod tests {
 
     #[test]
     fn all_tenant_ids_returns_two_sorted() {
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         assert_eq!(r.all_tenant_ids(), vec!["stark", "wayne"]);
     }
 
     #[test]
     fn get_room_returns_none_for_unopened_invoice() {
-        let r = TenantRegistry::with_default_tenants();
+        let r = TenantRegistry::with_default_tenants().unwrap();
         let result = r.get_room("stark", "stark", "never-opened").unwrap();
         assert_eq!(result, None);
     }
@@ -352,7 +410,7 @@ mod tests {
         // lets the keyring be the dynamic path for runtime-added
         // tenants without breaking `themis-verify` for the demo
         // (which still uses the baked seeds).
-        let r = TenantRegistry::with_default_tenants_and_seed([7u8; 32]);
+        let r = TenantRegistry::with_default_tenants_and_seed([7u8; 32]).unwrap();
         let stark_tenant = r.get("stark").unwrap();
         let keyring_stark = r.keyring().derive_for_tenant("stark");
         let keyring_stark_pub_hex = hex::encode(keyring_stark.verifying_key().to_bytes());
@@ -364,7 +422,7 @@ mod tests {
 
     #[test]
     fn keyring_empty_tenant_id_rejected() {
-        let r = TenantRegistry::with_default_tenants_and_seed([0u8; 32]);
+        let r = TenantRegistry::with_default_tenants_and_seed([0u8; 32]).unwrap();
         let err = r.keyring().get_or_derive("").unwrap_err();
         assert!(matches!(err, TenantError::EmptyTenantId));
     }

@@ -97,7 +97,7 @@ fn verify_url_contains_packet_and_tenant() {
     let sp = build_qr_packet();
     let url = format!(
         "https://themis.apohara.dev/verify?packet={}&tenant={}",
-        sp.packet.packet_id, sp.packet.tenant_id
+        sp.packet().packet_id, sp.packet().tenant_id
     );
     assert!(
         url.contains("themis.apohara.dev/verify?packet="),
@@ -108,7 +108,7 @@ fn verify_url_contains_packet_and_tenant() {
         "URL must contain tenant id, got: {url}"
     );
     assert!(
-        url.contains(&sp.packet.packet_id.to_string()),
+        url.contains(&sp.packet().packet_id.to_string()),
         "URL must contain the packet uuid, got: {url}"
     );
 }
@@ -121,7 +121,7 @@ fn qr_code_renders_as_non_empty_string() {
     let sp = build_qr_packet();
     let url = format!(
         "https://themis.apohara.dev/verify?packet={}&tenant={}",
-        sp.packet.packet_id, sp.packet.tenant_id
+        sp.packet().packet_id, sp.packet().tenant_id
     );
     let code = qrcode::QrCode::new(url.as_bytes()).expect("QR encode");
     let art: String = code
@@ -150,7 +150,7 @@ fn qr_encodes_the_exact_verify_url() {
     let sp = build_qr_packet();
     let expected_url = format!(
         "https://themis.apohara.dev/verify?packet={}&tenant={}",
-        sp.packet.packet_id, sp.packet.tenant_id
+        sp.packet().packet_id, sp.packet().tenant_id
     );
     let code = qrcode::QrCode::new(expected_url.as_bytes()).expect("QR encode");
     // `to_colors()` returns the raw module grid; QR dark modules

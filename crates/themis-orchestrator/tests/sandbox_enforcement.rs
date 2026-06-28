@@ -26,10 +26,10 @@
 
 use std::path::PathBuf;
 
-use apohara_agentguard::config::Config as AgentGuardConfig;
+use apohara_agentguard::Config as AgentGuardConfig;
 use apohara_agentguard::firewall;
 use apohara_agentguard::hook::contract::HookInput;
-use apohara_agentguard::policy::engine::PolicySet;
+use apohara_agentguard::PolicySet;
 use apohara_agentguard::sandbox::{PermissionTier, SandboxRequest, SandboxResult, SandboxRunner};
 use apohara_agentguard::verdict::{Thresholds, Tier};
 

@@ -268,11 +268,11 @@ async fn handle_message_send(state: &Arc<AppState>, id: Value, params: Value) ->
         .unwrap_or_default();
 
     let run_id = Uuid::new_v4();
-    state.event_bus.publish(Event::ProviderActive {
+    state.event_bus().publish(Event::ProviderActive {
         run_id,
-        model_id: state.model_id.clone(),
+        model_id: state.model_id().to_string(),
     });
-    state.event_bus.publish(Event::AgentStarted {
+    state.event_bus().publish(Event::AgentStarted {
         run_id,
         agent: "extractor".to_string(),
     });
@@ -284,7 +284,7 @@ async fn handle_message_send(state: &Arc<AppState>, id: Value, params: Value) ->
     // non-sealed path means the A2A call has zero dependency
     // on the evidence service being wired.
     let packet = {
-        let orch = state.orchestrator.lock().await;
+        let orch = state.orchestrator().lock().await;
         match orch.process_invoice(&tenant_id, &invoice_id, raw).await {
             Ok(p) => p,
             Err(e) => {
@@ -299,17 +299,17 @@ async fn handle_message_send(state: &Arc<AppState>, id: Value, params: Value) ->
         }
     };
 
-    state.event_bus.publish(Event::EvidenceSealed {
+    state.event_bus().publish(Event::EvidenceSealed {
         run_id,
-        packet_id: packet.packet.packet_id,
+        packet_id: packet.packet().packet_id,
     });
-    state.event_bus.publish(Event::RunFinished { run_id });
+    state.event_bus().publish(Event::RunFinished { run_id });
 
     // Build the A2A task object. We use a `task` shape (not a
     // `message` shape) because the orchestrator is a
     // long-running agent that returns a result the peer can
     // later fetch via `tasks/get`.
-    let task_id = packet.packet.packet_id;
+    let task_id = packet.packet().packet_id;
     a2a_tasks().insert(
         task_id,
         A2ATaskRecord {
@@ -335,7 +335,7 @@ async fn handle_message_send(state: &Arc<AppState>, id: Value, params: Value) ->
                             "invoice_id": invoice_id,
                             "run_id": run_id.to_string(),
                             "packet_id": task_id.to_string(),
-                            "verdict": format!("{:?}", packet.packet.bbaaar_outcome),
+                            "verdict": format!("{:?}", packet.packet().bbaaar_outcome),
                         }
                     }]
                 }

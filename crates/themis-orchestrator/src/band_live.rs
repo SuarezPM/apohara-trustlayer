@@ -174,7 +174,7 @@ pub async fn post_band_start_room(
     let room_id = req
         .room_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let live = match state.band_live.as_ref() {
+    let live = match state.band_live() {
         Some(l) => l,
         None => {
             return (
@@ -207,7 +207,7 @@ pub async fn post_band_start_room(
 
 /// `GET /metrics/band` — JSON `{ ws_events_total, agents_connected, room_id }`.
 pub async fn get_metrics_band(State(state): State<Arc<crate::http::AppState>>) -> Response {
-    match state.band_live.as_ref() {
+    match state.band_live() {
         Some(live) => {
             let m = live.metrics().await;
             Json(json!({
@@ -231,7 +231,7 @@ pub async fn get_metrics_band(State(state): State<Arc<crate::http::AppState>>) -
 /// `GET /band-live` — SSE stream of `BandSocketEvent`s from the
 /// 6-agent fleet.
 pub async fn get_band_live_sse(State(state): State<Arc<crate::http::AppState>>) -> Response {
-    let rx = match state.band_live.as_ref() {
+    let rx = match state.band_live() {
         Some(live) => live.tx.subscribe(),
         None => {
             return (

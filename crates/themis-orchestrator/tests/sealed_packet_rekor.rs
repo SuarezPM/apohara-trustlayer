@@ -72,11 +72,9 @@ async fn sealed_packet_with_rekor_entry_round_trips_through_json() {
     );
 
     let parsed: themis_evidence::packet::SealedPacket = serde_json::from_str(&json).expect("parse");
-    assert_eq!(parsed.rekor_entry.as_ref().unwrap().uuid, carried.uuid);
-    assert_eq!(
-        parsed.rekor_entry.as_ref().unwrap().log_index,
-        carried.log_index
-    );
+    let parsed_re = parsed.rekor_entry.unwrap();
+    assert_eq!(parsed_re.uuid, carried.uuid);
+    assert_eq!(parsed_re.log_index, carried.log_index);
 }
 
 /// US-A5: `process_invoice_sealed` propagates the inner
@@ -198,7 +196,7 @@ async fn rekor_v2_path_graceful_degradation_on_grpc_error() {
     // degradation. The inner SignedPacket and SealedPacket are
     // both produced, but neither carries a rekor_entry.
     assert!(
-        signed.rekor_entry.is_none(),
+        signed.rekor_entry().is_none(),
         "SignedPacket.rekor_entry must be None when the v2 anchor fails"
     );
     let sealed = sealed.expect("orchestrator was built with evidence map");
@@ -246,8 +244,7 @@ async fn rekor_v2_path_propagates_to_sealed_packet() {
     // The SignedPacket carries the entry (produced inside
     // `process_invoice` via `anchor_in_rekor`).
     let signed_entry = signed
-        .rekor_entry
-        .as_ref()
+        .rekor_entry()
         .expect("SignedPacket.rekor_entry must be Some with a successful v2 anchor");
     assert_eq!(signed_entry.uuid, synthetic.uuid, "uuid propagates");
     assert_eq!(signed_entry.log_index, 42, "log_index propagates");

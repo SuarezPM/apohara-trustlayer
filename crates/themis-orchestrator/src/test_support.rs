@@ -431,7 +431,7 @@ pub fn build_orchestrator(
     }
     let agents = build_stub_agents(dispatch, counter);
     let rooms: Arc<dyn crate::room::BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     Orchestrator::new_with_rekor(rooms, agents, tenants, rekor)
 }
 
@@ -484,7 +484,7 @@ pub fn build_orchestrator_with_evidence(
     }
     let agents = build_stub_agents(dispatch, counter);
     let rooms: Arc<dyn crate::room::BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     Orchestrator::with_evidence(rooms, agents, tenants, rekor, evidence)
 }
 

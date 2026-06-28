@@ -64,7 +64,7 @@ async fn judge_pov_stark_001_halts_with_verifiable_pdf() {
     let agents = themis_orchestrator::test_support::build_stub_agents(dispatch, None);
     let rooms: Arc<dyn themis_orchestrator::room::BandRoom> =
         themis_orchestrator::room::MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     let orch = Orchestrator::new_with_rekor(rooms, agents, tenants, Some(build_rekor_client()));
     let room_concrete = Arc::new(ScriptedBandRoom::new());
     let model_id = "judge-demo-mock".to_string();

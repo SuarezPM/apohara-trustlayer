@@ -3,7 +3,7 @@
 //! Wraps the `apohara-agentguard` defenses for every subprocess THEMIS
 //! spawns:
 //!
-//! - **Local sandbox** (`apohara_agentguard::sandbox::SandboxRunner`):
+//! - **Local sandbox** (`apohara_agentguard::SandboxRunner`):
 //!   namespace + Landlock filesystem ruleset + per-tier seccomp-bpf
 //!   syscall allowlist. Linux only; non-Linux fails closed with
 //!   `SandboxError::Unavailable`.
@@ -43,10 +43,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use apohara_agentguard::audit;
-use apohara_agentguard::config::Config as AgentGuardConfig;
+use apohara_agentguard::Config as AgentGuardConfig;
 use apohara_agentguard::firewall;
 use apohara_agentguard::hook::contract::HookInput;
-use apohara_agentguard::policy::engine::{PolicyError, PolicySet};
+use apohara_agentguard::{PolicyError, PolicySet};
 use apohara_agentguard::sandbox::{PermissionTier, SandboxRequest, SandboxResult, SandboxRunner};
 use apohara_agentguard::verdict::{Thresholds, Verdict};
 use thiserror::Error;
@@ -277,7 +277,7 @@ fn warn_log(msg: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apohara_agentguard::verdict::Tier;
+    use apohara_agentguard::Tier;
 
     #[test]
     fn tier_read_only_blocks_exec() {

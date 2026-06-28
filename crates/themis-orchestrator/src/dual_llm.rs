@@ -122,11 +122,28 @@ impl Default for RedactionPolicy {
 /// of the privileged output.
 pub struct DualLlm {
     /// Privileged LLM (sees user data).
-    pub privileged: Box<dyn LlmBackend>,
+    privileged: Box<dyn LlmBackend>,
     /// Quarantined LLM (sees only sanitized data).
-    pub quarantined: Box<dyn LlmBackend>,
+    quarantined: Box<dyn LlmBackend>,
     /// Redaction policy applied between the two contexts.
-    pub redaction_policy: RedactionPolicy,
+    redaction_policy: RedactionPolicy,
+}
+
+impl DualLlm {
+    /// Privileged LLM backend (sees user data).
+    pub fn privileged(&self) -> &dyn LlmBackend {
+        &*self.privileged
+    }
+
+    /// Quarantined LLM backend (sees only sanitized data).
+    pub fn quarantined(&self) -> &dyn LlmBackend {
+        &*self.quarantined
+    }
+
+    /// Redaction policy applied between the two contexts.
+    pub fn redaction_policy(&self) -> &RedactionPolicy {
+        &self.redaction_policy
+    }
 }
 
 impl DualLlm {

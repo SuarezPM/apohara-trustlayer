@@ -72,7 +72,7 @@ async fn stark_001_halts_on_risk_score_exceeded() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet.bbaaar_outcome,
+        sp.packet().bbaaar_outcome,
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::RiskScoreExceeded),
         "stark-001 should HALT on risk_score (vendor duplicate)"
     );
@@ -87,7 +87,7 @@ async fn stark_002_halts_on_risk_score_exceeded() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet.bbaaar_outcome,
+        sp.packet().bbaaar_outcome,
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::RiskScoreExceeded),
         "stark-002 should HALT on risk_score (no PO)"
     );
@@ -102,7 +102,7 @@ async fn stark_003_halts_on_secret_leak() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet.bbaaar_outcome,
+        sp.packet().bbaaar_outcome,
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::SecretLeakDetected),
         "stark-003 should HALT on SecretLeak (OFAC sanctioned vendor)"
     );
@@ -117,7 +117,7 @@ async fn wayne_001_halts_on_coherence_too_low() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet.bbaaar_outcome,
+        sp.packet().bbaaar_outcome,
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::CoherenceTooLow),
         "wayne-001 should HALT on CoherenceTooLow (future invoice_date)"
     );
@@ -132,7 +132,7 @@ async fn wayne_002_approves() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet.bbaaar_outcome,
+        sp.packet().bbaaar_outcome,
         themis_agents::baaar::Outcome::Approve,
         "wayne-002 should APPROVE (clean invoice)"
     );
@@ -155,7 +155,7 @@ async fn distribution_4_halt_1_approved() {
             .process_invoice(&f.tenant_id, &f.invoice_id, b"raw".to_vec())
             .await
             .unwrap();
-        match sp.packet.bbaaar_outcome {
+        match sp.packet().bbaaar_outcome {
             themis_agents::baaar::Outcome::Halt(_) => halts += 1,
             themis_agents::baaar::Outcome::Approve => approves += 1,
         }
@@ -186,8 +186,7 @@ async fn rekor_entry_populated_when_orchestrator_has_rekor_client() {
         .await
         .unwrap();
     let entry = sp
-        .rekor_entry
-        .as_ref()
+        .rekor_entry()
         .expect("rekor_entry should be Some when orchestrator has a Rekor client");
     // The mock derives the UUID from the BLAKE3 hash and embeds
     // the tenant in the bundle_url.
@@ -210,7 +209,7 @@ async fn rekor_entry_absent_when_orchestrator_has_no_rekor_client() {
         .await
         .unwrap();
     assert!(
-        sp.rekor_entry.is_none(),
+        sp.rekor_entry().is_none(),
         "rekor_entry should be None when no Rekor client is configured"
     );
 }
@@ -223,7 +222,7 @@ async fn rekor_anchor_uses_packets_blake3_hash() {
         .process_invoice(&f.tenant_id, &f.invoice_id, b"raw".to_vec())
         .await
         .unwrap();
-    let entry = sp.rekor_entry.as_ref().unwrap();
+    let entry = sp.rekor_entry().unwrap();
     // The mock stores base64(blake3_hash_hex) in body_b64. Decode
     // it and verify it matches the packet's blake3_hash_hex.
     use base64::Engine;
@@ -231,7 +230,7 @@ async fn rekor_anchor_uses_packets_blake3_hash() {
         .decode(&entry.body_b64)
         .expect("body_b64 is valid base64");
     let body_str = String::from_utf8(body).expect("body is utf-8");
-    assert_eq!(body_str, sp.blake3_hash_hex);
+    assert_eq!(body_str, sp.blake3_hash_hex());
 }
 
 #[tokio::test]
@@ -250,10 +249,10 @@ async fn rekor_anchors_all_5_fixtures_end_to_end() {
             .await
             .unwrap();
         assert!(
-            sp.rekor_entry.is_some(),
+            sp.rekor_entry().is_some(),
             "fixture {name} should produce a SignedPacket with rekor_entry populated"
         );
-        let entry = sp.rekor_entry.as_ref().unwrap();
+        let entry = sp.rekor_entry().unwrap();
         assert!(
             entry
                 .bundle_url

@@ -48,7 +48,7 @@ pub fn render_packet_pdf(packet: &SignedPacket) -> Result<Vec<u8>, PdfError> {
         font_regular: &font_regular,
         font_bold: &font_bold,
     };
-    let seal_id = format!("VOUCH-{}", &packet.blake3_hash_hex[..8]);
+    let seal_id = format!("VOUCH-{}", &packet.blake3_hash_hex()[..8]);
 
     // `add_a4_page` creates the page with the white-paper
     // background + content layer, in the correct order.
@@ -71,7 +71,7 @@ fn render_receipt(
     page: &mut Page,
     seal_id: &str,
 ) -> Result<(), PdfError> {
-    let p = &packet.packet;
+    let p = packet.packet();
 
     // Print-friendly theme tokens. The page background is white
     // (set by add_a4_page), text is ink-black, the verdict pill
@@ -213,9 +213,9 @@ fn render_receipt(
     page.cursor_y -= 4.0;
 
     let crypto_rows: [(&str, &str); 3] = [
-        ("BLAKE3 HASH", &packet.blake3_hash_hex),
-        ("ED25519 SIG", &truncate_hex(&packet.signature_hex, 64)),
-        ("PUBLIC KEY", &packet.public_key_hex),
+        ("BLAKE3 HASH", packet.blake3_hash_hex()),
+        ("ED25519 SIG", &truncate_hex(packet.signature_hex(), 64)),
+        ("PUBLIC KEY", packet.public_key_hex()),
     ];
     for (k, v) in crypto_rows.iter() {
         page.set_fill(muted);
@@ -229,7 +229,7 @@ fn render_receipt(
     page.cursor_y -= 2.0;
 
     // ── Rekor (if present, one line) ─────────────────────────────
-    if let Some(entry) = &packet.rekor_entry {
+    if let Some(entry) = packet.rekor_entry() {
         page.set_fill(muted);
         ctx.write(page, "REKOR", 15.0, page.cursor_y, 6.5, true);
         page.reset_color();
@@ -411,7 +411,7 @@ fn render_receipt(
 fn render_qr(ctx: &Ctx, packet: &SignedPacket, page: &Page) {
     let verify_url = format!(
         "https://vouch.apohara.dev/verify?packet={}&tenant={}",
-        packet.packet.packet_id, packet.packet.tenant_id
+        packet.packet().packet_id, packet.packet().tenant_id
     );
     let qr = match qrcode::QrCode::new(verify_url.as_bytes()) {
         Ok(qr) => qr,

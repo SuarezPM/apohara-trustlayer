@@ -207,7 +207,7 @@ async fn public_bench_runs_one_invoice_through_orchestrator() {
     );
     let agents = themis_orchestrator::test_support::build_stub_agents_with_mock(mock_llm, None);
     let rooms: Arc<dyn BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     let orch = Orchestrator::new(rooms, agents, tenants);
     // 1 fraud row — risk_score 0.95 → BAAAR HALT.
     let signed = orch

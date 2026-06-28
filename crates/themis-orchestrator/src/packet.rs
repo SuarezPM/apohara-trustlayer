@@ -154,32 +154,46 @@ impl EvidencePacket {
     }
 
     /// BLAKE3 hash of the canonical JSON (hex, 32 bytes = 64 chars).
+    ///
+    /// If canonical JSON serialization fails (should not happen for the
+    /// current field types, but never panic mid-run), falls back to
+    /// hashing the Debug representation and logs the error.
     pub fn blake3_hash(&self) -> String {
-        let bytes = self
-            .to_canonical_json()
-            .expect("EvidencePacket serialization is infallible for valid structs");
+        let bytes = self.to_canonical_json().unwrap_or_else(|e| {
+            tracing::error!(error = %e, "EvidencePacket canonical JSON failed; hashing Debug repr as fallback");
+            format!("{self:?}").into_bytes()
+        });
         blake3::hash(&bytes).to_hex().to_string()
     }
 }
 
 /// The signed envelope. Real Ed25519 signing is in `themis-evidence`;
 /// this struct is the shape the orchestrator hands back to callers.
+///
+/// P4.6: fields are private. External code reads them via the
+/// `pub` getters below. `blake3_hash_hex` is computed at construction
+/// time from `packet.blake3_hash()` — there is no setter, callers
+/// cannot introduce an inconsistent `(packet, signature, hash)` tuple.
+/// `signature_hex`, `public_key_hex`, and `rekor_entry` are also
+/// set only via the `wrap` / `wrap_with_rekor` constructors.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SignedPacket {
     /// The canonical packet.
-    pub packet: EvidencePacket,
+    packet: EvidencePacket,
     /// Hex-encoded Ed25519 signature over the BLAKE3 hash.
-    pub signature_hex: String,
+    signature_hex: String,
     /// Hex-encoded public key (for verification).
-    pub public_key_hex: String,
-    /// Hex-encoded BLAKE3 hash of the packet.
-    pub blake3_hash_hex: String,
+    public_key_hex: String,
+    /// Hex-encoded BLAKE3 hash of the packet (computed-not-settable
+    /// per P4.6 — derived from `packet.blake3_hash()` in the
+    /// constructors and never exposed for direct assignment).
+    blake3_hash_hex: String,
     /// Rekor transparency-log entry for this packet (if anchoring
     /// was enabled at orchestrator construction time). `None` if
     /// the orchestrator was built without a Rekor client (back-compat
     /// for the demo / mock-only path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rekor_entry: Option<themis_evidence::rekor::RekorEntry>,
+    rekor_entry: Option<themis_evidence::rekor::RekorEntry>,
 }
 
 impl SignedPacket {
@@ -211,6 +225,31 @@ impl SignedPacket {
             blake3_hash_hex,
             rekor_entry: Some(rekor_entry),
         }
+    }
+
+    /// The canonical packet.
+    pub fn packet(&self) -> &EvidencePacket {
+        &self.packet
+    }
+
+    /// Hex-encoded Ed25519 signature over the BLAKE3 hash.
+    pub fn signature_hex(&self) -> &str {
+        &self.signature_hex
+    }
+
+    /// Hex-encoded public key (for verification).
+    pub fn public_key_hex(&self) -> &str {
+        &self.public_key_hex
+    }
+
+    /// Hex-encoded BLAKE3 hash of the packet (computed at construction).
+    pub fn blake3_hash_hex(&self) -> &str {
+        &self.blake3_hash_hex
+    }
+
+    /// Rekor transparency-log entry (if anchoring was enabled).
+    pub fn rekor_entry(&self) -> Option<&themis_evidence::rekor::RekorEntry> {
+        self.rekor_entry.as_ref()
     }
 }
 

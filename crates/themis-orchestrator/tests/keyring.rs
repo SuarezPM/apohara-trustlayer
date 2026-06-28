@@ -77,7 +77,7 @@ fn test_master_seed_domain_separates() {
 fn test_tenant_registry_returns_keyring() {
     // The registry exposes the same keyring that a future A2A
     // handler will use to sign cross-framework peer messages.
-    let r = TenantRegistry::with_default_tenants_and_seed(fixed_seed(0xCD));
+    let r = TenantRegistry::with_default_tenants_and_seed(fixed_seed(0xCD)).unwrap();
     let from_registry = r.keyring().derive_for_tenant("tenant-a");
     // The derivation must match a fresh, independent keyring built
     // from the same seed (proves the registry isn't shadowing the
@@ -89,7 +89,7 @@ fn test_tenant_registry_returns_keyring() {
     let stark = r.get("stark").expect("stark must be a default tenant");
     let keyring_stark = r.keyring().derive_for_tenant("stark");
     assert_ne!(
-        stark.ed25519_public_key_hex,
+        stark.ed25519_public_key_hex(),
         hex::encode(keyring_stark.verifying_key().to_bytes())
     );
 }
