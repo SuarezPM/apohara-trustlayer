@@ -50,9 +50,7 @@
 
 #![warn(missing_docs)]
 
-pub mod envelope;
-pub mod rule_of_two;
-pub mod tools_v2;
+use tl_mcp_server::tools_v2;
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
@@ -281,6 +279,7 @@ fn handle_check_compliance(input: Value) -> Result<Value, String> {
 #[derive(Debug, Deserialize)]
 struct JsonRpcRequest {
     #[serde(default)]
+    #[allow(dead_code)]
     jsonrpc: Option<String>,
     method: String,
     #[serde(default)]
@@ -448,7 +447,8 @@ fn run_stdio_server() -> io::Result<()> {
                 let resp = handle_request(req);
                 serde_json::to_string(&resp).unwrap_or_else(|e| {
                     format!(
-                        "{{\"jsonrpc\":\"2.0\",\"error\":{{\"code\":-32603,\"message\":\"internal serialize error: {e}\"}},\"id\":null}}"
+                        "{{\"jsonrpc\":\"2.0\",\"error\":{{\"code\":{},\"message\":\"internal serialize error: {e}\"}},\"id\":null}}",
+                        ERR_INTERNAL
                     )
                 })
             }

@@ -183,7 +183,7 @@ mod tests {
         );
         let envelope = build_envelope("INS", &blocks);
         // Extract the nonce
-        let nonce = envelope
+        let _nonce = envelope
             .lines()
             .find(|l| l.contains("nonce="))
             .and_then(|l| l.split("nonce=").nth(1))

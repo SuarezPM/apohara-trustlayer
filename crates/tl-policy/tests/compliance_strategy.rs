@@ -131,7 +131,7 @@ fn test_strategy_registry_is_open_principle() {
         }
     }
 
-    let dispatcher = ComplianceStrategy::new();
+    let _dispatcher = ComplianceStrategy::new();
     // The dispatcher should be able to delegate to arbitrary strategies
     // even if no framework mapping exists; we just verify the
     // Strategy trait is object-safe + the dispatcher pattern works.

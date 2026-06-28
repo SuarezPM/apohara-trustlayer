@@ -227,7 +227,7 @@ mod tests {
         let cosc_key = SigningKey::from_bytes(&[2u8; 32]);
 
         // Build an issuer-signed SCITTReceipt by hand (no helper yet).
-        use ed25519_dalek::Verifier;
+        
         // Issuer signs payload directly (simplified for tests).
         let signature = issuer_key.sign(payload);
         let mut cose_sign1 = Vec::new();

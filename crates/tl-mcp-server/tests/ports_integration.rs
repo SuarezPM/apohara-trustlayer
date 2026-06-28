@@ -3,7 +3,7 @@
 
 use tl_mcp_server::envelope::{build_envelope, TaintedString};
 use tl_mcp_server::rule_of_two::{
-    check_rule_of_two, detect_ci_environment, enforce, has_human_override,
+    check_rule_of_two, enforce,
     CI_ENV_VARS, EXTENDED_CI_ENV_VARS, HUMAN_OVERRIDE_ENV,
 };
 

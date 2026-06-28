@@ -737,8 +737,6 @@ impl PldBackend {
 }
 
 fn days_until(date: &str) -> i64 {
-    use std::time::{Duration, SystemTime};
-    let target = format!("{date}T00:00:00Z");
     // Simple parse: assume YYYY-MM-DD
     let parts: Vec<&str> = date.split('-').collect();
     if parts.len() != 3 {

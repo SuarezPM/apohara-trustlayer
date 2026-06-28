@@ -97,7 +97,7 @@ impl CoseSignature {
     where
         F: FnOnce(&[u8], &[u8]) -> Result<(), CosetError>,
     {
-        let mut sign1_clone = self.inner.clone();
+        let sign1_clone = self.inner.clone();
         // coset's verify_signature returns Err for ANY verification failure
         // (closure reports invalid, AAD mismatch, signature malformed, etc.).
         // We collapse all of these to Ok(false) since the caller can't

@@ -57,7 +57,6 @@
 use std::time::Duration;
 
 use x509_parser::pem::parse_x509_pem;
-use x509_parser::prelude::*;
 
 use crate::tsa::{TsaError, TsaTokenBytes};
 

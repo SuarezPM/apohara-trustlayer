@@ -34,7 +34,6 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::backends::Backends;
 use crate::ToolHandler;
 
 // =============================================================================

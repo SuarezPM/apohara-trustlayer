@@ -31,10 +31,6 @@
 
 use std::time::Duration;
 
-use x509_parser::pem::parse_x509_pem;
-use x509_parser::prelude::*;
-use x509_parser::parse_x509_der;
-
 use crate::tsa::{TsaError, TsaTokenBytes};
 
 /// The default DigiCert endpoint (production).

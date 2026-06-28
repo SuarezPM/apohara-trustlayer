@@ -103,7 +103,7 @@ pub fn prove_inv15() -> Z3Inv15Result {
         "INV-15 proof: minimum risk under antecedent must exceed threshold"
     );
     // Verify with a concrete assignment at the boundary.
-    let model = Counterexample {
+    let _model = Counterexample {
         agent_role_judge: true,
         candidate_count: 9,
         reuse_rate: 0.0,
