@@ -241,6 +241,13 @@ class CertificateRecord(Base):
     tsa_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
     rekor_entry_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     rekor_log_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # P5.5: full Rekor/SCITT inclusion-proof payload as JSON. The ID column
+    # above is enough for the audit trail; this column carries the
+    # leaf_hash + log_index + tree_size + audit_path so the verify
+    # page can call rfc9162_verifier.verify_inclusion_proof() locally
+    # (no fetch from the SCITT log at verify time). NULL when the SCITT
+    # client doesn't return inclusion proofs (mock SCITT + dev).
+    rekor_entry_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # On-disk artifact paths (relative to notary_output_dir; computed at write time).
     pdf_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     qr_payload: Mapped[str | None] = mapped_column(Text, nullable=True)

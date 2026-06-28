@@ -177,15 +177,58 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
     else:
         steps.append("[ABSENT] TSA token not stored (degraded mode)")
 
-    # Step 5: SCITT / Rekor entry
+    # Step 5: SCITT / Rekor entry + inclusion proof (P5.5).
+    # When the SCITT client returned the full inclusion-proof payload
+    # (leaf_hash + log_index + tree_size + audit_path + root_hash),
+    # verify it LOCALLY via rfc9162_verifier — no fetch from the SCITT
+    # log at verify time. Falls back to [PRESENT] (just the ID) when
+    # the proof isn't persisted (mock SCITT + dev).
     rekor_id = cert.get("rekor_entry_id")
+    rekor_entry_json = cert.get("rekor_entry_json")
     if rekor_id:
-        # Inclusion proof verification requires fetching from Rekor;
-        # we record the entry ID and mark full crypto as DEFERRED.
-        steps.append(
-            f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
-            f"(inclusion proof deferred — requires Rekor fetch)"
-        )
+        if rekor_entry_json:
+            try:
+                import json as _json
+                entry = _json.loads(rekor_entry_json)
+                leaf_hash = entry.get("leaf_hash") or entry.get("uuid")
+                log_index = int(entry.get("log_index", 0))
+                tree_size = int(entry.get("tree_size", 0))
+                root_hash = entry.get("root_hash")
+                audit_path = entry.get("audit_path", [])
+                if leaf_hash and log_index and tree_size and root_hash:
+                    from app.rfc9162_verifier import verify_inclusion_proof
+                    ok = verify_inclusion_proof(
+                        leaf_hex=leaf_hash,
+                        leaf_index=log_index,
+                        tree_size=tree_size,
+                        audit_path=audit_path,
+                        expected_root_hex=root_hash,
+                    )
+                    if ok:
+                        steps.append(
+                            f"[VERIFIED] SCITT/Rekor inclusion proof verified "
+                            f"locally (entry={rekor_id}, log_index={log_index}, "
+                            f"tree_size={tree_size})"
+                        )
+                    else:
+                        steps.append(
+                            f"[FAILED] SCITT/Rekor inclusion proof failed for "
+                            f"entry={rekor_id} (reconstructed root != expected)"
+                        )
+                else:
+                    steps.append(
+                        f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
+                        f"(proof fields incomplete — verification deferred)"
+                    )
+            except (ValueError, TypeError, KeyError) as e:
+                steps.append(
+                    f"[FAILED] SCITT/Rekor inclusion proof parse error: {e}"
+                )
+        else:
+            steps.append(
+                f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
+                f"(inclusion proof not persisted — verification deferred)"
+            )
     else:
         steps.append("[ABSENT] SCITT/Rekor entry not stored")
 
