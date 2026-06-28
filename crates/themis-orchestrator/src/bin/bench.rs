@@ -117,7 +117,7 @@ fn orchestrator_for(f: &DemoInvoice, counter: Arc<AtomicU32>) -> (Orchestrator, 
     }
     let agents = build_stub_agents(dispatch, Some(counter.clone()));
     let rooms: Arc<dyn themis_orchestrator::room::BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
     (Orchestrator::new(rooms, agents, tenants), counter)
 }
 
@@ -168,11 +168,11 @@ async fn run() {
         total_usd_cents += usd_cents;
 
         if matches!(
-            sp.packet.bbaaar_outcome,
+            sp.packet().bbaaar_outcome,
             themis_agents::baaar::Outcome::Halt(_)
         ) {
             halt_latency_ms.insert(f.invoice_id.clone(), elapsed_ms);
-            let key = format!("{:?}", sp.packet.bbaaar_outcome);
+            let key = format!("{:?}", sp.packet().bbaaar_outcome);
             *halt_distribution.entry(key).or_insert(0) += 1;
         }
 
@@ -223,7 +223,7 @@ async fn run() {
             .await
             .unwrap();
         if matches!(
-            sp.packet.bbaaar_outcome,
+            sp.packet().bbaaar_outcome,
             themis_agents::baaar::Outcome::Halt(_)
         ) {
             halts_10 += 1;
@@ -231,10 +231,10 @@ async fn run() {
     }
     let determinism_10_of_10 = halts_10 == 10;
 
-    let stark_tenant = TenantRegistry::with_default_tenants();
+    let stark_tenant = TenantRegistry::with_default_tenants().expect("startup: tenant keys missing");
     let stark = stark_tenant.get("stark").unwrap();
     let wayne = stark_tenant.get("wayne").unwrap();
-    let distinct_pubkeys = stark.ed25519_public_key_hex != wayne.ed25519_public_key_hex;
+    let distinct_pubkeys = stark.ed25519_public_key_hex() != wayne.ed25519_public_key_hex();
 
     let mut latencies: Vec<f64> = per_invoice_ms.values().copied().collect();
     latencies.sort_by(|a, b| a.partial_cmp(b).unwrap());

@@ -43,7 +43,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Tenant registry: 2 baked-in tenants (stark, wayne) from
     // TenantRegistry::with_default_tenants(). The Ed25519 pubkeys
     // come from the compile-time baked seeds in themis-evidence.
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
+
+    // P3.3: load the per-agent model routing config from
+    // `$VOUCH_ROUTING_CONFIG` or `<crate_dir>/routing.toml`.
+    // The bin currently builds StubAgents (no LLM dispatch), but
+    // the config is loaded at startup so the effective model IDs
+    // are visible in the logs and any future dispatch path (or
+    // `featherless_50_real_e2e` test) uses the TOML overrides.
+    let routing_cfg = themis_orchestrator::routing_config::RoutingConfig::load_or_default();
+    eprintln!(
+        "[themis-orchestrator] routing: fraud_auditor={} gaap_classifier={} aiml_api={}",
+        routing_cfg.fraud_auditor_featherless_model(),
+        routing_cfg.gaap_classifier_featherless_model(),
+        routing_cfg.aiml_api_model(),
+    );
 
     // LLM backend selection (US-08): try Featherless first when
     // FEATHERLESS_API_KEY is set, otherwise fall back to the mock.

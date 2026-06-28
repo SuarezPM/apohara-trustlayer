@@ -79,27 +79,20 @@ fn router_for(f: &DemoInvoice) -> axum::Router {
     let agents =
         themis_orchestrator::test_support::build_stub_agents_with_mock(mock_llm.clone(), None);
     let rooms: Arc<dyn themis_orchestrator::room::BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     let orch = Orchestrator::new_with_rekor(
         rooms,
         agents,
         tenants,
         Some(Arc::new(MockRekorClient::new()) as Arc<dyn themis_evidence::rekor::RekorClient>),
     );
-    let state = AppState {
-        orchestrator: Arc::new(tokio::sync::Mutex::new(orch)),
-        event_bus: Arc::new(themis_orchestrator::events::EventBus::new(1024)),
-        compliance: Arc::new(themis_compliance::service::ComplianceService::new()),
-        reports: dashmap::DashMap::new(),
-        packets: dashmap::DashMap::new(),
-        sealed: dashmap::DashMap::new(),
-        model_id: mock_llm.model_id().to_string(),
-        band_room: None,
-        sponsor_stack: themis_orchestrator::events::SponsorStackInfo::default(),
-        featherless_metrics: None,
-        aiml_metrics: None,
-        band_live: None,
-    };
+    let state = AppState::new(
+        Arc::new(tokio::sync::Mutex::new(orch)),
+        Arc::new(themis_orchestrator::events::EventBus::new(1024)),
+        Arc::new(themis_compliance::service::ComplianceService::new()),
+        mock_llm.model_id().to_string(),
+        themis_orchestrator::events::SponsorStackInfo::default(),
+    );
     build_router(state)
 }
 

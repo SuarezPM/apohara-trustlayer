@@ -65,7 +65,7 @@ fn build_state() -> AppState {
     }
 
     let rooms: Arc<dyn themis_orchestrator::room::BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants());
+    let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
     let mut agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
     for (n, dt) in [
         (
@@ -104,20 +104,13 @@ fn build_state() -> AppState {
         agents.insert(n.to_string(), Arc::new(StubAgent(n, dt)));
     }
     let orch = Orchestrator::new(rooms, agents, tenants);
-    AppState {
-        orchestrator: Arc::new(tokio::sync::Mutex::new(orch)),
-        event_bus: Arc::new(themis_orchestrator::events::EventBus::new(64)),
-        compliance: Arc::new(themis_compliance::service::ComplianceService::new()),
-        reports: dashmap::DashMap::new(),
-        packets: dashmap::DashMap::new(),
-        sealed: dashmap::DashMap::new(),
-        model_id: "mock-fallback".to_string(),
-        band_room: None,
-        sponsor_stack: themis_orchestrator::events::SponsorStackInfo::default(),
-        featherless_metrics: None,
-        aiml_metrics: None,
-        band_live: None,
-    }
+    AppState::new(
+        Arc::new(tokio::sync::Mutex::new(orch)),
+        Arc::new(themis_orchestrator::events::EventBus::new(64)),
+        Arc::new(themis_compliance::service::ComplianceService::new()),
+        "mock-fallback".to_string(),
+        themis_orchestrator::events::SponsorStackInfo::default(),
+    )
 }
 
 fn req(method: &str, uri: &str, body: Option<&str>, bearer: Option<&str>) -> Request<Body> {

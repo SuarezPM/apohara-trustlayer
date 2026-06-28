@@ -15,8 +15,6 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::Engine;
-
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
@@ -32,7 +30,7 @@ use themis_frontend::{APP_CSS, APP_JS, COMPLIANCE_HTML, INDEX_HTML, TOKENS_CSS};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::a2a_handler;
-use crate::events::{Event, EventBus, EU_REGISTRATION_ID};
+use crate::events::{Event, EventBus};
 use crate::fixtures::load_all;
 use crate::orchestrator::Orchestrator;
 use crate::packet::SignedPacket;
@@ -45,31 +43,31 @@ pub struct AppState {
     /// The orchestrator wrapped in a tokio mutex so its guard is `Send`
     /// (axum 0.7 runs handlers on a multi-threaded runtime; `std::sync::MutexGuard`
     /// is `!Send` and would poison the future).
-    pub orchestrator: std::sync::Arc<tokio::sync::Mutex<Orchestrator>>,
+    orchestrator: std::sync::Arc<tokio::sync::Mutex<Orchestrator>>,
     /// The event bus (for SSE), wrapped in Arc so AppState can be Clone.
-    pub event_bus: std::sync::Arc<EventBus>,
+    event_bus: std::sync::Arc<EventBus>,
     /// The Band room (concrete `ScriptedBandRoom` for the demo
     /// so the HTTP layer can serve the live transcript). The
     /// orchestrator receives an `Arc<dyn BandRoom>`; this is
     /// the same underlying room reached via the concrete
     /// type. `None` for tests that don't expose the
     /// transcript endpoint.
-    pub band_room: Option<std::sync::Arc<crate::room::ScriptedBandRoom>>,
+    band_room: Option<std::sync::Arc<crate::room::ScriptedBandRoom>>,
     /// The compliance service (instantiated once at startup), Arc-wrapped.
-    pub compliance: std::sync::Arc<themis_compliance::service::ComplianceService>,
+    compliance: std::sync::Arc<themis_compliance::service::ComplianceService>,
     /// Per-run-id → ComplianceReport (populated after process_invoice).
-    pub reports: DashMap<uuid::Uuid, ComplianceReport>,
+    reports: DashMap<uuid::Uuid, ComplianceReport>,
     /// Per-packet-id → SignedPacket (populated after process_invoice
     /// so the PDF endpoint can render it). Keyed by packet_id (not
     /// run_id) so the PDF is reachable from the demo URL the
     /// frontend hands to the judge.
-    pub packets: DashMap<uuid::Uuid, SignedPacket>,
+    packets: DashMap<uuid::Uuid, SignedPacket>,
     /// Per-packet-id → SealedPacket (populated when the orchestrator
     /// is built with an evidence service — the `SealedPacket` is the
     /// shape that `themis-verify` consumes). The `/packets/:id/json`
     /// endpoint serves this directly. Empty when the binary is built
     /// without the evidence wiring (mock-only path).
-    pub sealed: DashMap<uuid::Uuid, SealedPacket>,
+    sealed: DashMap<uuid::Uuid, SealedPacket>,
     // C-10 (removed): the per-packet C2PA receipt cache and the
     // SealChain wrapper were removed when VOUCH was made 100%
     // independent of the private `apohara-sealchain-core` sibling
@@ -80,28 +78,199 @@ pub struct AppState {
     /// LLM provider model id announced to the SSE stream at the
     /// start of every run. Comes from `LlmBackend::model_id()` at
     /// binary startup; defaults to `"mock-fallback"` in tests.
-    pub model_id: String,
+    model_id: String,
     /// Sponsor stack labels emitted as the first event on every
     /// SSE connect. The frontend renders the 3 logos in a
     /// fixed banner above the Band room transcript.
-    pub sponsor_stack: crate::events::SponsorStackInfo,
+    sponsor_stack: crate::events::SponsorStackInfo,
     /// Band live room integration (Story Ola-A): the
     /// `BandLiveState` holds the 6-agent WebSocket fleet and a
     /// broadcast sink for `/band-live` SSE.
-    pub band_live: Option<std::sync::Arc<crate::band_live::BandLiveState>>,
+    band_live: Option<std::sync::Arc<crate::band_live::BandLiveState>>,
     /// Featherless AI live-call metrics (Story Ola-C). The
     /// `FeatherlessBackend` accumulates counters here on every
     /// fraud_auditor call; `GET /metrics/featherless` snapshots
     /// and serves them as JSON. `None` for tests that don't
     /// exercise the Featherless path (or when `FEATHERLESS_API_KEY`
     /// is unset — the binary never panics on a missing key).
-    pub featherless_metrics:
+    featherless_metrics:
         Option<themis_compliance::featherless_metrics::FeatherlessMetricsHandle>,
     /// AI/ML API live-call metrics (Story Ola-B). The
     /// `AIMLAPIBackend` accumulates counters here on every
     /// call; `GET /metrics/aiml` snapshots and serves them as
     /// JSON. `None` for tests that don't exercise the AIML path.
-    pub aiml_metrics: Option<themis_compliance::aiml_metrics::AimlApiMetricsHandle>,
+    aiml_metrics: Option<themis_compliance::aiml_metrics::AimlApiMetricsHandle>,
+}
+
+impl AppState {
+    /// Construct an `AppState` with the 5 required fields. The 3
+    /// DashMaps are initialized empty; optional backends default to
+    /// `None`. Use the `with_*` builders to attach them.
+    ///
+    /// The `packet_id` key-aliasing invariant between `packets` and
+    /// `sealed` (same `Uuid` key in both maps) is enforced by the
+    /// `store_packet` / `store_sealed` accessors — callers cannot
+    /// write to the maps directly.
+    pub fn new(
+        orchestrator: std::sync::Arc<tokio::sync::Mutex<Orchestrator>>,
+        event_bus: std::sync::Arc<EventBus>,
+        compliance: std::sync::Arc<themis_compliance::service::ComplianceService>,
+        model_id: impl Into<String>,
+        sponsor_stack: crate::events::SponsorStackInfo,
+    ) -> Self {
+        Self {
+            orchestrator,
+            event_bus,
+            band_room: None,
+            compliance,
+            reports: DashMap::new(),
+            packets: DashMap::new(),
+            sealed: DashMap::new(),
+            model_id: model_id.into(),
+            sponsor_stack,
+            band_live: None,
+            featherless_metrics: None,
+            aiml_metrics: None,
+        }
+    }
+
+    /// Attach a concrete `ScriptedBandRoom` for the HTTP `/rooms/:id/transcript` endpoint.
+    pub fn with_band_room(
+        mut self,
+        room: std::sync::Arc<crate::room::ScriptedBandRoom>,
+    ) -> Self {
+        self.band_room = Some(room);
+        self
+    }
+
+    /// Attach the Band-live `BandLiveState` for the `/band-live` SSE endpoint.
+    pub fn with_band_live(
+        mut self,
+        live: std::sync::Arc<crate::band_live::BandLiveState>,
+    ) -> Self {
+        self.band_live = Some(live);
+        self
+    }
+
+    /// Attach the Featherless AI live-call metrics handle.
+    pub fn with_featherless_metrics(
+        mut self,
+        m: themis_compliance::featherless_metrics::FeatherlessMetricsHandle,
+    ) -> Self {
+        self.featherless_metrics = Some(m);
+        self
+    }
+
+    /// Attach the AIML API live-call metrics handle.
+    pub fn with_aiml_metrics(
+        mut self,
+        m: themis_compliance::aiml_metrics::AimlApiMetricsHandle,
+    ) -> Self {
+        self.aiml_metrics = Some(m);
+        self
+    }
+
+    // -- Read accessors --------------------------------------------------
+
+    /// The event bus for SSE publishes + subscribes.
+    pub fn event_bus(&self) -> &std::sync::Arc<EventBus> {
+        &self.event_bus
+    }
+
+    /// The LLM provider model id announced on SSE startup.
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    /// The sponsor-stack labels rendered in the SSE prelude.
+    pub fn sponsor_stack(&self) -> &crate::events::SponsorStackInfo {
+        &self.sponsor_stack
+    }
+
+    /// The orchestrator (async lock required; see field doc).
+    pub fn orchestrator(&self) -> &std::sync::Arc<tokio::sync::Mutex<Orchestrator>> {
+        &self.orchestrator
+    }
+
+    /// The compliance service.
+    pub fn compliance(&self) -> &std::sync::Arc<themis_compliance::service::ComplianceService> {
+        &self.compliance
+    }
+
+    /// The Band room (concrete type), if wired.
+    pub fn band_room(&self) -> Option<&std::sync::Arc<crate::room::ScriptedBandRoom>> {
+        self.band_room.as_ref()
+    }
+
+    /// The Band-live state, if wired.
+    pub fn band_live(&self) -> Option<&std::sync::Arc<crate::band_live::BandLiveState>> {
+        self.band_live.as_ref()
+    }
+
+    /// The Featherless metrics handle, if wired.
+    pub fn featherless_metrics(
+        &self,
+    ) -> Option<&themis_compliance::featherless_metrics::FeatherlessMetricsHandle> {
+        self.featherless_metrics.as_ref()
+    }
+
+    /// The AIML API metrics handle, if wired.
+    pub fn aiml_metrics(
+        &self,
+    ) -> Option<&themis_compliance::aiml_metrics::AimlApiMetricsHandle> {
+        self.aiml_metrics.as_ref()
+    }
+
+    /// Read-only access to the compliance-report cache (per run_id).
+    pub fn reports(&self) -> &DashMap<uuid::Uuid, ComplianceReport> {
+        &self.reports
+    }
+
+    /// Read-only access to the signed-packet cache (per packet_id).
+    pub fn packets(&self) -> &DashMap<uuid::Uuid, SignedPacket> {
+        &self.packets
+    }
+
+    /// Read-only access to the sealed-packet cache (per packet_id).
+    pub fn sealed(&self) -> &DashMap<uuid::Uuid, SealedPacket> {
+        &self.sealed
+    }
+
+    // -- Typed store/load methods (preserve the packet_id invariant) -----
+
+    /// Store a compliance report keyed by run_id.
+    pub fn store_run(&self, run_id: uuid::Uuid, report: ComplianceReport) {
+        self.reports.insert(run_id, report);
+    }
+
+    /// Look up a compliance report by run_id.
+    pub fn get_report(&self, run_id: &uuid::Uuid) -> Option<ComplianceReport> {
+        self.reports.get(run_id).map(|r| r.value().clone())
+    }
+
+    /// Store a signed packet keyed by packet_id (no-op if a packet
+    /// with the same id already exists; this preserves the id aliasing
+    /// between `packets` and `sealed`).
+    pub fn store_packet(&self, packet: SignedPacket) {
+        self.packets.insert(packet.packet().packet_id, packet);
+    }
+
+    /// Look up a signed packet by packet_id.
+    pub fn get_packet(&self, packet_id: &uuid::Uuid) -> Option<SignedPacket> {
+        self.packets.get(packet_id).map(|p| p.value().clone())
+    }
+
+    /// Store a sealed packet keyed by packet_id (same key as the
+    /// corresponding `SignedPacket.packet_id`; the accessor enforces
+    /// the invariant by routing through this single entry point).
+    pub fn store_sealed(&self, packet_id: uuid::Uuid, sealed: SealedPacket) {
+        self.sealed.insert(packet_id, sealed);
+    }
+
+    /// Look up a sealed packet by packet_id.
+    pub fn get_sealed(&self, packet_id: &uuid::Uuid) -> Option<SealedPacket> {
+        self.sealed.get(packet_id).map(|s| s.value().clone())
+    }
 }
 
 /// Build the production-shaped `AppState`. Used by `main()` and
@@ -121,20 +290,15 @@ pub fn build_default_state(
     // `Arc`; the AppState holds the canonical one.
     let bus = std::sync::Arc::new(crate::events::EventBus::new(1024));
     let orch = orch.with_event_bus(bus.clone());
-    AppState {
-        orchestrator: std::sync::Arc::new(tokio::sync::Mutex::new(orch)),
-        event_bus: bus,
-        compliance: std::sync::Arc::new(themis_compliance::service::ComplianceService::new()),
-        reports: DashMap::new(),
-        packets: DashMap::new(),
-        sealed: DashMap::new(),
+    AppState::new(
+        std::sync::Arc::new(tokio::sync::Mutex::new(orch)),
+        bus,
+        std::sync::Arc::new(themis_compliance::service::ComplianceService::new()),
         model_id,
-        band_room: Some(room_concrete),
-        sponsor_stack: crate::events::SponsorStackInfo::default(),
-        featherless_metrics: None,
-        aiml_metrics: None,
-        band_live: Some(std::sync::Arc::new(crate::band_live::BandLiveState::new())),
-    }
+        crate::events::SponsorStackInfo::default(),
+    )
+    .with_band_room(room_concrete)
+    .with_band_live(std::sync::Arc::new(crate::band_live::BandLiveState::new()))
 }
 
 /// Like [`build_default_state`] but attaches a pre-built
@@ -154,9 +318,8 @@ pub fn build_default_state_with_featherless(
     model_id: String,
     featherless_metrics: themis_compliance::featherless_metrics::FeatherlessMetricsHandle,
 ) -> AppState {
-    let mut s = build_default_state(orch, room_concrete, model_id);
-    s.featherless_metrics = Some(featherless_metrics);
-    s
+    build_default_state(orch, room_concrete, model_id)
+        .with_featherless_metrics(featherless_metrics)
 }
 
 /// Build the axum Router with all routes.
@@ -251,7 +414,7 @@ async fn get_app_js() -> Result<Response, Infallible> {
 async fn get_events_sse(
     State(state): State<Arc<AppState>>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<axum::response::sse::Event, Infallible>>> {
-    let rx = state.event_bus.subscribe();
+    let rx = state.event_bus().subscribe();
     // Emit `Event::SponsorStack` as the FIRST event on every
     // SSE connect so the frontend can render the 3-logo banner
     // above the Band room transcript within the first 30s of
@@ -260,7 +423,7 @@ async fn get_events_sse(
     // bus (every subscriber will see it), then we materialize
     // a one-element `once` prelude so the SSE stream yields it
     // first before forwarding the bus events.
-    let sponsor = state.sponsor_stack.clone();
+    let sponsor = state.sponsor_stack().clone();
     let sponsor_event = crate::events::Event::SponsorStack {
         run_id: uuid::Uuid::nil(),
         band: sponsor.band,
@@ -327,16 +490,16 @@ async fn post_invoices(
     // SSE-fed frontend can update the "model badge" immediately.
     // This is the visible signal that the demo is hitting a real
     // provider (e.g. Qwen3-Coder-30B) or the mock-fallback.
-    state.event_bus.publish(Event::ProviderActive {
+    state.event_bus().publish(Event::ProviderActive {
         run_id,
-        model_id: state.model_id.clone(),
+        model_id: state.model_id().to_string(),
     });
-    state.event_bus.publish(Event::AgentStarted {
+    state.event_bus().publish(Event::AgentStarted {
         run_id,
         agent: "extractor".to_string(),
     });
     let (packet, sealed) = {
-        let orch = state.orchestrator.lock().await;
+        let orch = state.orchestrator().lock().await;
         if orch.has_evidence() {
             match orch
                 .process_invoice_sealed(&req.tenant_id, &req.invoice_id, raw)
@@ -366,12 +529,12 @@ async fn post_invoices(
         }
     };
     let compliance_packet = themis_compliance::framework::EvidencePacket::new(
-        packet.packet.tenant_id.clone(),
-        packet.packet.invoice_id.clone(),
-        packet.packet.agent_decisions.clone(),
-        packet.packet.bbaaar_outcome,
+        packet.packet().tenant_id.clone(),
+        packet.packet().invoice_id.clone(),
+        packet.packet().agent_decisions.clone(),
+        packet.packet().bbaaar_outcome,
     );
-    let report = state.compliance.report(&compliance_packet);
+    let report = state.compliance().report(&compliance_packet);
 
     // Adversarial dispute detection: if fraud_auditor and
     // gaap_classifier disagree on risk by more than 0.3, publish
@@ -381,12 +544,12 @@ async fn post_invoices(
     // (or approves with high confidence).
     if let (Some(fraud), Some(gaap)) = (
         packet
-            .packet
+            .packet()
             .agent_decisions
             .iter()
             .find(|d| d.agent_id == "fraud_auditor"),
         packet
-            .packet
+            .packet()
             .agent_decisions
             .iter()
             .find(|d| d.agent_id == "gaap_classifier"),
@@ -404,14 +567,14 @@ async fn post_invoices(
         let delta = (fraud_risk - gaap_risk).abs();
         if delta > 0.3 {
             let ruling = if matches!(
-                packet.packet.bbaaar_outcome,
+                packet.packet().bbaaar_outcome,
                 themis_agents::baaar::Outcome::Approve
             ) {
                 "approve"
             } else {
                 "halt"
             };
-            state.event_bus.publish(Event::AgentDispute {
+            state.event_bus().publish(Event::AgentDispute {
                 run_id,
                 agent_a: "fraud_auditor".to_string(),
                 risk_a: fraud_risk,
@@ -422,28 +585,26 @@ async fn post_invoices(
             });
         }
     }
-    state.reports.insert(run_id, report.clone());
-    state
-        .packets
-        .insert(packet.packet.packet_id, packet.clone());
+    state.store_run(run_id, report.clone());
+    state.store_packet(packet.clone());
     if let Some(s) = sealed.clone() {
         // Key by the SignedPacket's packet_id (the id the
         // frontend already knows), not the SealedPacket's
         // internal id (which is a fresh UUIDv4 minted by
         // EvidenceService::seal).
-        state.sealed.insert(packet.packet.packet_id, s);
+        state.store_sealed(packet.packet().packet_id, s);
     }
-    state.event_bus.publish(Event::EvidenceSealed {
+    state.event_bus().publish(Event::EvidenceSealed {
         run_id,
-        packet_id: packet.packet.packet_id,
+        packet_id: packet.packet().packet_id,
     });
 
-    state.event_bus.publish(Event::RunFinished { run_id });
+    state.event_bus().publish(Event::RunFinished { run_id });
     Ok(Json(json!({
         "run_id": run_id,
-        "packet_id": packet.packet.packet_id,
+        "packet_id": packet.packet().packet_id,
         "compliance": report,
-        "model_id": state.model_id,
+        "model_id": state.model_id(),
     })))
 }
 
@@ -451,7 +612,7 @@ async fn get_compliance_report_json(
     State(state): State<Arc<AppState>>,
     Path(run_id): Path<uuid::Uuid>,
 ) -> Response {
-    match state.reports.get(&run_id) {
+    match state.reports().get(&run_id) {
         Some(r) => Json(r.value().clone()).into_response(),
         None => (
             StatusCode::NOT_FOUND,
@@ -471,7 +632,7 @@ async fn get_room_transcript(
     Path(room_id): Path<String>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
-    let room = match state.band_room.as_ref() {
+    let room = match state.band_room() {
         Some(r) => r,
         None => {
             return (
@@ -602,7 +763,7 @@ async fn get_packet_pdf(
     State(state): State<Arc<AppState>>,
     Path(packet_id): Path<uuid::Uuid>,
 ) -> Result<Response, (StatusCode, String)> {
-    let packet = state.packets.get(&packet_id).ok_or((
+    let packet = state.packets().get(&packet_id).ok_or((
         StatusCode::NOT_FOUND,
         format!("packet {packet_id} not found"),
     ))?;
@@ -614,7 +775,7 @@ async fn get_packet_pdf(
     })?;
     let disposition = format!(
         "attachment; filename=\"themis-{}-{}.pdf\"",
-        packet.packet.tenant_id, packet.packet.invoice_id
+        packet.packet().tenant_id, packet.packet().invoice_id
     );
     build_attachment_response(
         StatusCode::OK,
@@ -643,192 +804,18 @@ async fn get_packet_json(
     // + signature fields, with `hash` aliased to blake3_hash_hex
     // (tl-verify's PacketFile expects the field name `hash`).
     //
-    // AUDIT FIX: prior to this commit the handler returned
-    // state.sealed (the SealedPacket, NOT the SignedPacket), which
-    // lacked `hash`, `case_id`, `agent_outputs`, and the 8 Art 12
-    // fields that tl-verify requires. The judge could download
-    // the PDF but not verify the JSON.
-    let packet = state.packets.get(&packet_id).ok_or((
+    // P4.4: replaced the 200+ line hand-built `serde_json::Map`
+    // with `FlattenedPacketWireFormat::from_signed(&packet, sealed)`.
+    // The struct derives `Serialize` and lives in `wire_format.rs`;
+    // see that module for the field-by-field wire-format reference.
+    let packet = state.packets().get(&packet_id).ok_or((
         StatusCode::NOT_FOUND,
         format!("packet {packet_id} not found"),
     ))?;
+    let sealed = state.sealed().get(&packet_id);
 
-    // Build the flattened JSON wire format that `tl-verify`
-    // expects. The internal `themis_orchestrator::packet::EvidencePacket`
-    // carries only the 9 internal fields (packet_id, tenant_id,
-    // invoice_id, agent_decisions, evidence_packet_v,
-    // generated_at_ms, bbaaar_outcome, framework_mappings,
-    // peer_verdicts). The public 8-field EU AI Act Art. 12 envelope
-    // + crypto fields are derived at serialization time:
-    //
-    //   - case_id:        `{tenant}:{invoice}` (orchestrator's own id)
-    //   - decision_id:    = packet_id (UUID)
-    //   - input_data:     = invoice_id
-    //   - start_time:     generated_at_ms - 90s (AC2's per-PR window)
-    //   - end_time:       generated_at_ms
-    //   - policy_version: constant from the build
-    //   - reference_database: the dataset the agents read from
-    //   - natural_person_id: VOUCH_OPERATOR_EMAIL env var
-    //   - hash_chain_prev: genesis 64-zero (single-packet chain)
-    //   - agent_outputs:  the orchestrator's AgentDecision list
-    //                     (mapped to vouch_receipt::AgentOutput shape)
-    //   - hash:           = blake3_hash_hex (tl-verify's field name)
-    //   - signature_hex, public_key_hex: from SignedPacket
-    //   - rfc3161_ts_der_hex, rfc3161_tsa_url: from the
-    //                     SealedPacket.timestamp if available
-    //
-    // AUDIT FIX: prior to this commit the handler returned the
-    // internal SealedPacket shape (lacking `hash`, `case_id`,
-    // `agent_outputs`, and the 8 Art. 12 fields that
-    // `tl-verify`'s PacketFile requires). The judge could
-    // download the PDF but not verify the JSON. Now both surfaces
-    // round-trip through tl-verify.
-    let p = &packet.packet;
-    let mut flat = serde_json::Map::new();
-
-    // Identity.
-    flat.insert(
-        "case_id".into(),
-        serde_json::Value::String(format!("{}:{}", p.tenant_id, p.invoice_id)),
-    );
-    flat.insert(
-        "tenant_id".into(),
-        serde_json::Value::String(p.tenant_id.clone()),
-    );
-    flat.insert(
-        "decision_id".into(),
-        serde_json::Value::String(p.packet_id.to_string()),
-    );
-    flat.insert(
-        "input_data".into(),
-        serde_json::Value::String(p.invoice_id.clone()),
-    );
-
-    // Time window (end = generated_at_ms; start = end - 90s).
-    let end_ms = p.generated_at_ms;
-    let start_ms = end_ms - 90_000;
-    let to_iso = |ms: i64| -> serde_json::Value {
-        chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-            .map(|dt| {
-                serde_json::Value::String(dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
-            })
-            .unwrap_or(serde_json::Value::Null)
-    };
-    flat.insert("start_time".into(), to_iso(start_ms));
-    flat.insert("end_time".into(), to_iso(end_ms));
-
-    // Policy + reference data.
-    flat.insert(
-        "policy_version".into(),
-        serde_json::Value::String("apohara-vouch-1".to_string()),
-    );
-    flat.insert(
-        "reference_database".into(),
-        serde_json::Value::String("stanford-invoicenet-50".to_string()),
-    );
-    flat.insert(
-        "natural_person_id".into(),
-        match std::env::var("VOUCH_OPERATOR_EMAIL")
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-        {
-            Some(s) => serde_json::Value::String(s),
-            None => serde_json::Value::Null,
-        },
-    );
-    flat.insert(
-        "hash_chain_prev".into(),
-        serde_json::Value::String("0".repeat(64)),
-    );
-    flat.insert("hash_chain_link".into(), serde_json::Value::Null);
-
-    // Agent outputs: map AgentDecision -> flat {agent_id, verdict,
-    // summary, risk_score} objects. Verdict is "halt" if the BAAAR
-    // outcome halted, else "approve".
-    let verdict_str = match &p.bbaaar_outcome {
-        themis_agents::baaar::Outcome::Approve => "approve",
-        themis_agents::baaar::Outcome::Halt(_) => "halt",
-    };
-    let agent_outputs: Vec<serde_json::Value> = p
-        .agent_decisions
-        .iter()
-        .map(|d| {
-            serde_json::json!({
-                "agent_id": d.agent_id,
-                "verdict": verdict_str,
-                "summary": d.reasoning,
-                "risk_score": d.confidence,
-            })
-        })
-        .collect();
-    flat.insert(
-        "agent_outputs".into(),
-        serde_json::Value::Array(agent_outputs),
-    );
-
-    // Crypto fields.
-    flat.insert(
-        "hash".into(),
-        serde_json::Value::String(packet.blake3_hash_hex.clone()),
-    );
-    flat.insert(
-        "signature_hex".into(),
-        serde_json::Value::String(packet.signature_hex.clone()),
-    );
-    flat.insert(
-        "public_key_hex".into(),
-        serde_json::Value::String(packet.public_key_hex.clone()),
-    );
-
-    // Optional fields. The SealedPacket stored under state.sealed
-    // carries a `Timestamp { time, accuracy_ms, tsa_url }` but
-    // does NOT preserve the raw DER bytes from the TSA response
-    // (those live in TimestampResponse and are not kept past
-    // seal-time). So the wire format always reports the TSA URL
-    // when set, and `rfc3161_ts_der_hex` is always null at this
-    // layer — a structural Skipped for the verifier. A future
-    // change could plumb the DER through (C-09 followup) and
-    // fill this in for production-mode packets.
-    let sealed = state.sealed.get(&packet_id);
-    flat.insert("rfc3161_ts_der_hex".into(), serde_json::Value::Null);
-    flat.insert(
-        "rfc3161_tsa_url".into(),
-        match sealed.as_ref().map(|s| s.timestamp.tsa_url.clone()) {
-            Some(url) if !url.is_empty() => serde_json::Value::String(url),
-            _ => serde_json::Value::Null,
-        },
-    );
-    flat.insert("c2pa_manifest".into(), serde_json::Value::Null);
-    // The exact bytes that `SignedPacket.signature_hex` signed.
-    // The orchestrator signs `EvidencePacket::to_canonical_json()`
-    // (the internal struct serialized in field-declaration order,
-    // see `Orchestrator::sign` in orchestrator.rs line 519). We
-    // base64-encode those exact bytes here so `tl-verify` can
-    // base64-decode and verify the Ed25519 signature against them
-    // directly. We must NOT use `SealedPacket.payload_canonical_json`
-    // — that field carries the JSON of the full `SignedPacket`
-    // (including the signature itself), which is a different
-    // signing surface. We must NOT re-derive the wire format's
-    // flattened JSON either — the wire format drops internal
-    // fields (`evidence_packet_v`, `bbaaar_outcome`, etc.) and
-    // uses a different field order, so the bytes would not match.
-    flat.insert(
-        "signed_payload_b64".into(),
-        match p.to_canonical_json() {
-            Ok(bytes) => {
-                serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(&bytes))
-            }
-            Err(_) => serde_json::Value::Null,
-        },
-    );
-    if let Some(re) = &packet.rekor_entry {
-        flat.insert(
-            "rekor_entry".into(),
-            serde_json::to_value(re).unwrap_or(serde_json::Value::Null),
-        );
-    }
-
-    let bytes = serde_json::to_vec_pretty(&serde_json::Value::Object(flat)).map_err(|e| {
+    let wire = crate::wire_format::FlattenedPacketWireFormat::from_signed(&packet, sealed.as_deref());
+    let bytes = serde_json::to_vec_pretty(&wire).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("serialize flattened packet: {e}"),
@@ -836,7 +823,7 @@ async fn get_packet_json(
     })?;
     let disposition = format!(
         "attachment; filename=\"vouch-{}-{}.json\"",
-        p.tenant_id, p.invoice_id
+        packet.packet().tenant_id, packet.packet().invoice_id
     );
     build_attachment_response(
         StatusCode::OK,
@@ -906,7 +893,7 @@ async fn post_human_override(
     // signature + packet_id into the audit log.
     let sig_len = req.signature.len();
     let timestamp_ms = chrono::Utc::now().timestamp_millis();
-    state.event_bus.publish(Event::HumanOverride {
+    state.event_bus().publish(Event::HumanOverride {
         run_id: packet_id, // The packet_id IS the run_id at the override endpoint.
         packet_id,
         approver_keyid: approver_keyid.clone(),
@@ -963,7 +950,7 @@ mod tests {
 
     fn build_state() -> AppState {
         let rooms: Arc<dyn crate::room::BandRoom> = MockBandRoom::new().into_arc();
-        let tenants = Arc::new(TenantRegistry::with_default_tenants());
+        let tenants = Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
         let mut agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
         for (n, dt) in [
             (
@@ -1097,7 +1084,7 @@ mod tests {
     #[tokio::test]
     async fn post_invoices_publishes_events_to_eventbus() {
         let state = build_state();
-        let mut rx = state.event_bus.subscribe();
+        let mut rx = state.event_bus().subscribe();
         let body =
             serde_json::json!({"tenant_id": "stark", "invoice_id": "inv-001", "raw_b64": ""});
         let app = build_router(state.clone());
@@ -1296,7 +1283,7 @@ mod tests {
 async fn get_featherless_metrics(
     State(state): State<Arc<AppState>>,
 ) -> Json<themis_compliance::featherless_metrics::FeatherlessMetrics> {
-    let snap = match state.featherless_metrics.as_ref() {
+    let snap = match state.featherless_metrics() {
         Some(handle) => handle.snapshot(),
         None => themis_compliance::featherless_metrics::FeatherlessMetrics {
             calls: 0,
@@ -1322,7 +1309,7 @@ async fn get_featherless_metrics(
 async fn get_aiml_metrics(
     State(state): State<Arc<AppState>>,
 ) -> Json<themis_compliance::aiml_metrics::AimlApiMetrics> {
-    let snap = match state.aiml_metrics.as_ref() {
+    let snap = match state.aiml_metrics() {
         Some(handle) => handle.snapshot(),
         None => themis_compliance::aiml_metrics::AimlApiMetrics {
             calls: 0,
