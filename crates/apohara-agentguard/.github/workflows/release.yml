@@ -1,0 +1,266 @@
+name: Release
+
+# Builds the v0.1 cross-platform binaries, regenerates THIRD-PARTY-LICENSES,
+# and emits a SHA256 manifest of the artifacts. It does NOT auto-publish: tag
+# creation, GitHub Release submission, and crates.io/npm publish are left to a
+# maintainer. Trigger manually (workflow_dispatch) or on a v* tag to assemble
+# the artifact set for review.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Minimal default; the `attest` job overrides with the write scopes the SLSA L3
+# provenance signing needs (id-token/attestations write — see below + _attest.yml).
+permissions:
+  contents: read
+
+jobs:
+  third-party-licenses:
+    name: regenerate THIRD-PARTY-LICENSES
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install cargo-about
+        uses: taiki-e/install-action@56545b37b57562edd73171cb6c62cc509db4c34e # v2
+        with:
+          tool: cargo-about
+      - name: Generate THIRD-PARTY-LICENSES
+        run: cargo about generate about.hbs -o THIRD-PARTY-LICENSES
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: THIRD-PARTY-LICENSES
+          path: THIRD-PARTY-LICENSES
+
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    # SLSA L3 isolation: the build job no longer holds id-token/attestations
+    # permissions and does NOT sign. Provenance is generated in the separate
+    # reusable `attest` job below (see _attest.yml), so caller-controlled build
+    # steps cannot influence signing. The build only stages + uploads the
+    # binary for the isolated attest job to consume.
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+            cross: true
+            cross_image: ""  # default cross image (debian stable)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            ext: ""
+            cross: true
+            # x86_64-unknown-linux-musl works with cross 0.2.5's
+            # default image; the build is empirically verified locally
+            # (Story 5 F5 dry-run, 5.4M static-pie binary).
+            cross_image: ""
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            ext: ""
+            cross: true
+            # aarch64-unknown-linux-musl needs a newer cross image
+            # than cross 0.2.5's default (the default image's glibc
+            # is too old for modern build scripts). `ghcr.io/cross-rs/
+            # aarch64-unknown-linux-musl:main` is the `:main` tag
+            # from the official cross-rs image registry and ships
+            # current Debian. Empirically verified locally
+            # (Story 5 F5 dry-run, 4.4M static binary).
+            cross_image: "ghcr.io/cross-rs/aarch64-unknown-linux-musl:main"
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            ext: ""
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            ext: ""
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: ".exe"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      # aarch64 Linux (glibc + musl) is cross-compiled with `cross`
+      # (provides the cross toolchain + a suitable container image).
+      # The other five build natively (Ubuntu, macOS, Windows).
+      - name: Install cross (aarch64 Linux)
+        if: matrix.cross == true
+        run: cargo install cross --locked
+
+      - name: Build (native)
+        if: matrix.cross != true
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Build (cross, default image)
+        if: matrix.cross == true && matrix.cross_image == ''
+        run: cross build --release --locked --target ${{ matrix.target }}
+
+      - name: Build (cross, custom image)
+        if: matrix.cross == true && matrix.cross_image != ''
+        run: |
+          cat > Cross.toml <<EOF
+          [target.${{ matrix.target }}]
+          image = "${{ matrix.cross_image }}"
+          EOF
+          cross build --release --locked --target ${{ matrix.target }}
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          src="target/${{ matrix.target }}/release/apohara-agentguard${{ matrix.ext }}"
+          dst="dist/apohara-agentguard-${{ matrix.target }}${{ matrix.ext }}"
+          cp "$src" "$dst"
+
+      # NOTE: provenance attestation NO LONGER happens here. It was moved to the
+      # isolated reusable `attest` job (uses: ./.github/workflows/_attest.yml)
+      # to satisfy the SLSA L3 build/sign isolation requirement. The subject is
+      # still the host-staged binary, so the cross-built aarch64 ELF (which
+      # lands on the ubuntu-latest host) is covered like the rest.
+      #
+      # ROLLBACK: if the reusable-workflow refactor breaks signing in a PUBLIC
+      # run, revert to the inline step below (and restore the build job's
+      # id-token/attestations: write permissions + drop the `attest` job and its
+      # `needs:` from verify-attestations):
+      #   - name: Attest build provenance
+      #     uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4
+      #     with:
+      #       subject-path: dist/apohara-agentguard-${{ matrix.target }}${{ matrix.ext }}
+
+      - name: Compute SHA256
+        shell: bash
+        run: |
+          cd dist
+          f="apohara-agentguard-${{ matrix.target }}${{ matrix.ext }}"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$f" > "$f.sha256"
+          else
+            shasum -a 256 "$f" > "$f.sha256"
+          fi
+          cat "$f.sha256"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apohara-agentguard-${{ matrix.target }}
+          path: dist/*
+
+  # SLSA Build L3: isolated provenance generation. One call per target into the
+  # reusable workflow, which downloads that target's staged binary and signs it
+  # in a fresh job/VM with no caller build steps. A provenance attestation per
+  # target, with signing moved out of the build job (the build cannot forge it).
+  #
+  # VERIFIED: a public run's attestation passes (and the wrong signer-workflow is
+  # rejected):
+  #   gh attestation verify <bin> -R SuarezPM/apohara-agentguard \
+  #     --signer-workflow SuarezPM/apohara-agentguard/.github/workflows/_attest.yml
+  attest:
+    name: attest ${{ matrix.target }}
+    needs: build
+    # Caller job must ALSO declare these for the reusable workflow's OIDC
+    # signing + attestation write to work.
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            ext: ""
+          - target: aarch64-unknown-linux-gnu
+            ext: ""
+          - target: x86_64-unknown-linux-musl
+            ext: ""
+          - target: aarch64-unknown-linux-musl
+            ext: ""
+          - target: x86_64-apple-darwin
+            ext: ""
+          - target: aarch64-apple-darwin
+            ext: ""
+          - target: x86_64-pc-windows-msvc
+            ext: ".exe"
+    uses: ./.github/workflows/_attest.yml
+    with:
+      artifact-name: apohara-agentguard-${{ matrix.target }}
+      subject-name: apohara-agentguard-${{ matrix.target }}${{ matrix.ext }}
+
+  verify-attestations:
+    name: verify attestations (E2E)
+    needs: attest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+      # E2E gate: every released binary MUST carry a verifiable attestation.
+      # This closes a silent unattested-aarch64 gap — if the per-target
+      # attestation step were skipped or misfired for any target, the verify
+      # below fails and the whole workflow fails.
+      - name: Verify all binaries are attested
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          while IFS= read -r -d '' bin; do
+            found=$((found + 1))
+            echo "::group::verify $bin"
+            gh attestation verify "$bin" -R SuarezPM/apohara-agentguard
+            echo "::endgroup::"
+          done < <(find artifacts -type f -name 'apohara-agentguard-*' ! -name '*.sha256' -print0)
+          if [ "$found" -eq 0 ]; then
+            echo "::error::no binaries found to verify" >&2
+            exit 1
+          fi
+          echo "verified $found attested binaries"
+
+  manifest:
+    name: assemble SHA256 manifest
+    needs: [build, third-party-licenses]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+      - name: Build combined SHA256SUMS
+        shell: bash
+        run: |
+          mkdir -p release
+          # Collect every binary + its per-file .sha256 into one manifest.
+          find artifacts -type f -name 'apohara-agentguard-*' ! -name '*.sha256' -exec cp {} release/ \;
+          cp -f artifacts/THIRD-PARTY-LICENSES/THIRD-PARTY-LICENSES release/ || true
+          cd release
+          : > SHA256SUMS
+          for f in apohara-agentguard-*; do
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$f" >> SHA256SUMS
+            else
+              shasum -a 256 "$f" >> SHA256SUMS
+            fi
+          done
+          echo "----- SHA256SUMS -----"
+          cat SHA256SUMS
+      - name: Upload release bundle (for maintainer review — NOT auto-published)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apohara-agentguard-v0.1.1-release
+          path: release/*

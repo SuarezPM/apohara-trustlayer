@@ -1,0 +1,194 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  clippy:
+    name: clippy (-D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - run: cargo clippy --all-targets -- -D warnings
+
+  deny:
+    name: cargo-deny (licenses + advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny
+      # Fails on any dependency license outside the allowlist in deny.toml.
+      - run: cargo deny check licenses
+      # Monitor RUSTSEC advisories against the dependency tree (dependency_monitoring).
+      # Uses the [advisories] section already in deny.toml.
+      - run: cargo deny check advisories
+
+  clean-install:
+    name: clean-install (independence gate)
+    runs-on: ubuntu-latest
+    # NO Swatinem/rust-cache here on purpose: a cold, cacheless install proves
+    # the crate pulls only public deps and carries no local/private path deps.
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      # Phase 1 (active): install from the checked-out source tree. Green here
+      # means the crate builds and installs standalone with no path/private deps.
+      - name: Install from path (standalone)
+        run: cargo install --path . --locked
+
+      # Phase 2 (active since the repo is public): install from the public git
+      # URL. Proves the published repo is reachable and installable by third
+      # parties straight from the default branch.
+      - name: Install from public git
+        # Name the package: `cargo install --git` scans the whole repo and finds
+        # two bin crates (apohara-agentguard + the fuzz crate), so it needs the
+        # package specified to disambiguate.
+        run: cargo install --git https://github.com/SuarezPM/apohara-agentguard apohara-agentguard --locked
+
+  purity:
+    name: default-build purity guard
+    runs-on: ubuntu-latest
+    # Keystone of the go-public hardening cycle: PROVE the default build pulls
+    # in no model/wasm/ebpf runtime. This is a REAL guard (it can go RED), not a
+    # slogan: a mandatory negative self-test injects a denylisted crate and
+    # asserts the guard fires. Never continue-on-error.
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      # NARROW denylist: concrete model/wasm/ebpf runtime crates only. We do NOT
+      # match bare `wasm`/`bpf`/`tokio` — Cargo.lock carries tooling-only
+      # `wasm-encoder`/`wasm-metadata`/`wasmparser`, the project's own sandbox is
+      # seccomp-bpf via `seccompiler`, and `tokio` is a generic async runtime.
+      # A keystone guard that false-REDs gets disabled, so keep it narrow.
+      # Run on the ROOT crate only (fuzz/ declares its own [workspace], so
+      # `cargo tree` here never traverses it).
+      - name: Purity guard (no model/wasm/ebpf runtime in default build)
+        run: |
+          set -euo pipefail
+          DENY='ort|onnxruntime|candle|tract|wasmtime|cranelift|aya|libbpf'
+          echo "Denylist: $DENY"
+          if cargo tree -e normal --manifest-path ./Cargo.toml | grep -E "$DENY"; then
+            echo "::error::A model/wasm/ebpf runtime leaked into the default build."
+            exit 1
+          fi
+          echo "Default build is pure: no denylisted runtime present."
+
+      # MANDATORY negative self-test: a guard that can never fail is not a guard.
+      # Inject a denylisted crate (tract) into Cargo.toml, run the SAME guard
+      # command, and assert it goes RED. A trap restores BOTH Cargo.toml and
+      # Cargo.lock no matter how the step exits, so neither is left dirty.
+      #
+      # NOTE: the injection MUST land under the [dependencies] table. A naive
+      # `>> Cargo.toml` append lands under the file's LAST table ([profile.release]
+      # here), where cargo silently ignores it -- the dep never enters the graph
+      # and the self-test would FALSELY pass. We use awk to insert right after the
+      # [dependencies] header. Resolving tract also rewrites Cargo.lock, hence the
+      # lock is backed up and restored too.
+      - name: Negative self-test (guard must go RED on injected dep)
+        run: |
+          set -uo pipefail
+          DENY='ort|onnxruntime|candle|tract|wasmtime|cranelift|aya|libbpf'
+          cp Cargo.toml Cargo.toml.purity.bak
+          cp Cargo.lock Cargo.lock.purity.bak
+          trap 'mv -f Cargo.toml.purity.bak Cargo.toml; mv -f Cargo.lock.purity.bak Cargo.lock' EXIT
+          # Insert `tract = "*"` immediately after the [dependencies] header.
+          awk '1; /^\[dependencies\]$/ { print "tract = \"*\"" }' Cargo.toml.purity.bak > Cargo.toml
+          # Re-run the exact guard logic. We EXPECT a match (exit 0 from grep).
+          if cargo tree -e normal --manifest-path ./Cargo.toml | grep -E "$DENY"; then
+            echo "Self-test OK: guard correctly went RED on injected 'tract'."
+          else
+            echo "::error::Self-test FAILED: guard did NOT detect injected 'tract'. A guard that can never fail is not a guard."
+            exit 1
+          fi
+          # Restore now and confirm both files are clean (trap is the backstop).
+          mv -f Cargo.toml.purity.bak Cargo.toml
+          mv -f Cargo.lock.purity.bak Cargo.lock
+          trap - EXIT
+          if ! git diff --quiet Cargo.toml; then
+            echo "::error::Cargo.toml left dirty after self-test restore."
+            exit 1
+          fi
+          echo "Cargo.toml restored cleanly."
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      # ----- Cross-platform hard gate (all OSes) -----
+      # The gate, firewall, path-guard, hook contract, and (on macOS/Windows)
+      # the off-Linux sandbox refusal are portable and MUST pass everywhere.
+      # We exclude the Linux-kernel-capability sandbox tests here so a runner
+      # lacking userns/Landlock cannot fail the required gate; those tests run
+      # in the dedicated non-blocking step below on Linux.
+      - name: Run portable tests (hard gate)
+        shell: bash
+        run: |
+          cargo test --lib --bins
+          cargo test --test headline_bypass --test gate_fp --test hook_contract \
+                     --test kill_switch_env \
+                     --test pathguard --test firewall_posture \
+                     --test benchmark --test benchmark_packs --test benchmark_tensortrust \
+                     --test policy_engine --test ask_corpus
+          # sandbox_offlinux only exists (and matters) off Linux.
+          if [ "${{ runner.os }}" != "Linux" ]; then
+            cargo test --test sandbox_offlinux
+          fi
+
+      # ReDoS guard: the bench compiles as a no-harness binary and runs under
+      # both `cargo bench` and `cargo test --benches`. Pathological inputs must
+      # stay sub-millisecond.
+      - name: ReDoS bench
+        shell: bash
+        run: cargo test --benches
+
+      # ----- Linux kernel-capability sandbox gate (non-blocking on CI) -----
+      # The seccomp + Landlock + build-e2e tests require an unprivileged user
+      # namespace AND a Landlock-capable kernel (Linux >= 5.13 with Landlock
+      # enabled). GitHub-hosted runners do not reliably provide both, so a
+      # capability gap here must NOT hard-fail CI. These tests are NOT marked
+      # #[ignore] — they compile and RUN; we only mark this STEP
+      # continue-on-error so a kernel limitation is surfaced (logged) without
+      # failing the required gate. They are a HARD gate locally (Pablo's box is
+      # Landlock-capable) and asserted there.
+      - name: Run Linux sandbox tests (kernel-capability, non-blocking)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          echo "::group::sandbox tests (require userns + Landlock; non-blocking on CI)"
+          cargo test --test sandbox_seccomp --test sandbox_landlock --test sandbox_build_e2e -- --nocapture
+          echo "::endgroup::"
