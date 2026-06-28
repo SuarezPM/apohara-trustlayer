@@ -245,7 +245,7 @@ async def verify_page(cert_id: str) -> HTMLResponse:
             detail="verification service not initialized",
         )
 
-    cert = _db.get_certificate(cert_id)
+    cert = await _db.get_certificate(cert_id)
     if not cert:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -266,7 +266,7 @@ async def verify_api(cert_id: str) -> VerifyResponse:
             detail="verification service not initialized",
         )
 
-    cert = _db.get_certificate(cert_id)
+    cert = await _db.get_certificate(cert_id)
     if not cert:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

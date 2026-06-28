@@ -24,6 +24,7 @@ from sqlalchemy import (
     Enum,
     Index,
     String,
+    Text,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -194,4 +195,62 @@ class KeyRotationEvent(Base):
         nullable=False,
         default=RecordStatus.ACTIVE,
         server_default=RecordStatus.ACTIVE.value,
+    )
+
+
+class CertificateRecord(Base):
+    """One notarized certificate (P5.1: migrated from SQLite `notary.db`).
+
+    Schema mirrors the legacy SQLite `certificates` table 1:1 — see
+    `app/notary/db.py` SCHEMA for the original. The migration script
+    `scripts/migrate_notary_sqlite_to_pg.py` reads rows from the old
+    `notary.db` (if present) and inserts them here.
+
+    Append-only (per Plan v3.1 §Risks R6 — audit table posture). The
+    Postgres role used in production has INSERT but not UPDATE/DELETE
+    on this table. Soft-deletion would require a status column +
+    retired_at + retention_until — not added in P5.1 (the existing
+    SQLite table didn't have them either); a future P5.1.1 could add
+    a parallel retirement path.
+
+    Tenant isolation (Plan v1.2 Block 4 v1.2-US-1): `submitted_by` is
+    the org_id of the submitter. Production must run the
+    `0002_reassign_org_id.py` migration if upgrading from a pre-v1.2
+    single-tenant deployment.
+    """
+
+    __tablename__ = "certificates"
+
+    cert_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    # Identity / provenance (3 NOT NULL columns that index the cert).
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    content_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    ai_system_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    submitted_by: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    # Timestamps (UTC, stored as TIMESTAMP WITHOUT TIME ZONE for SQLite
+    # compatibility; the application always reads/writes UTC).
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
+    notarized_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
+    # Crypto material.
+    cose_sign1_b64: Mapped[str] = mapped_column(Text, nullable=False)
+    cwt_claims_json: Mapped[str] = mapped_column(Text, nullable=False)
+    primary_key_fingerprint: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Optional TSA + transparency-log evidence (NULL when degraded mode).
+    tsa_token_b64: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tsa_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    tsa_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    rekor_entry_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    rekor_log_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # On-disk artifact paths (relative to notary_output_dir; computed at write time).
+    pdf_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    qr_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Free-form JSON for forward-compatibility (extended claims, payload
+    # metadata, etc.). Per Plan v3.1 §Risks R6 this is APPEND-only — no
+    # silent in-place mutation by the application.
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Auto-managed timestamps (audit trail).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

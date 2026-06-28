@@ -80,3 +80,7 @@ CLAUDE.md
 artifacts/
 **/artifacts/
 services/control_plane/oasb_runtime/
+
+# SQLite transient files (notary.db-wal, .db-shm from WAL mode)
+notary.db-shm
+notary.db-wal

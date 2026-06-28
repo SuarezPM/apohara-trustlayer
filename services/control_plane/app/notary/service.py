@@ -154,7 +154,7 @@ class NotaryServiceProduction:
         digest = hashlib.sha256(full_key.encode()).hexdigest()[:8]
         return f"cert_{uuid.uuid4().hex[:8]}_{digest}"
 
-    def notarize(
+    async def notarize(
         self,
         content_hash: str,
         content_type: str,
@@ -174,10 +174,10 @@ class NotaryServiceProduction:
         metadata = metadata or {}
 
         # Idempotency check
-        existing = self.db.list_certificates(submitted_by=submitted_by, limit=100)
+        existing = await self.db.list_certificates(submitted_by=submitted_by, limit=100)
         for cert in existing:
             if cert.get("content_hash") == content_hash:
-                return self.db.get_certificate(cert["cert_id"]) or cert
+                return await self.db.get_certificate(cert["cert_id"]) or cert
 
         cert_id = self._generate_cert_id(content_hash, submitted_by)
         notarized_at = datetime.now(timezone.utc)
@@ -255,25 +255,11 @@ class NotaryServiceProduction:
         except Exception as e:  # noqa: BLE001 — PDF generation (reportlab); cert still saved without PDF path
             logger.error(f"PDF generation failed: {e}")
 
-        self.db.save_certificate(
-            cert_id=cert_id,
-            content_hash=content_hash,
-            content_type=content_type,
-            ai_system_id=ai_system_id,
-            submitted_by=submitted_by,
-            submitted_at=submitted_at,
-            notarized_at=notarized_at,
-            cose_sign1_b64=cose_sign1_b64,
-            cwt_claims=cwt_claims,
-            tsa_token_b64=tsa_token_b64,
-            tsa_url=tsa_url,
-            rekor_entry_id=rekor_entry_id,
-            rekor_log_id=rekor_log_id,
-            pdf_path=cert_record.get("pdf_path"),
-            qr_payload=cert_record["qr_payload"],
-            metadata=metadata,
-            primary_key_fingerprint=key_fp,
-        )
+        # P5.1: NotaryDB.save_certificate is now async + takes a single
+        # dict (matches the cert_record dict we already built). All
+        # 18 columns map 1:1 to the legacy SQLite NotaryDB schema;
+        # the `created_at` audit column is filled by the server.
+        await self.db.save_certificate(cert_record)
 
         return cert_record
 
@@ -312,7 +298,7 @@ def _make_router(service_getter):
         status_code=status.HTTP_201_CREATED,
         summary="Notarize content with a court-grade certificate",
     )
-    def post_notarize(req: NotarizeRequest, request: Request) -> NotarizeResponse:
+    async def post_notarize(req: NotarizeRequest, request: Request) -> NotarizeResponse:
         """Notarize content. Idempotent on (content_hash, submitted_by).
 
         W9.0: when `req.token_ids` is supplied (from the LLM serving
@@ -324,7 +310,7 @@ def _make_router(service_getter):
 
         svc = _get_service(request)
         try:
-            cert = svc.notarize(
+            cert = await svc.notarize(
                 content_hash=req.content_hash,
                 content_type=req.content_type.value,
                 ai_system_id=req.ai_system_id,

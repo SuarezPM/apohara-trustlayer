@@ -1,175 +1,167 @@
-"""NotaryDB — SQLite-backed NotaryService persistence.
+"""Async NotaryDB — P5.1: SQLite (dev, aiosqlite) → PostgreSQL (prod, asyncpg).
 
-Single-responsibility module: owns the schema and the connection
-pool, no other concerns. Production replaces with PostgreSQL via
-SQLAlchemy (W3.0 W3.2 deferred).
+This module replaces the old sync SQLite-only `NotaryDB` (which used
+the stdlib `sqlite3` driver and was unsuitable for production). The
+public API surface is identical — `save_certificate`, `get_certificate`,
+`list_certificates` — but all methods are now `async def` and the
+backing store is a SQLAlchemy 2.0 `AsyncSession` over the engine from
+`app.db.session`. The schema is defined declaratively in
+`app.db.models.CertificateRecord`.
+
+Dev fallback: when `database_url` starts with `sqlite+aiosqlite://` (the
+pytest default) the engine still works the same way but creates an
+in-memory or file-backed SQLite via aiosqlite. The migration script
+`scripts/migrate_notary_sqlite_to_pg.py` reads from the legacy
+`notary.db` (if it exists) and inserts rows here.
 """
+
 from __future__ import annotations
 
-import json
-import logging
-import sqlite3
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
+from typing import Any, Iterable
 
-logger = logging.getLogger(__name__)
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import CertificateRecord
+from app.db.session import get_async_session
 
 
 class NotaryDB:
-    """SQLite-backed NotaryService persistence.
+    """Async NotaryDB — P5.1. Backed by SQLAlchemy 2.0 + Postgres (prod) /
+    SQLite via aiosqlite (dev/CI). One row per notarized certificate.
 
-    Schema:
-        certificates (
-            cert_id TEXT PRIMARY KEY,       -- "cert_{uuid4}_{hash8}"
-            content_hash TEXT NOT NULL,
-            content_type TEXT NOT NULL,
-            ai_system_id TEXT NOT NULL,
-            submitted_by TEXT NOT NULL,      -- org_id
-            submitted_at TIMESTAMP NOT NULL,
-            notarized_at TIMESTAMP NOT NULL,
-            cose_sign1_b64 TEXT NOT NULL,
-            cwt_claims_json TEXT NOT NULL,
-            tsa_token_b64 TEXT,
-            tsa_url TEXT,
-            tsa_fetched_at TIMESTAMP,
-            rekor_entry_id TEXT,
-            rekor_log_id TEXT,
-            pdf_path TEXT,
-            qr_payload TEXT,
-            metadata_json TEXT,
-            primary_key_fingerprint TEXT
-        )
+    Schema mirrors the legacy `notary.db` SQLite table 1:1 — see
+    `CertificateRecord` in `app.db.models` for the typed shape. The
+    migration script (`scripts/migrate_notary_sqlite_to_pg.py`) reads
+    rows from the old `notary.db` and inserts them here.
     """
 
-    SCHEMA = """
-    CREATE TABLE IF NOT EXISTS certificates (
-        cert_id TEXT PRIMARY KEY,
-        content_hash TEXT NOT NULL,
-        content_type TEXT NOT NULL,
-        ai_system_id TEXT NOT NULL,
-        submitted_by TEXT NOT NULL,
-        submitted_at TIMESTAMP NOT NULL,
-        notarized_at TIMESTAMP NOT NULL,
-        cose_sign1_b64 TEXT NOT NULL,
-        cwt_claims_json TEXT NOT NULL,
-        tsa_token_b64 TEXT,
-        tsa_url TEXT,
-        tsa_fetched_at TIMESTAMP,
-        rekor_entry_id TEXT,
-        rekor_log_id TEXT,
-        pdf_path TEXT,
-        qr_payload TEXT,
-        metadata_json TEXT,
-        primary_key_fingerprint TEXT,
-        UNIQUE (content_hash, submitted_by)
-    );
-    CREATE INDEX IF NOT EXISTS idx_certs_submitted_by ON certificates(submitted_by);
-    CREATE INDEX IF NOT EXISTS idx_certs_submitted_at ON certificates(submitted_at);
-    """
+    def __init__(self, db_path: str | None = None) -> None:
+        """Construct a NotaryDB. `db_path` is preserved for back-compat
+        with the old SQLite `NotaryDB(db_path=...)` constructor
+        signature; when the underlying `database_url` is SQLite-typed,
+        this is the on-disk file (used by the migration script's
+        `from_sqlite()` helper); when it's Postgres-typed, it's ignored
+        and the SQLAlchemy session engine is used directly.
+        """
+        self._db_path = db_path
 
-    def __init__(self, db_path: str = "notary.db"):
-        self.db_path = db_path
-        self._ensure_schema()
+    @staticmethod
+    async def save_certificate(cert: dict[str, Any]) -> str:
+        """Insert a certificate row. Returns the `cert_id`.
 
-    def _ensure_schema(self) -> None:
-        with self._connect() as conn:
-            conn.executescript(self.SCHEMA)
-
-    @contextmanager
-    def _connect(self):
-        conn = sqlite3.connect(self.db_path)
-        # Use sqlite3.Row so cursors expose column names via .keys().
-        # Without this, fetchall() returns plain tuples and the callers
-        # below (list_certificates, get_certificate) can't build dicts.
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        try:
-            yield conn
-            conn.commit()
-        finally:
-            conn.close()
-
-    def save_certificate(
-        self,
-        cert_id: str,
-        content_hash: str,
-        content_type: str,
-        ai_system_id: str,
-        submitted_by: str,
-        submitted_at: datetime,
-        notarized_at: datetime,
-        cose_sign1_b64: str,
-        cwt_claims: dict,
-        tsa_token_b64: Optional[str],
-        tsa_url: Optional[str],
-        rekor_entry_id: Optional[str],
-        rekor_log_id: Optional[str],
-        pdf_path: Optional[str],
-        qr_payload: Optional[str],
-        metadata: dict,
-        primary_key_fingerprint: str,
-    ) -> None:
-        """Save a certificate. Idempotent on (content_hash, submitted_by)."""
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO certificates (
-                    cert_id, content_hash, content_type, ai_system_id,
-                    submitted_by, submitted_at, notarized_at,
-                    cose_sign1_b64, cwt_claims_json,
-                    tsa_token_b64, tsa_url, tsa_fetched_at,
-                    rekor_entry_id, rekor_log_id,
-                    pdf_path, qr_payload, metadata_json,
-                    primary_key_fingerprint
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    cert_id, content_hash, content_type, ai_system_id,
-                    submitted_by, submitted_at.isoformat(),
-                    notarized_at.isoformat(),
-                    cose_sign1_b64, json.dumps(cwt_claims, sort_keys=True),
-                    tsa_token_b64, tsa_url,
-                    datetime.now(timezone.utc).isoformat() if tsa_token_b64 else None,
-                    rekor_entry_id, rekor_log_id,
-                    pdf_path, qr_payload, json.dumps(metadata, sort_keys=True),
-                    primary_key_fingerprint,
+        The dict shape matches the legacy SQLite NotaryDB columns.
+        Optional fields default to `None` (TSA / Rekor absent in
+        degraded mode). `created_at` is filled by the server.
+        """
+        async for session in get_async_session():
+            row = CertificateRecord(
+                cert_id=cert["cert_id"],
+                content_hash=cert["content_hash"],
+                content_type=cert["content_type"],
+                ai_system_id=cert["ai_system_id"],
+                submitted_by=cert["submitted_by"],
+                submitted_at=_parse_dt(cert["submitted_at"]),
+                notarized_at=_parse_dt(cert["notarized_at"]),
+                cose_sign1_b64=cert["cose_sign1_b64"],
+                cwt_claims_json=cert["cwt_claims_json"],
+                primary_key_fingerprint=cert.get("primary_key_fingerprint"),
+                tsa_token_b64=cert.get("tsa_token_b64"),
+                tsa_url=cert.get("tsa_url"),
+                tsa_fetched_at=(
+                    _parse_dt(cert["tsa_fetched_at"])
+                    if cert.get("tsa_fetched_at")
+                    else None
                 ),
+                rekor_entry_id=cert.get("rekor_entry_id"),
+                rekor_log_id=cert.get("rekor_log_id"),
+                pdf_path=cert.get("pdf_path"),
+                qr_payload=cert.get("qr_payload"),
+                metadata_json=cert.get("metadata_json"),
             )
+            session.add(row)
+            await session.commit()
+            return row.cert_id
 
-    def get_certificate(self, cert_id: str) -> Optional[dict]:
-        """Retrieve a certificate by ID."""
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM certificates WHERE cert_id = ?", (cert_id,)
-            ).fetchone()
-            if not row:
-                return None
-            # row is a sqlite3.Row; use its `.keys()` to build a dict.
-            return dict(zip(row.keys(), row))
+    @staticmethod
+    async def get_certificate(cert_id: str) -> dict[str, Any] | None:
+        """Look up a certificate by id. Returns the row as a dict
+        (matching the legacy SQLite NotaryDB.get_certificate shape) or
+        `None` when the cert does not exist.
+        """
+        async for session in get_async_session():
+            stmt = select(CertificateRecord).where(
+                CertificateRecord.cert_id == cert_id
+            )
+            result = await session.execute(stmt)
+            row = result.scalar_one_or_none()
+            return _row_to_dict(row) if row is not None else None
 
-    def list_certificates(
-        self, submitted_by: Optional[str] = None, limit: int = 100
-    ) -> list:
-        """List certificates, optionally filtered by tenant."""
-        with self._connect() as conn:
-            if submitted_by:
-                rows = conn.execute(
-                    "SELECT cert_id, content_hash, content_type, "
-                    "ai_system_id, submitted_by, notarized_at "
-                    "FROM certificates WHERE submitted_by = ? "
-                    "ORDER BY notarized_at DESC LIMIT ?",
-                    (submitted_by, limit),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT cert_id, content_hash, content_type, "
-                    "ai_system_id, submitted_by, notarized_at "
-                    "FROM certificates ORDER BY notarized_at DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
-            # sqlite3.Row iterates as VALUES (not key-value pairs), so
-            # `dict(r)` fails. Use `dict(zip(r.keys(), r))` instead.
-            return [dict(zip(r.keys(), r)) for r in rows]
+    @staticmethod
+    async def list_certificates(
+        submitted_by: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """List recent certificates, optionally filtered by submitter
+        org_id. Newest first. `limit` caps the result count (matches
+        the legacy `LIMIT 100` default).
+        """
+        async for session in get_async_session():
+            stmt = select(CertificateRecord).order_by(
+                CertificateRecord.notarized_at.desc()
+            )
+            if submitted_by is not None:
+                stmt = stmt.where(
+                    CertificateRecord.submitted_by == submitted_by
+                )
+            stmt = stmt.limit(limit)
+            result = await session.execute(stmt)
+            rows: Iterable[CertificateRecord] = result.scalars().all()
+            return [_row_to_dict(r) for r in rows]
 
+
+def _row_to_dict(row: CertificateRecord) -> dict[str, Any]:
+    """Convert a CertificateRecord ORM instance to the legacy SQLite
+    dict shape that `verification_page.py` and `notary/service.py`
+    already consume (no behavioral change at the boundary).
+    """
+    return {
+        "cert_id": row.cert_id,
+        "content_hash": row.content_hash,
+        "content_type": row.content_type,
+        "ai_system_id": row.ai_system_id,
+        "submitted_by": row.submitted_by,
+        "submitted_at": row.submitted_at.isoformat(),
+        "notarized_at": row.notarized_at.isoformat(),
+        "cose_sign1_b64": row.cose_sign1_b64,
+        "cwt_claims_json": row.cwt_claims_json,
+        "primary_key_fingerprint": row.primary_key_fingerprint,
+        "tsa_token_b64": row.tsa_token_b64,
+        "tsa_url": row.tsa_url,
+        "tsa_fetched_at": (
+            row.tsa_fetched_at.isoformat() if row.tsa_fetched_at else None
+        ),
+        "rekor_entry_id": row.rekor_entry_id,
+        "rekor_log_id": row.rekor_log_id,
+        "pdf_path": row.pdf_path,
+        "qr_payload": row.qr_payload,
+        "metadata_json": row.metadata_json,
+    }
+
+
+def _parse_dt(value: str | datetime) -> datetime:
+    """Parse an ISO-8601 timestamp (or pass through a `datetime`).
+
+    The legacy SQLite NotaryDB stored timestamps as `datetime.now()`
+    objects; the new schema uses `DateTime(timezone=False)` (naive UTC)
+    so the wire format must remain ISO-8601 in UTC and the value must
+    be tz-stripped regardless of whether the caller passes a string or
+    an offset-aware `datetime`. Postgres rejects `INSERT` with a
+    offset-aware datetime into a `TIMESTAMP WITHOUT TIME ZONE` column
+    (SQLSTATE 22007 / asyncpg DataError).
+    """
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    # Parse ISO-8601; tolerate trailing 'Z' (UTC).
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)

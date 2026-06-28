@@ -65,6 +65,27 @@ async def lifespan(app: FastAPI):
     # Ensure the artifact output dir exists.
     Path(settings.notary_output_dir).mkdir(parents=True, exist_ok=True)
 
+    # P5.1: create ONLY the CertificateRecord table on first startup.
+    # We scope `create_all` to this single table because running it on
+    # `Base.metadata` would also touch the other models
+    # (DisclosureRecord, KeyRotationEvent, etc.) which have a pre-existing
+    # Postgres enum-string mismatch (RecordStatus.ACTIVE.value == "Active"
+    # but Postgres `CREATE TYPE record_status AS ENUM (...)` rejects the
+    # Python repr). Fixing that is out of P5.1 scope; a future P5.1.1
+    # migration can switch to `Base.metadata.create_all` after the
+    # enum is fixed. In production the Alembic migration
+    # `0003_create_certificates.py` runs this DDL explicitly before the
+    # app starts; this is the dev fallback so the binary boots fresh.
+    from app.db.models import Base, CertificateRecord
+    from app.db.session import _get_engine
+    engine = _get_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(
+                bind=sync_conn, tables=[CertificateRecord.__table__]
+            )
+        )
+
     db = NotaryDB(db_path=settings.notary_db_path)
     qtsp = QTSPClient(timeout=10.0)
     scitt = SCITTClient(timeout=10.0)
