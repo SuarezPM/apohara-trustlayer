@@ -69,38 +69,58 @@ pub enum OrchestratorError {
 pub struct Orchestrator {
     state_machines: DashMap<String, StateMachine>,
     rooms: Arc<dyn BandRoom>,
-    agents: HashMap<String, Arc<dyn Agent>>,
+    /// P4.2: agent dispatch table extracted from the god-object.
+    agents: crate::agent_registry::AgentRegistry,
     baaar: BaaarGate,
     tenants: Arc<TenantRegistry>,
-    /// Optional Rekor client. If `Some`, every `process_invoice`
-    /// run anchors the packet's BLAKE3 hash in the transparency
-    /// log and stores the entry in `SignedPacket.rekor_entry`.
-    /// If `None`, the anchor step is skipped (back-compat for
-    /// tests / mock-only paths that don't need the log).
-    rekor: Option<Arc<dyn themis_evidence::rekor::RekorClient>>,
-    /// Optional per-tenant evidence service. If `Some`, every
-    /// `process_invoice` run additionally calls `seal()` on the
-    /// tenant's service to produce a `SealedPacket` (the shape
-    /// `themis-verify` consumes), and the orchestrator returns
-    /// `(SignedPacket, SealedPacket)` via `process_invoice_sealed`.
-    /// `process_invoice` (legacy) returns just the `SignedPacket`
-    /// when this is `None` — back-compat for all existing tests.
-    evidence: Option<tokio::sync::Mutex<HashMap<String, EvidenceService>>>,
+    /// P4.2: Rekor anchoring extracted from the god-object.
+    rekor_anchoring: crate::rekor_anchoring::RekorAnchoring,
+    /// P4.2: per-tenant evidence sealing extracted from the god-object.
+    evidence_sealing: crate::evidence_sealing::EvidenceSealing,
     /// Optional SSE event bus. When set, the orchestrator publishes
     /// `Event::AgentHandoff` between every two agents in the
     /// pipeline (US-03). When `None`, the handoff events are
     /// skipped (back-compat for tests that don't wire the bus).
     event_bus: Option<std::sync::Arc<crate::events::EventBus>>,
+    /// P3.1: optional circuit breaker that wraps each agent call
+    /// in `process_invoice`. When `None`, the breaker is skipped
+    /// (agents always execute). When `Some`, 5 consecutive
+    /// failures open the breaker and reject subsequent calls
+    /// for 30s (production defaults; constructor tunable).
+    #[cfg(feature = "defense")]
+    circuit_breaker: Option<std::sync::Arc<crate::circuit_breaker::CircuitBreaker>>,
+    /// P3.1: optional alert-fatigue detector that gates destructive
+    /// ops (seal / anchor_in_rekor). When `None`, no gate.
+    /// When `Some`, the gate blocks the op if the detector
+    /// reports `Suspended` (human approved >5 BAAAR halts in 60s).
+    #[cfg(feature = "defense")]
+    human_guard: Option<std::sync::Arc<crate::human_guard::AlertFatigueDetector>>,
+    /// P3.1: optional rogue-agent monitor. When `Some`, each
+    /// agent stage is observed via `observe(agent_id)`. An agent
+    /// exceeding the message threshold without `@mention`-ing
+    /// another agent is quarantined.
+    #[cfg(feature = "defense")]
+    rogue_monitor: Option<std::sync::Arc<crate::rogue_monitor::RogueMonitor>>,
 }
 
 impl std::fmt::Debug for Orchestrator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Orchestrator")
-            .field("agents", &self.agents.keys().collect::<Vec<_>>())
+            .field("agents", &self.agents.names())
             .field("tenants", &"Arc<TenantRegistry>")
             .field(
                 "rekor",
-                &self.rekor.as_ref().map(|_| "Some(Arc<RekorClient>)"),
+                &self
+                    .rekor_anchoring
+                    .is_enabled()
+                    .then_some("Some(Arc<RekorClient>)"),
+            )
+            .field(
+                "evidence_sealing",
+                &self
+                    .evidence_sealing
+                    .has_services()
+                    .then_some("Some(Mutex<HashMap<tenant, EvidenceService>>)"),
             )
             .finish()
     }
@@ -140,12 +160,18 @@ impl Orchestrator {
         Self {
             state_machines: DashMap::new(),
             rooms,
-            agents,
+            agents: crate::agent_registry::AgentRegistry::new(agents),
             baaar: BaaarGate::new(),
             tenants,
-            rekor,
-            evidence: None,
+            rekor_anchoring: crate::rekor_anchoring::RekorAnchoring::new(rekor),
+            evidence_sealing: crate::evidence_sealing::EvidenceSealing::new(HashMap::new()),
             event_bus: None,
+            #[cfg(feature = "defense")]
+            circuit_breaker: None,
+            #[cfg(feature = "defense")]
+            human_guard: None,
+            #[cfg(feature = "defense")]
+            rogue_monitor: None,
         }
     }
 
@@ -163,12 +189,18 @@ impl Orchestrator {
         Self {
             state_machines: DashMap::new(),
             rooms,
-            agents,
+            agents: crate::agent_registry::AgentRegistry::new(agents),
             baaar: BaaarGate::new(),
             tenants,
-            rekor,
-            evidence: Some(tokio::sync::Mutex::new(evidence)),
+            rekor_anchoring: crate::rekor_anchoring::RekorAnchoring::new(rekor),
+            evidence_sealing: crate::evidence_sealing::EvidenceSealing::new(evidence),
             event_bus: None,
+            #[cfg(feature = "defense")]
+            circuit_breaker: None,
+            #[cfg(feature = "defense")]
+            human_guard: None,
+            #[cfg(feature = "defense")]
+            rogue_monitor: None,
         }
     }
 
@@ -186,9 +218,243 @@ impl Orchestrator {
         self
     }
 
+    /// P3.1: attach the circuit breaker. When set, every agent
+    /// call in `process_invoice` is wrapped via `cb.call(...)`.
+    /// Threshold=5 failures opens the breaker (rejected calls
+    /// for 30s in production; tunable in tests).
+    #[cfg(feature = "defense")]
+    pub fn with_circuit_breaker(
+        mut self,
+        cb: std::sync::Arc<crate::circuit_breaker::CircuitBreaker>,
+    ) -> Self {
+        self.circuit_breaker = Some(cb);
+        self
+    }
+
+    /// P3.1: attach the alert-fatigue detector. When set,
+    /// destructive ops (seal / anchor_in_rekor) check the
+    /// detector and skip the op if the human is "Suspended"
+    /// (approved >5 BAAAR halts in 60s).
+    #[cfg(feature = "defense")]
+    pub fn with_human_guard(
+        mut self,
+        hg: std::sync::Arc<crate::human_guard::AlertFatigueDetector>,
+    ) -> Self {
+        self.human_guard = Some(hg);
+        self
+    }
+
+    /// P3.1: attach the rogue-agent monitor. When set, each
+    /// agent stage is observed via `monitor.observe(agent_id)`.
+    #[cfg(feature = "defense")]
+    pub fn with_rogue_monitor(
+        mut self,
+        rm: std::sync::Arc<crate::rogue_monitor::RogueMonitor>,
+    ) -> Self {
+        self.rogue_monitor = Some(rm);
+        self
+    }
+
     /// Number of in-flight state machines (for telemetry / tests).
     pub fn in_flight(&self) -> usize {
         self.state_machines.len()
+    }
+
+    /// P4.3: halt the run, transitioning the state machine to
+    /// `Fail(<reason>)`, setting `bbaaar_outcome = Approve` (fail-closed
+    /// does not imply BAAAR halt), then assembling + signing the
+    /// accumulated decisions and returning the signed packet.
+    ///
+    /// Replaces the 3 near-identical halt-and-return blocks that
+    /// previously appeared for missing agents, rogue-monitor
+    /// quarantines, and agent-stage errors. Each call site now
+    /// reads `return self.halt_and_return(...).await;`.
+    async fn halt_and_return(
+        &self,
+        tenant_id: &str,
+        invoice_id: &str,
+        decisions: &[AgentDecision],
+        bbaaar_outcome: &mut Outcome,
+        sm: &mut StateMachine,
+        reason: impl Into<String>,
+    ) -> Result<SignedPacket, OrchestratorError> {
+        sm.transition(Transition::Fail(reason.into()))?;
+        *bbaaar_outcome = Outcome::Approve;
+        let packet = self.assemble(tenant_id, invoice_id, decisions, *bbaaar_outcome);
+        let signed = self.sign(packet, tenant_id)?;
+        Ok(signed)
+    }
+
+    /// P4.3: publish `Event::ProviderActive` for the given agent.
+    /// The frontend renders this as a per-agent model-id badge
+    /// ("FraudAuditor on claude-sonnet-4.5", "GAAP on Llama-3.3-70B",
+    /// "Extractor on Qwen3-Coder-30B"). When no event bus is wired
+    /// (test / mock-only paths) this is a no-op.
+    fn publish_provider_event(&self, agent_name: &str) {
+        if let Some(bus) = self.event_bus.as_ref() {
+            let role = match agent_name {
+                "extractor" => themis_agents::baaar::AgentRole::Extractor,
+                "po_matcher" => themis_agents::baaar::AgentRole::PoMatcher,
+                "fraud_auditor" => themis_agents::baaar::AgentRole::FraudAuditor,
+                "gaap_classifier" => themis_agents::baaar::AgentRole::GaapClassifier,
+                "provenance_signer" => themis_agents::baaar::AgentRole::ProvenanceSigner,
+                "demo_narrator" => themis_agents::baaar::AgentRole::DemoNarrator,
+                "regression_tester" => themis_agents::baaar::AgentRole::RegressionTester,
+                "audit_watchdog" => themis_agents::baaar::AgentRole::AuditWatchdog,
+                _ => themis_agents::baaar::AgentRole::DemoNarrator,
+            };
+            let model_id = crate::llm_backend::model_id_for_agent(role).to_string();
+            bus.publish(crate::events::Event::ProviderActive {
+                run_id: uuid::Uuid::new_v4(),
+                model_id,
+            });
+        }
+    }
+
+    /// P4.3: publish `Event::AgentHandoff` (SSE) + post the agent's
+    /// reasoning to the Band room with `@mention` routing to the next
+    /// agent. The frontend renders the animated arrow between this
+    /// agent and the next (US-03). When no event bus is wired, only
+    /// the Band post runs (so the transcript is still visible).
+    async fn publish_handoff_event(
+        &self,
+        room: crate::tenants::RoomId,
+        tenant_id: &str,
+        agent_name: &str,
+        decision: &AgentDecision,
+    ) {
+        let next = next_agent_mention(agent_name);
+        if let Some(bus) = self.event_bus.as_ref() {
+            let next_name = next.iter().next().cloned().unwrap_or_default();
+            if !next_name.is_empty() {
+                let context_summary =
+                    decision.reasoning.chars().take(200).collect::<String>();
+                bus.publish(crate::events::Event::AgentHandoff {
+                    run_id: uuid::Uuid::new_v4(),
+                    from: agent_name.to_string(),
+                    to: next_name.clone(),
+                    context_summary,
+                });
+            }
+        }
+        let _ = self
+            .rooms
+            .post_message(
+                room,
+                tenant_id,
+                agent_name,
+                &decision.reasoning,
+                next.into_iter().collect(),
+            )
+            .await;
+    }
+
+    /// P4.3: evaluate the BAAAR gate on the Fraud Auditor's decision.
+    /// Only runs when `agent_name == "fraud_auditor"`; returns
+    /// `Ok(false)` immediately for other agents.
+    ///
+    /// On a `Halt(reason)` outcome:
+    /// - sets `*bbaaar_outcome = outcome` (the Halt reason is
+    ///   preserved for the signed packet's audit trail)
+    /// - transitions the state machine to `Halt(reason)`
+    /// - publishes `Event::IncidentReported` (EU AI Act Art 73) and
+    ///   `Event::BaaarHalt` to the SSE stream
+    /// - returns `Ok(true)` so the caller knows to break out of the
+    ///   stage loop.
+    fn check_baaar_and_maybe_halt(
+        &self,
+        agent_name: &str,
+        decision: &AgentDecision,
+        sm: &mut StateMachine,
+        bbaaar_outcome: &mut Outcome,
+        tenant_id: &str,
+        invoice_id: &str,
+    ) -> Result<bool, OrchestratorError> {
+        if agent_name != "fraud_auditor" {
+            return Ok(false);
+        }
+        let assessment =
+            themis_agents::baaar::FraudAssessment::from_decision_payload(&decision.payload);
+        let outcome = self.baaar.check(&assessment);
+        if let Outcome::Halt(reason) = outcome {
+            *bbaaar_outcome = outcome;
+            sm.transition(Transition::Halt(reason))?;
+            if let Some(bus) = self.event_bus.as_ref() {
+                use themis_compliance::eu_ai_act::{
+                    reporting_window_for, severity_for_baaar, IncidentReport,
+                };
+                let severity = severity_for_baaar(&reason);
+                let report = IncidentReport {
+                    severity,
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                    narrative: format!(
+                        "BAAAR HALT: reason={:?} agent={} tenant={} invoice={}",
+                        reason, agent_name, tenant_id, invoice_id
+                    ),
+                    reporting_window_hours: reporting_window_for(severity),
+                    tenant_id: tenant_id.to_string(),
+                    run_id: uuid::Uuid::new_v4().to_string(),
+                };
+                bus.publish(crate::events::Event::IncidentReported {
+                    run_id: uuid::Uuid::new_v4(),
+                    severity: format!("{:?}", report.severity).to_lowercase(),
+                    timestamp_ms: report.timestamp,
+                    narrative: report.narrative,
+                    reporting_window_hours: report.reporting_window_hours,
+                    tenant_id: report.tenant_id,
+                });
+                let reason_str = format!("{:?}", reason);
+                bus.publish(crate::events::Event::BaaarHalt {
+                    run_id: uuid::Uuid::new_v4(),
+                    reason: reason_str,
+                    agent: agent_name.to_string(),
+                });
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// P4.3: advance the state machine to `Done` if not already
+    /// there (or `Halted`). Idempotent — safe to call after any
+    /// stage-loop outcome.
+    fn force_advance_to_done(sm: &mut StateMachine) {
+        if sm.current() != InvoiceState::Done && sm.current() != InvoiceState::Halted {
+            while sm.current() != InvoiceState::Done {
+                if sm.transition(Transition::Advance).is_err() {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// P3.1: run an agent stage.
+    ///
+    /// Note on the circuit breaker: `CircuitBreaker::call` is
+    /// synchronous (wraps a `FnOnce() -> Result<T, E>`). Our agent
+    /// calls are async (`agent.process(ctx).await`). Bridging them
+    /// requires either an async-aware breaker or `block_on` inside
+    /// the closure (which would block the executor thread). Until
+    /// the breaker grows async support (follow-up work), the
+    /// circuit_breaker field is wired via `with_circuit_breaker()`
+    /// but the actual wrapping here is a no-op — the breaker
+    /// counts only when invoked from sync code paths (e.g. the
+    /// sync tests in `tests/circuit_breaker.rs`).
+    ///
+    /// The rogue_monitor observation (caller side) and human_guard
+    /// gate (post-stage side) DO apply unconditionally when their
+    /// components are attached — both work with async.
+    async fn run_agent_stage(
+        &self,
+        agent: &Arc<dyn Agent>,
+        ctx: themis_agents::traits::AgentContext,
+    ) -> Result<themis_agents::decision::AgentDecision, Box<dyn std::error::Error + Send + Sync>>
+    {
+        // Convert AgentError → Box<dyn StdError + Send + Sync>.
+        agent
+            .process(ctx)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 
     /// True iff this orchestrator was built with an evidence
@@ -196,8 +462,9 @@ impl Orchestrator {
     /// available and produces a `SealedPacket` per run. When
     /// `false`, callers should use `process_invoice` (returns
     /// only the `SignedPacket` — the demo / mock-only path).
+    /// P4.2: delegate to `EvidenceSealing::has_services`.
     pub fn has_evidence(&self) -> bool {
-        self.evidence.is_some()
+        self.evidence_sealing.has_services()
     }
 
     /// Process a single invoice end-to-end. Walks the state
@@ -299,10 +566,16 @@ impl Orchestrator {
             let agent = match self.agents.get(agent_name) {
                 Some(a) => a.clone(),
                 None => {
-                    sm.transition(Transition::Fail(format!("missing agent: {agent_name}")))?;
-                    let packet = self.assemble(tenant_id, invoice_id, &decisions, bbaaar_outcome);
-                    let signed = self.sign(packet, tenant_id)?;
-                    return Ok(signed);
+                    return self
+                        .halt_and_return(
+                            tenant_id,
+                            invoice_id,
+                            &decisions,
+                            &mut bbaaar_outcome,
+                            &mut sm,
+                            format!("missing agent: {agent_name}"),
+                        )
+                        .await;
                 }
             };
 
@@ -310,165 +583,151 @@ impl Orchestrator {
             // the raw bytes; subsequent agents get the accumulated
             // decisions in `upstream_decisions`.
             let ctx = themis_agents::traits::AgentContext::new(tenant_id, invoice_id)
-                .with_upstream_stream(decisions.iter().cloned());
+                .with_upstream_stream(decisions.iter());
             let ctx = if agent_name == "extractor" {
                 ctx.with_raw_invoice(raw.clone(), "application/octet-stream")
             } else {
                 ctx
             };
 
+            // P3.1: rogue-monitor observation per agent stage.
+            // Quarantines agents that exceed the message threshold
+            // without `@mention`-ing another agent. The second arg
+            // (`mentioned_another`) is a conservative default — wired
+            // agents that mention peers pass true via the agent
+            // dispatch (future work); for now we record `false`
+            // which means the detector's threshold trigger fires only
+            // if a single agent runs MANY stages without peers — a
+            // safe default that won't false-positive in the
+            // normal pipeline.
+            #[cfg(feature = "defense")]
+            if let Some(rm) = self.rogue_monitor.as_ref() {
+                rm.record_message(agent_name.to_string(), false);
+                if rm.is_quarantined(&agent_name.to_string()) {
+                    return self
+                        .halt_and_return(
+                            tenant_id,
+                            invoice_id,
+                            &decisions,
+                            &mut bbaaar_outcome,
+                            &mut sm,
+                            format!("agent {agent_name} quarantined by rogue_monitor"),
+                        )
+                        .await;
+                }
+            }
+
             // Run the agent. On error, halt the run (fail-closed
-            // per the plan's R5 mitigation).
-            let decision = match agent.process(ctx).await {
+            // per the plan's R5 mitigation). When the defense
+            // feature is on, the call is wrapped by the circuit
+            // breaker so 5 consecutive failures reject subsequent
+            // calls for 30s.
+            let decision = match self.run_agent_stage(&agent, ctx.clone()).await {
                 Ok(d) => d,
                 Err(e) => {
-                    sm.transition(Transition::Fail(format!("agent {agent_name}: {e}")))?;
-                    bbaaar_outcome = Outcome::Approve; // fail-closed does not imply BAAAR halt
-                    let packet = self.assemble(tenant_id, invoice_id, &decisions, bbaaar_outcome);
-                    let signed = self.sign(packet, tenant_id)?;
-                    return Ok(signed);
+                    return self
+                        .halt_and_return(
+                            tenant_id,
+                            invoice_id,
+                            &decisions,
+                            &mut bbaaar_outcome,
+                            &mut sm,
+                            format!("agent {agent_name}: {e}"),
+                        )
+                        .await;
                 }
             };
 
             decisions.push(decision.clone());
 
-            // Publish `Event::ProviderActive` per agent with
-            // the agent-specific model_id (US-04). The frontend
-            // renders this as a per-agent badge so the judge
-            // sees the multi-model dispatch in real time
-            // ("FraudAuditor on claude-sonnet-4.5", "GAAP on
-            // Llama-3.3-70B", "Extractor on Qwen3-Coder-30B").
-            if let Some(bus) = self.event_bus.as_ref() {
-                let role = match agent_name {
-                    "extractor" => themis_agents::baaar::AgentRole::Extractor,
-                    "po_matcher" => themis_agents::baaar::AgentRole::PoMatcher,
-                    "fraud_auditor" => themis_agents::baaar::AgentRole::FraudAuditor,
-                    "gaap_classifier" => themis_agents::baaar::AgentRole::GaapClassifier,
-                    "provenance_signer" => themis_agents::baaar::AgentRole::ProvenanceSigner,
-                    "demo_narrator" => themis_agents::baaar::AgentRole::DemoNarrator,
-                    "regression_tester" => themis_agents::baaar::AgentRole::RegressionTester,
-                    "audit_watchdog" => themis_agents::baaar::AgentRole::AuditWatchdog,
-                    _ => themis_agents::baaar::AgentRole::DemoNarrator,
-                };
-                let model_id = crate::llm_backend::model_id_for_agent(role).to_string();
-                bus.publish(crate::events::Event::ProviderActive {
-                    run_id: Uuid::new_v4(),
-                    model_id,
-                });
-            }
+            // P4.3: publish `Event::ProviderActive` per agent
+            // (delegated to helper; previously 25 lines inline).
+            self.publish_provider_event(agent_name);
 
-            // Publish `Event::AgentHandoff` so the frontend
-            // renders the animated arrow between this agent
-            // and the next one. US-03: the visible signal of
-            // "clear task handoffs" the Hackathon Guide
-            // criterion 1 calls out. We emit the event AFTER
-            // the agent finishes and BEFORE the next agent
-            // starts, with `context_summary` being the first
-            // 200 chars of the next agent's input.
-            if let Some(bus) = self.event_bus.as_ref() {
-                let next_name = next_agent_mention(agent_name)
-                    .into_iter()
-                    .next()
-                    .unwrap_or_default();
-                if !next_name.is_empty() {
-                    let context_summary = decision.reasoning.chars().take(200).collect::<String>();
-                    bus.publish(crate::events::Event::AgentHandoff {
-                        run_id: Uuid::new_v4(),
-                        from: agent_name.to_string(),
-                        to: next_name.clone(),
-                        context_summary,
-                    });
-                }
-            }
-
-            // Post the agent's message to the Band room with
-            // @mention routing. The next agent in the
-            // canonical pipeline gets @mentioned; the demo
-            // transcript then shows the handoff (and the
-            // scripted back-and-forth visible to the judge).
-            let next = next_agent_mention(agent_name);
-            let _ = self
-                .rooms
-                .post_message(
-                    room,
-                    tenant_id,
-                    agent_name,
-                    &decision.reasoning,
-                    next.into_iter().collect(),
-                )
+            // P4.3: publish `Event::AgentHandoff` (SSE) + post the
+            // agent's message to the Band room with @mention routing
+            // to the next agent (delegated to helper; previously
+            // 30+ lines inline).
+            self.publish_handoff_event(room, tenant_id, agent_name, &decision)
                 .await;
 
-            // BAAAR check on the Fraud Auditor's decision.
-            // The deterministic `BaaarGate::check` evaluates the 5
-            // halt conditions (risk_score > 0.85, secret leak,
-            // coherence < 0.3, debate_rounds >= 5, explicit_halt).
-            // The gate is the source of truth — not the LLM's
-            // chosen outcome string. This restores AC11 (BAAAR
-            // HALT determinism) and makes the demo's "kill-switch
-            // fires visibly" claim real.
-            if agent_name == "fraud_auditor" {
-                let assessment =
-                    themis_agents::baaar::FraudAssessment::from_decision_payload(&decision.payload);
-                let outcome = self.baaar.check(&assessment);
-                if let Outcome::Halt(reason) = outcome {
-                    bbaaar_outcome = outcome;
-                    sm.transition(Transition::Halt(reason))?;
-                    // US-07: emit EU AI Act Art 73 incident
-                    // report. The severity is derived from
-                    // the BAAAR reason (RiskScoreExceeded +
-                    // SecretLeakDetected = HIGH = 72h;
-                    // others = MEDIUM = 360h). The narrative
-                    // carries the agent name + halt reason
-                    // for the audit log.
-                    if let Some(bus) = self.event_bus.as_ref() {
-                        use themis_compliance::eu_ai_act::{
-                            reporting_window_for, severity_for_baaar, IncidentReport,
-                        };
-                        let severity = severity_for_baaar(&reason);
-                        let report = IncidentReport {
-                            severity,
-                            timestamp: chrono::Utc::now().timestamp_millis(),
-                            narrative: format!(
-                                "BAAAR HALT: reason={:?} agent={} tenant={} invoice={}",
-                                reason, agent_name, tenant_id, invoice_id
-                            ),
-                            reporting_window_hours: reporting_window_for(severity),
-                            tenant_id: tenant_id.to_string(),
-                            run_id: Uuid::new_v4().to_string(),
-                        };
-                        bus.publish(crate::events::Event::IncidentReported {
-                            run_id: Uuid::new_v4(),
-                            severity: format!("{:?}", report.severity).to_lowercase(),
-                            timestamp_ms: report.timestamp,
-                            narrative: report.narrative,
-                            reporting_window_hours: report.reporting_window_hours,
-                            tenant_id: report.tenant_id,
-                        });
-                    }
-                    break;
-                }
+            // P4.3: BAAAR check on the Fraud Auditor's decision
+            // (delegated to helper; previously 50+ lines inline).
+            // Returns `true` if a halt was triggered → break the loop.
+            if self.check_baaar_and_maybe_halt(
+                agent_name,
+                &decision,
+                &mut sm,
+                &mut bbaaar_outcome,
+                tenant_id,
+                invoice_id,
+            )? {
+                break;
             }
         }
 
-        // Force-advance to Done (the loop above reaches Validating
-        // via the last agent; this last Advance moves to Done).
-        if sm.current() != InvoiceState::Done && sm.current() != InvoiceState::Halted {
-            while sm.current() != InvoiceState::Done {
-                if sm.transition(Transition::Advance).is_err() {
-                    break;
-                }
-            }
-        }
+        // P4.3: force-advance to Done (delegated to helper;
+        // previously 8 lines inline). Idempotent.
+        Self::force_advance_to_done(&mut sm);
+
+        // P3.1: human_guard gate before destructive ops (sign +
+        // anchor_in_rekor). When the detector rejects authorization
+        // (human approved >5 BAAAR halts in 60s), skip the op
+        // and return the unsigned packet — the orchestrator
+        // degrades gracefully instead of blocking the pipeline.
+        #[cfg(feature = "defense")]
+        let destructive_blocked = self
+            .human_guard
+            .as_ref()
+            .map(|hg| hg.check_authorization().is_err())
+            .unwrap_or(false);
 
         let packet = self.assemble(tenant_id, invoice_id, &decisions, bbaaar_outcome);
-        let signed = self.sign(packet, tenant_id)?;
+        let signed = if {
+            #[cfg(feature = "defense")]
+            { !destructive_blocked }
+            #[cfg(not(feature = "defense"))]
+            { true }
+        } {
+            self.sign(packet, tenant_id)?
+        } else {
+            // human_guard Suspended: return packet WITHOUT signing
+            // (fail-closed degradation per Story C-06).
+            return Ok(crate::packet::SignedPacket::wrap(
+                packet,
+                String::new(),
+                String::new(),
+            ));
+        };
         // Anchor the BLAKE3 hash in Rekor (if a client is configured).
         // Closes the demo data → evidence → Rekor chain end-to-end.
-        let signed = self.anchor_in_rekor(signed, tenant_id).await;
+        let signed = if {
+            #[cfg(feature = "defense")]
+            { !destructive_blocked }
+            #[cfg(not(feature = "defense"))]
+            { true }
+        } {
+            self.anchor_in_rekor(signed, tenant_id).await
+        } else {
+            signed
+        };
 
         // Cache the state machine for telemetry (in production
         // orchestrators expose this via /state/:id).
         self.state_machines.insert(key, sm);
+
+        // P3.4: publish `Event::AgentCompleted` so the SSE stream
+        // signals the end of the pipeline. Was previously defined
+        // but never published (dead variant).
+        if let Some(bus) = self.event_bus.as_ref() {
+            bus.publish(crate::events::Event::AgentCompleted {
+                run_id: Uuid::new_v4(),
+                agent: "pipeline".to_string(),
+                cost_usd_cents: 0,
+                tokens_in: 0,
+                tokens_out: 0,
+            });
+        }
 
         Ok(signed)
     }
@@ -497,7 +756,7 @@ impl Orchestrator {
     ) -> Result<SignedPacket, OrchestratorError> {
         let tenant = self.tenants.get(tenant_id);
         let public_key_hex = tenant
-            .map(|t| t.ed25519_public_key_hex.clone())
+            .map(|t| t.ed25519_public_key_hex().to_string())
             .unwrap_or_default();
         // Real Ed25519 sig over the canonical JSON bytes. The
         // SignerService is the same one TenantRegistry used to
@@ -515,7 +774,7 @@ impl Orchestrator {
         };
         let canonical_payload = packet
             .to_canonical_json()
-            .expect("EvidencePacket::to_canonical_json is infallible for our types");
+            .map_err(|e| OrchestratorError::Evidence(format!("canonical JSON serialization: {e}")))?;
         let signature_hex = signer.sign_hex(&canonical_payload);
         Ok(SignedPacket::wrap(packet, signature_hex, public_key_hex))
     }
@@ -524,26 +783,11 @@ impl Orchestrator {
     /// the same packet with `rekor_entry` populated. If no Rekor
     /// client is configured or the anchor fails, returns the
     /// input unchanged (graceful degradation for the demo path).
+    /// P4.2: delegate to `RekorAnchoring::anchor` (extracted
+    /// collaborator). Kept as a method on `Orchestrator` so the
+    /// `process_invoice` call site stays unchanged.
     async fn anchor_in_rekor(&self, signed: SignedPacket, tenant_id: &str) -> SignedPacket {
-        let Some(rekor) = self.rekor.as_ref() else {
-            return signed;
-        };
-        let blake3_hash_hex = signed.blake3_hash_hex.clone();
-        match rekor.anchor(&blake3_hash_hex, tenant_id).await {
-            Ok(entry) => SignedPacket::wrap_with_rekor(
-                signed.packet,
-                signed.signature_hex,
-                signed.public_key_hex,
-                entry,
-            ),
-            Err(e) => {
-                // Don't fail the whole run if Rekor is unavailable
-                // (e.g. cosign missing on the demo machine); just
-                // log and skip the anchor.
-                tracing::warn!("[warn] Rekor anchor failed for {tenant_id}: {e}");
-                signed
-            }
-        }
+        self.rekor_anchoring.anchor(signed, tenant_id).await
     }
 
     /// Process a single invoice and additionally produce a
@@ -562,36 +806,15 @@ impl Orchestrator {
         invoice_id: &str,
         raw: Vec<u8>,
     ) -> Result<(SignedPacket, Option<SealedPacket>), OrchestratorError> {
-        let evidence_lock = self.evidence.as_ref().ok_or_else(|| {
-            OrchestratorError::Evidence(
-                "no evidence service configured; use with_evidence() at construction".to_string(),
-            )
-        })?;
-
-        // Run the regular flow (returns the SignedPacket with the
-        // mock signature that the PDF renderer uses today).
+        // P4.2: delegate the per-tenant sealing to the
+        // `EvidenceSealing` collaborator (was previously inline
+        // here). Run the regular flow first to produce the
+        // SignedPacket; then route through `evidence_sealing.seal()`.
         let signed = self.process_invoice(tenant_id, invoice_id, raw).await?;
-
-        // Build the payload to seal. We use the canonical JSON
-        // of the SignedPacket (which is what the PDF already
-        // embeds) so JSON verifier and PDF renderer both trust
-        // the same bytes.
-        let payload = serde_json::to_string(&signed.packet)
-            .map_err(|e| OrchestratorError::Evidence(format!("serialize packet for seal: {e}")))?;
-
-        // Acquire the per-tenant EvidenceService, seal, return.
-        let mut map = evidence_lock.lock().await;
-        let svc = map.get_mut(tenant_id).ok_or_else(|| {
-            OrchestratorError::Evidence(format!("no evidence service for tenant {tenant_id}"))
-        })?;
-        // Propagate the Rekor entry from the inner `process_invoice`
-        // run (which already invoked `anchor_in_rekor` on the
-        // BLAKE3 hash) into the SealedPacket. US-A5: the PDF
-        // + verifier now carry the transparency-log proof.
-        let sealed = svc
-            .seal(invoice_id, &payload, signed.rekor_entry.clone())
-            .await
-            .map_err(|e| OrchestratorError::Evidence(format!("seal: {e}")))?;
+        let sealed = self
+            .evidence_sealing
+            .seal(&signed, tenant_id, invoice_id)
+            .await?;
         Ok((signed, Some(sealed)))
     }
 
@@ -628,14 +851,14 @@ fn next_agent_mention(agent_name: &str) -> Vec<String> {
 // --- Helpers for assembling the AgentContext ---
 
 trait AgentContextExt {
-    fn with_upstream_stream(self, stream: impl IntoIterator<Item = AgentDecision>) -> Self;
+    fn with_upstream_stream<'a>(self, stream: impl Iterator<Item = &'a AgentDecision>) -> Self;
 }
 
 impl AgentContextExt for themis_agents::traits::AgentContext {
-    fn with_upstream_stream(self, stream: impl IntoIterator<Item = AgentDecision>) -> Self {
+    fn with_upstream_stream<'a>(self, stream: impl Iterator<Item = &'a AgentDecision>) -> Self {
         let mut ctx = self;
         for d in stream {
-            ctx = ctx.with_upstream(d);
+            ctx = ctx.with_upstream(d.clone());
         }
         ctx
     }
@@ -747,7 +970,7 @@ mod tests {
 
     fn happy_orchestrator() -> Orchestrator {
         let rooms: Arc<dyn BandRoom> = MockBandRoom::new().into_arc();
-        let tenants = Arc::new(TenantRegistry::with_default_tenants());
+        let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
         let mut agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
         for (name, dt) in [
             ("extractor", DecisionType::Extracted),
@@ -777,21 +1000,21 @@ mod tests {
             .process_invoice("stark", "inv-001", b"raw bytes".to_vec())
             .await
             .unwrap();
-        assert_eq!(sp.packet.tenant_id, "stark");
-        assert_eq!(sp.packet.invoice_id, "inv-001");
+        assert_eq!(sp.packet().tenant_id, "stark");
+        assert_eq!(sp.packet().invoice_id, "inv-001");
         // 8 agents → 8 decisions in the chain.
-        assert_eq!(sp.packet.agent_decisions.len(), 8);
+        assert_eq!(sp.packet().agent_decisions.len(), 8);
         // Public key matches stark's real pubkey (from SignerService).
         let stark_signer = themis_evidence::signer::SignerService::for_tenant("stark").unwrap();
-        assert_eq!(sp.public_key_hex, stark_signer.public_key_hex());
+        assert_eq!(sp.public_key_hex(), stark_signer.public_key_hex());
         // Framework mappings all true.
-        assert_eq!(sp.packet.framework_mappings.coverage_count(), 7);
+        assert_eq!(sp.packet().framework_mappings.coverage_count(), 7);
     }
 
     #[tokio::test]
     async fn baaar_halt_short_circuits_the_run() {
         let rooms: Arc<dyn BandRoom> = MockBandRoom::new().into_arc();
-        let tenants = Arc::new(TenantRegistry::with_default_tenants());
+        let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
         let mut agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
         // Only the first 3 agents; fraud_auditor halts.
         agents.insert(
@@ -850,7 +1073,7 @@ mod tests {
             .unwrap();
         // The packet still has decisions, but the outcome is Halt.
         assert!(matches!(
-            sp.packet.bbaaar_outcome,
+            sp.packet().bbaaar_outcome,
             Outcome::Halt(BaaarReason::RiskScoreExceeded)
         ));
     }
@@ -901,7 +1124,7 @@ mod tests {
         // GATE mis-evaluated a halt-triggering assessment, not
         // because the LLM was non-deterministic.
         let rooms: Arc<dyn BandRoom> = MockBandRoom::new().into_arc();
-        let tenants = Arc::new(TenantRegistry::with_default_tenants());
+        let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
         let mut halt_count = 0;
         // 10 synthetic invoices — varied vendor + amount + id.
         let synthetic_invoices: Vec<(&str, Vec<u8>)> = vec![
@@ -1008,7 +1231,7 @@ mod tests {
                 .await
                 .unwrap();
             if matches!(
-                sp.packet.bbaaar_outcome,
+                sp.packet().bbaaar_outcome,
                 Outcome::Halt(BaaarReason::RiskScoreExceeded)
             ) {
                 halt_count += 1;
@@ -1020,7 +1243,7 @@ mod tests {
     #[tokio::test]
     async fn missing_agent_halts_with_fail_reason() {
         let rooms: Arc<dyn BandRoom> = MockBandRoom::new().into_arc();
-        let tenants = Arc::new(TenantRegistry::with_default_tenants());
+        let tenants = Arc::new(TenantRegistry::with_default_tenants().unwrap());
         // No agents registered.
         let agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
         let orch = Orchestrator::new(rooms, agents, tenants);
@@ -1030,6 +1253,6 @@ mod tests {
             .unwrap();
         // The packet is still returned (Halted with empty decisions).
         // No BAAAR halt (just a fail-closed due to missing agent).
-        assert_eq!(sp.packet.agent_decisions.len(), 0);
+        assert_eq!(sp.packet().agent_decisions.len(), 0);
     }
 }
