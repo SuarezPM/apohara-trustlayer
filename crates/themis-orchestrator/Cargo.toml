@@ -79,7 +79,7 @@ apohara-agentguard = { workspace = true }
 # `cargo test -p themis-orchestrator` Just Works without having
 # to remember `--features bench`; the bench binary is gated by
 # `required-features = ["bench"]` below.
-default = ["bench"]
+default = ["bench", "test-modules", "defense"]
 bench = []
 # US-09: gate the public-bench integration test (50-row
 # InvoiceNet sample) behind this feature so the default
@@ -87,6 +87,21 @@ bench = []
 # Run: `cargo test --release --features public-bench -p
 #        themis-orchestrator --test public_bench -- --nocapture`
 public-bench = []
+# P3.2: gate `mcp_proxy`, `dual_llm`, and `context` modules behind
+# this feature so a production build can opt out with
+# `cargo build --no-default-features`. They are wired into the
+# production agent loop behind `defense`; without `defense` they
+# have zero production callers but the integration tests in
+# `tests/{mcp_proxy_e2e,dual_llm,context_invariants}.rs` still
+# import them. Default-on for dev/test, default-off for prod.
+test-modules = []
+# P3.1: defense-in-depth modules (Story C-05 circuit breaker,
+# C-06 HumanGuard, G23 RogueMonitor) are wired into the
+# production agent loop (`Orchestrator::process_invoice`) when
+# this feature is enabled. Default-on for dev/test, default-off
+# for prod (`cargo build --no-default-features`).
+defense = []
+
 
 [[bin]]
 name = "themis-bench"
