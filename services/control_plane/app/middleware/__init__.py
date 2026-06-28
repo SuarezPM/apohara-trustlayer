@@ -40,9 +40,7 @@ import hashlib
 import hmac
 import json
 import os
-from typing import Awaitable, Callable
 
-from fastapi import Request
 from fastapi.responses import JSONResponse
 
 
@@ -114,7 +112,7 @@ def _decode_jwt_org_id(token: str, jwt_secret: str) -> str | None:
             return None
         org = payload.get("org_id")
         return str(org) if org else None
-    except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+    except Exception:  # noqa: BLE001 — JWT decode failure = no valid org_id; request falls to X-Org-Id header or 401
         # W8.9.1+narrowed: catch is documented in the function docstring.
         # Any JWT decode/parse failure (binascii.Error, json.JSONDecodeError, KeyError,
         # ValueError, AttributeError) is treated as "no valid org_id" — the request
@@ -144,7 +142,7 @@ def _resolve_org_id_from_scope(scope: dict, jwt_secret: str | None) -> str | Non
         try:
             k = key.decode("latin-1").lower()
             v = value.decode("latin-1")
-        except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+        except Exception:  # noqa: BLE001 — malformed ASGI header bytes; skip silently, never crash middleware on one bad header
             # W8.9.1+narrowed: catch is documented in the function docstring.
             # Per ASGI spec, headers are (bytes, bytes) tuples. If a header cannot
             # be decoded as latin-1 (which is the only spec-permitted encoding),

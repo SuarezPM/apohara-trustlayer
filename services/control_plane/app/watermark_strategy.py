@@ -23,10 +23,8 @@ from pydantic import BaseModel, Field
 # Re-exported here for backwards-compatibility with callers that
 # import these names from app.watermark_strategy.
 from app.constants import (
-    DEFAULT_BPE_VOCAB_SIZE,
     DEFAULT_GAMMA,
     DEFAULT_Z_THRESHOLD,
-    env_text_watermark_key,
 )
 
 

@@ -32,7 +32,6 @@ from fastapi import APIRouter
 
 from app.api.deps import get_org_id
 from app.compliance import assess_cross_jurisdiction
-from app.middleware.article50 import DISCLOSURE_VALUE
 from fastapi import Depends
 
 router = APIRouter(prefix="/v1/jurisdictions", tags=["cross-jurisdiction"])

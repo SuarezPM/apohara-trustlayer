@@ -8,11 +8,10 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import (
-    Boolean, Column, Computed, DateTime, Float, Integer, String,
-    create_engine, select, func,
+    Column, Computed, DateTime, Float, Integer, String,
+    create_engine,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker

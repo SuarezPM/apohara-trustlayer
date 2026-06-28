@@ -148,7 +148,7 @@ class InMemoryBundleLookup(BundleLookup):
         ).encode("utf-8")
         try:
             cose_sign1 = _cose_sign1_synthetic(payload, b"")
-        except RuntimeError as exc:
+        except RuntimeError:
             # Wheel not built — fall back to a stable synthetic
             # signature so unit tests can still run. The 66-byte
             # placeholder is preserved here as a last resort; tests
@@ -372,7 +372,7 @@ async def get_stix_bundle(
                 # 1. identity — Apohara TrustLayer as the producer
                 "type": "identity",
                 "spec_version": "2.1",
-                "id": f"identity--apohara-trustlayer",
+                "id": "identity--apohara-trustlayer",
                 "created": now_iso,
                 "modified": now_iso,
                 "name": "Apohara TrustLayer",

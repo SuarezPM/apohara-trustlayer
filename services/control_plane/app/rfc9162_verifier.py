@@ -271,7 +271,7 @@ def verify_federated_receipt(
             )
 
         return True, reconstructed_a, "federated receipt verified"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — federated receipt verification; returns (False, None, error) tuple
         logger.warning(f"federated receipt verification failed: {e}")
         return False, None, f"verifier error: {e}"
 
@@ -291,7 +291,7 @@ def extract_sth_root(sth_bytes: bytes) -> Optional[str]:
         stmt = parse_signed_statement(sth_bytes)
         # The STH payload is the root hash
         return stmt.payload.hex() if stmt.payload else None
-    except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+    except Exception:  # noqa: BLE001 — scitt-cose import/parse failure; fall through to heuristic SHA-256 extraction
         # W8.9.1+narrowed: catch is documented in the function docstring.
         # Any failure importing or calling scitt-cose (ImportError, AttributeError,
         # parse errors) falls through to the heuristic 32-byte SHA-256 fallback

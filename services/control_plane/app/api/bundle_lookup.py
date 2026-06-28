@@ -16,7 +16,6 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # BundleLookup is defined in app.api.evidence to keep the abstract
 # interface alongside the route that uses it. Importing it at the

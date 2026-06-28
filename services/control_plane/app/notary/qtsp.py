@@ -12,7 +12,6 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx  # core dep — top-level (httpx is always available)
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +93,7 @@ class QTSPClient:
             try:
                 from rfc3161_client import decode_timestamp_response
                 _ts_resp = decode_timestamp_response(resp.content)
-            except Exception as decode_err:
+            except Exception as decode_err:  # noqa: BLE001 — rfc3161 decode; raw TSA bytes stored regardless for downstream verify
                 logger.warning(
                     f"TSA response decode failed (storing raw bytes anyway): "
                     f"{decode_err}"
@@ -111,7 +110,7 @@ class QTSPClient:
             # debugging, return None (degraded mode per README).
             logger.error(f"QTSP HTTP error for {self.tsa_url}: {e!r}")
             return None, None, None
-        except Exception as e:
+        except Exception:  # noqa: BLE001 — QTSP unexpected error safety net; returns (None, None, None) degraded mode
             # Unknown — keep broad catch as degraded-mode safety net.
             logger.exception(f"QTSP unexpected error for {self.tsa_url}")
             return None, None, None

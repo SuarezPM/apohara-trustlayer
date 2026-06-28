@@ -54,13 +54,9 @@ class CertificateArtifactGenerator:
                 SimpleDocTemplate,
                 Paragraph,
                 Spacer,
-                Table,
-                TableStyle,
-
             )
             from reportlab.graphics.barcode.qr import QrCodeWidget
             from reportlab.graphics.shapes import Drawing
-            from reportlab.pdfbase import pdfmetrics
         except ImportError as imp_err:
             logger.error(
                 f"reportlab import failed ({imp_err}); writing degraded PDF."
@@ -160,7 +156,7 @@ class CertificateArtifactGenerator:
             qr_drawing.width = 2.0 * inch
             qr_drawing.height = 2.0 * inch
             story.append(qr_drawing)
-        except Exception as qr_err:
+        except Exception as qr_err:  # noqa: BLE001 — QR widget (reportlab); skipping QR is non-fatal for cert PDF
             logger.warning(f"QR widget failed: {qr_err}; skipping")
         story.append(
             Paragraph(
@@ -226,7 +222,7 @@ class CertificateArtifactGenerator:
 
         try:
             doc.build(story)
-        except Exception as build_err:
+        except Exception as build_err:  # noqa: BLE001 — reportlab doc.build; falls back to minimal PDF
             logger.error(f"reportlab build failed: {build_err}; writing minimal PDF.")
             self._write_minimal_pdf(pdf_path, cert_id)
 

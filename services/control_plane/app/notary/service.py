@@ -16,10 +16,8 @@ import base64
 import hashlib
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -152,7 +150,6 @@ class NotaryServiceProduction:
     def _generate_cert_id(
         self, content_hash: str, submitted_by: str
     ) -> str:
-        hash_hex = content_hash.removeprefix("sha256:").removeprefix("blake3:")
         full_key = f"{submitted_by}:{content_hash}"
         digest = hashlib.sha256(full_key.encode()).hexdigest()[:8]
         return f"cert_{uuid.uuid4().hex[:8]}_{digest}"
@@ -224,7 +221,7 @@ class NotaryServiceProduction:
                     key=wm_key,
                 )
                 watermark_result = detected_result.model_dump()
-            except Exception as wm_err:
+            except Exception as wm_err:  # noqa: BLE001 — Kirchenbauer watermark detection; degraded watermark status must not block notarize
                 logger.warning(
                     f"Kirchenbauer detection failed (degraded watermark status): {wm_err}"
                 )
@@ -255,7 +252,7 @@ class NotaryServiceProduction:
         try:
             pdf_path = self.artifact_gen.generate(cert_record)
             cert_record["pdf_path"] = pdf_path
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — PDF generation (reportlab); cert still saved without PDF path
             logger.error(f"PDF generation failed: {e}")
 
         self.db.save_certificate(
@@ -296,8 +293,7 @@ def _make_router(service_getter):
     (set in main.py lifespan); the getter reads it from
     `request.app.state`.
     """
-    from app.notary import NotarizeRequest, NotarizeResponse  # noqa: F811
-    from fastapi import APIRouter, HTTPException, Request, status
+    from app.notary import NotarizeResponse  # noqa: F811
 
     router = APIRouter(prefix="/v1", tags=["notary"])
 
@@ -350,7 +346,7 @@ def _make_router(service_getter):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="notarization failed; check server logs for details",
             ) from exc
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — safety net for unknown notarize errors; prevents 500 info leak per auditor-9
             # Unknown — safety net. Per the 9th-auditor review, route
             # handlers must NOT leak str(exc) to clients (info disclosure).
             logger.exception("notarize: unexpected error")

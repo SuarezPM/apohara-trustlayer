@@ -193,7 +193,6 @@ def orchestration_manifest(
     Computes the root hash and returns the graph-level receipt.
     """
     import hashlib
-    import json
     import time
 
     if not step_receipts:

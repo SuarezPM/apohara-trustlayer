@@ -22,7 +22,6 @@ taxonomy), MITRE ATLAS agentic threat catalog (AML.T0080-T0101).
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -37,7 +36,6 @@ from app.adversarial_scaffold import (
     run_scenario,
 )
 from app.api.deps import get_org_id
-from app.middleware.article50 import DISCLOSURE_VALUE
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +165,6 @@ def post_run_scenario(
     org_id: str = Depends(get_org_id),
 ) -> ScenarioRunResponse:
     """Run a single scenario through the CordonEnforcer."""
-    started = time.perf_counter()
     # Build the full catalog for lookup
     catalog = {s.code: s for s in OASB_SCENARIOS}
     catalog.update({s.code: s for s in AGENTDOJO_ATTACKS})

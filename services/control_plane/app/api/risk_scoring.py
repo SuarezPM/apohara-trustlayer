@@ -20,7 +20,6 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_org_id
-from app.middleware.article50 import DISCLOSURE_VALUE
 from app.risk_scoring.iso_23894 import (
     ISO23894Stage,
     NISTAIRMFFunction,

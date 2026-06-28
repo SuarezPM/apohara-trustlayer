@@ -12,7 +12,6 @@ import logging
 import os
 from typing import Optional
 
-import httpx  # core dep — top-level (httpx is always available)
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +80,7 @@ class SCITTClient:
                 # uses '+' and '/'. Be permissive on the decode.
                 padded = statement_b64 + "=" * (-len(statement_b64) % 4)
                 cose_bytes = base64.urlsafe_b64decode(padded)
-            except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+            except Exception:  # noqa: BLE001 — base64url decode failure; fall back to standard base64 (SCITT clients may use either)
                 # W8.9.1+narrowed: catch is documented in the function docstring.
                 # If base64url decode fails (binascii.Error, ValueError), fall back
                 # to standard base64. SCITT clients are spec-permitted to use either
@@ -146,7 +145,7 @@ class SCITTClient:
             # debugging, return None (degraded mode per README).
             logger.error(f"SCITT HTTP error for {self.ts_url}: {e!r}")
             return None, None, None
-        except Exception as e:
+        except Exception:  # noqa: BLE001 — SCITT unexpected error safety net; returns (None, None, None) degraded mode
             # Unknown — keep broad catch as degraded-mode safety net.
             logger.exception(f"SCITT unexpected error for {self.ts_url}")
             return None, None, None

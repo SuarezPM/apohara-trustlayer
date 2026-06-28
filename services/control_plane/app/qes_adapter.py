@@ -184,7 +184,7 @@ def validate_qtsp_certificate(cert_der: bytes) -> QESValidationResult:
 
     try:
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
-    except Exception as parse_err:
+    except Exception as parse_err:  # noqa: BLE001 — X.509 DER parse; cryptography raises varied types, all mean invalid cert
         logger.error(f"X.509 parse failed: {parse_err}")
         return QESValidationResult(
             is_qualified=False,
@@ -223,7 +223,7 @@ def validate_qtsp_certificate(cert_der: bytes) -> QESValidationResult:
         issues.append(
             "qcStatements extension not present — TSA is not a qualified provider"
         )
-    except Exception as qc_err:
+    except Exception as qc_err:  # noqa: BLE001 — qcStatements extension walk; varied cryptography errors all mean not-qualified
         issues.append(f"qcStatements walk failed: {qc_err}")
 
     # Chain root fingerprint placeholder (W8.8.1: walk via trustlist lib).
@@ -362,7 +362,7 @@ def walk_eu_trust_list_chain_pyhanko(
 
     try:
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — X.509 DER parse; returns structured TrustListChainResult error
         return TrustListChainResult(
             verified=False, error=f"failed to parse QTSP cert: {e}"
         )
@@ -400,7 +400,7 @@ def walk_eu_trust_list_chain_pyhanko(
                 lotl_signers = await bootstrap_lotl_signers(
                     latest_lotl_xml=latest, client=client, cache=cache
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — pyhanko LOTL bootstrap (async); returns structured error result
                 return TrustListChainResult(
                     verified=False,
                     error=f"pyhanko LOTL bootstrap failed: {e}",
@@ -443,7 +443,7 @@ def walk_eu_trust_list_chain_pyhanko(
 
     try:
         return asyncio.run(_walk())
-    except Exception as e:
+    except Exception:  # noqa: BLE001 — asyncio.run wrapper; any pyhanko/aiohttp failure falls back to crypto impl
         # Any pyhanko / aiohttp failure falls back to the crypto impl
         # so the caller still gets a structured (if less authoritative)
         # result.
@@ -510,9 +510,7 @@ def _walk_eu_trust_list_chain_crypto(
     """
     try:
         from cryptography import x509
-        from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.backends import default_backend
-        from cryptography.x509.oid import ExtensionOID
     except ImportError as e:
         return TrustListChainResult(
             verified=False,
@@ -521,7 +519,7 @@ def _walk_eu_trust_list_chain_crypto(
 
     try:
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — X.509 DER parse; returns structured TrustListChainResult error
         return TrustListChainResult(
             verified=False, error=f"failed to parse QTSP cert: {e}"
         )
@@ -535,7 +533,7 @@ def _walk_eu_trust_list_chain_crypto(
                 resp = client.get(lotl_url)
                 resp.raise_for_status()
                 lotl_xml = resp.content
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — LOTL HTTP fetch; returns structured error result
             return TrustListChainResult(
                 verified=False,
                 error=f"LOTL fetch failed ({lotl_url}): {e}",
@@ -554,10 +552,6 @@ def _walk_eu_trust_list_chain_crypto(
         from lxml import etree
 
         root = etree.fromstring(lotl_xml)
-        ns = {
-            "ns2": "http://uri.etsi.org/02231/v2.0.0#",
-            "ns3": "http://www.w3.org/2000/09/xmldsig#",
-        }
         # Extract all X509Certificate elements (TLv6 uses a different
         # structure but the cert elements are similar).
         anchors: list[str] = []
@@ -575,7 +569,7 @@ def _walk_eu_trust_list_chain_crypto(
                     __import__("cryptography.hazmat.primitives.hashes", fromlist=["SHA1"]).SHA1()
                 ).hex().upper()
                 anchors.append(fp)
-            except Exception:  # noqa: BLE001 — intentional degraded mode (per README §"Scope of Compliance in v1.0").
+            except Exception:  # noqa: BLE001 — per-cert DER parse failure; one bad anchor must not poison the LOTL walk
                 # W8.9.1+narrowed: catch is documented in the function docstring.
                 # Per-cert parse failure (bad DER, unsupported algorithm, malformed
                 # base64) is a no-op for that single cert. We continue with the rest
@@ -599,7 +593,6 @@ def _walk_eu_trust_list_chain_crypto(
         current = cert
         for _ in range(10):  # max chain depth
             chain.append(current)
-            issuer = current.issuer
             # Find a cert in the chain that matches the issuer
             # (production code uses a trust store)
             issuer_fingerprint = current.fingerprint(
@@ -636,7 +629,7 @@ def _walk_eu_trust_list_chain_crypto(
             "W8.8.2 — for now we validate the leaf cert's fingerprint "
             "is in the static EU Trust List anchors)",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — chain walk error; returns structured error result
         return TrustListChainResult(
             verified=False,
             error=f"chain walk error: {e}",

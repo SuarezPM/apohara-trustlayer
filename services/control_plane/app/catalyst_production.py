@@ -127,7 +127,7 @@ def post_step_receipt(req: StepReceiptRequest) -> StepReceiptResponse:
             context_root_hash=req.context_root_hash,
             prev_step_hash=req.prev_step_hash,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — agent_step_receipt; broad catch prevents 500 from varied validation errors
         logger.error(f"agent_step_receipt failed: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -165,7 +165,7 @@ def post_manifest(req: ManifestRequest) -> ManifestResponse:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(ve),
         ) from ve
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — orchestration_manifest; broad catch prevents 500 from varied validation errors
         logger.error(f"orchestration_manifest failed: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
