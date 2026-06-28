@@ -79,18 +79,33 @@ def test_cordon_enforcer_verdict_synthesizer_only_sees_fingerprints() -> None:
 
 
 def test_run_scenario_returns_real_verdict() -> None:
-    """W8.9.2 — every registered scenario must return PASS or FAIL
-    (no longer NOT_RUN), backed by an auditable check that names the
-    actual CordonEnforcer control that maps to the scenario.
+    """W8.9.2 + W9.4 honest verdict — every registered scenario must
+    return CONTROL_REGISTERED by default (PASS/FAIL only when
+    TL_ADVERSARIAL_LIVE=1 and real fixture execution succeeds), backed
+    by an auditable check that names the actual CordonEnforcer
+    control that maps to the scenario.
     """
     s = OASB_SCENARIOS[0]
     result = run_scenario(s)
     assert result["scenario_code"] == s.code
     assert result["name"] == s.name
     assert result["severity"] == s.severity
-    # W8.9.2: every registered check returns PASS or FAIL.
-    assert result["verdict"] in {"PASS", "FAIL"}
-    # Audit log mentions the W8.9.2 control check (not the W8.9.1 scaffold).
+    # W9.4 honest verdict: CONTROL_REGISTERED by default (TL_ADVERSARIAL_LIVE
+    # unset). PASS/FAIL reserved for live execution. NOT_RUN for unmapped.
+    assert result["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED", "NOT_RUN"}
+    assert result["verdict"] == "CONTROL_REGISTERED", (
+        f"Default mode (TL_ADVERSARIAL_LIVE unset) must return "
+        f"CONTROL_REGISTERED, not {result['verdict']}"
+    )
+    # Audit log must document why it's CONTROL_REGISTERED (not PASS).
+    assert any(
+        "TL_ADVERSARIAL_LIVE" in line or "static control" in line
+        for line in result["audit_log"]
+    ), (
+        f"audit_log should explain the CONTROL_REGISTERED verdict: "
+        f"{result['audit_log']}"
+    )
+    # Audit log mentions the W8.9.2 control check.
     assert any("W8.9.2" in line or "importable" in line or "present" in line
                or "Cargo.lock" in line or "apohara-agentguard" in line
                for line in result["audit_log"]), (
@@ -100,9 +115,9 @@ def test_run_scenario_returns_real_verdict() -> None:
 
 
 def test_all_registered_scenarios_return_real_verdict() -> None:
-    """W8.9.2 — every OASB + AgentDojo + ATLAS scenario returns PASS
-    or FAIL (no NOT_RUN). Each scenario maps to a registered control
-    check in `_CONTROL_CHECKS`.
+    """W8.9.2 + W9.4 — every OASB + AgentDojo + ATLAS scenario returns
+    CONTROL_REGISTERED by default (or PASS/FAIL under live mode). Each
+    scenario maps to a registered control check in `_CONTROL_CHECKS`.
     """
     from app.adversarial_scaffold import _CONTROL_CHECKS
     all_scenarios = OASB_SCENARIOS + AGENTDOJO_ATTACKS + ATLAS_TECHNIQUES
@@ -111,12 +126,18 @@ def test_all_registered_scenarios_return_real_verdict() -> None:
         assert s.code in _CONTROL_CHECKS, (
             f"scenario {s.code} not registered in _CONTROL_CHECKS"
         )
-    # Every registered check returns PASS or FAIL.
+    # Every registered check returns CONTROL_REGISTERED (default mode).
     for s in all_scenarios:
         result = run_scenario(s)
-        assert result["verdict"] in {"PASS", "FAIL"}, (
+        assert result["verdict"] in {
+            "PASS", "FAIL", "CONTROL_REGISTERED"
+        }, (
             f"scenario {s.code} returned {result['verdict']}; "
-            f"expected PASS or FAIL"
+            f"expected PASS, FAIL, or CONTROL_REGISTERED"
+        )
+        assert result["verdict"] == "CONTROL_REGISTERED", (
+            f"Default mode (TL_ADVERSARIAL_LIVE unset) for {s.code} "
+            f"must be CONTROL_REGISTERED, not {result['verdict']}"
         )
 
 

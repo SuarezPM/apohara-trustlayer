@@ -144,7 +144,9 @@ def test_run_scenario_with_known_code_returns_verdict() -> None:
         data = r.json()
         assert data["scenario_code"] == "OASB-PI-001"
         assert data["suite"] == "OASB"
-        assert data["verdict"] in {"PASS", "FAIL", "NOT_RUN"}
+        assert data["verdict"] in {
+            "PASS", "FAIL", "NOT_RUN", "CONTROL_REGISTERED"
+        }
         # Mitigations list is non-empty for a known scenario
         assert isinstance(data["trustlayer_mitigations"], list)
         assert len(data["trustlayer_mitigations"]) >= 1
@@ -266,10 +268,10 @@ def test_run_scenario_returns_pass_or_fail_for_all_15() -> None:
     for s in all_scenarios:
         result = run_scenario(s)
         assert "verdict" in result, f"missing verdict for {s.code}: {result}"
-        assert result["verdict"] in {"PASS", "FAIL"}, (
+        assert result["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED"}, (
             f"scenario {s.code} returned {result['verdict']!r} "
-            f"(expected PASS or FAIL, NOT_RUN is not allowed for "
-            f"canonical scenarios)"
+            f"(expected PASS, FAIL, or CONTROL_REGISTERED — NOT_RUN "
+            f"is not allowed for canonical scenarios)"
         )
         verdicts[s.code] = result["verdict"]
 
