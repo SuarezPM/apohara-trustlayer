@@ -30,6 +30,54 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://trustlayer:trustlayer@localhost:5432/trustlayer",
         description="PostgreSQL connection string (asyncpg).",
     )
+    # P5.2: PostgreSQL production-grade connection options. The asyncpg
+    # URL scheme accepts `ssl=require` as a query parameter (asyncpg-native)
+    # but the explicit `database_ssl_mode` + `database_ssl_root_cert_path`
+    # pair below is the Plan v1.2 / IC-7 preferred shape — it allows the
+    # operator to point at a CA bundle shipped with the binary (no
+    # baked-in system roots in production).
+    database_ssl_mode: str = Field(
+        default="prefer",
+        description=(
+            "PostgreSQL SSL mode (asyncpg `ssl` parameter): "
+            "'disable' | 'prefer' | 'require' | 'verify-ca' | 'verify-full'. "
+            "Production MUST be 'require' or stricter (Plan IC-7)."
+        ),
+    )
+    database_ssl_root_cert_path: str | None = Field(
+        default=None,
+        description=(
+            "Path to the Postgres CA cert (PEM). Required for"
+            " 'verify-ca' / 'verify-full'. Production should pin the CA"
+            " shipped with the deployment (RDS ca-bundle / Supabase CA)."
+        ),
+    )
+    database_pool_size: int = Field(
+        default=10,
+        description=(
+            "SQLAlchemy async connection pool size. Rule of thumb:"
+            " 2 × CPU cores per app instance. Production: 10–50."
+        ),
+    )
+    database_pool_max_overflow: int = Field(
+        default=5,
+        description=(
+            "Connections allowed beyond `pool_size` during burst. 0 ="
+            " no overflow (pool is strictly bounded)."
+        ),
+    )
+    database_pool_timeout_seconds: int = Field(
+        default=30,
+        description="Seconds to wait before raising PoolTimeout on exhaustion.",
+    )
+    database_pool_pre_ping: bool = Field(
+        default=True,
+        description=(
+            "Test connection liveness with SELECT 1 before use. Catches"
+            " server-side idle disconnects. Off by default in asyncpg"
+            " but ON by default for asyncpg-via-async (recommended)."
+        ),
+    )
 
     # Org identity (Architect IC-4: OrgId newtype, env-driven, NO silent default)
     # Per Architect approval gate (IC-4 reconciliation): the env var IS

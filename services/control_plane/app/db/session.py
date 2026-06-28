@@ -54,16 +54,40 @@ _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
 def _get_engine() -> AsyncEngine:
-    """Return the global async engine, creating it on first access."""
+    """Return the global async engine, creating it on first access.
+
+    P5.2: production-grade connection options:
+    - `pool_size` + `pool_max_overflow` + `pool_timeout` for capacity
+      planning (Plan IC-7 §Postgres connection management).
+    - `pool_pre_ping` for server-side idle-disconnect handling.
+    - SSL via the `connect_args={"ssl": ...}` mapping to asyncpg's
+      `ssl` parameter. `database_ssl_mode='verify-full'` +
+      `database_ssl_root_cert_path='/path/to/rds-ca-bundle.pem'`
+      is the strictest setting — the production target.
+    """
     global _engine
     if _engine is None:
         settings = get_settings()
+        connect_args: dict = {}
+        ssl_mode = settings.database_ssl_mode
+        if ssl_mode and ssl_mode != "disable":
+            ssl_kwargs: dict = {}
+            if ssl_mode != "prefer":
+                ssl_kwargs["sslmode"] = ssl_mode
+            if settings.database_ssl_root_cert_path:
+                ssl_kwargs["ssl"] = settings.database_ssl_root_cert_path
+            if ssl_kwargs:
+                connect_args["ssl"] = ssl_kwargs
         # echo=False in production; tests can override the global
         # to inspect the SQL.
         _engine = create_async_engine(
             settings.database_url,
             echo=False,
-            pool_pre_ping=True,
+            pool_size=settings.database_pool_size,
+            max_overflow=settings.database_pool_max_overflow,
+            pool_timeout=settings.database_pool_timeout_seconds,
+            pool_pre_ping=settings.database_pool_pre_ping,
+            connect_args=connect_args or None,
         )
     return _engine
 
