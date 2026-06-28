@@ -168,11 +168,11 @@ async fn run() {
         total_usd_cents += usd_cents;
 
         if matches!(
-            sp.packet().bbaaar_outcome,
+            sp.packet().bbaaar_outcome(),
             themis_agents::baaar::Outcome::Halt(_)
         ) {
             halt_latency_ms.insert(f.invoice_id.clone(), elapsed_ms);
-            let key = format!("{:?}", sp.packet().bbaaar_outcome);
+            let key = format!("{:?}", sp.packet().bbaaar_outcome());
             *halt_distribution.entry(key).or_insert(0) += 1;
         }
 
@@ -223,7 +223,7 @@ async fn run() {
             .await
             .unwrap();
         if matches!(
-            sp.packet().bbaaar_outcome,
+            sp.packet().bbaaar_outcome(),
             themis_agents::baaar::Outcome::Halt(_)
         ) {
             halts_10 += 1;

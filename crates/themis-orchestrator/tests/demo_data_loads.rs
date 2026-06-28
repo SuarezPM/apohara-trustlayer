@@ -72,7 +72,7 @@ async fn stark_001_halts_on_risk_score_exceeded() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet().bbaaar_outcome,
+        sp.packet().bbaaar_outcome(),
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::RiskScoreExceeded),
         "stark-001 should HALT on risk_score (vendor duplicate)"
     );
@@ -87,7 +87,7 @@ async fn stark_002_halts_on_risk_score_exceeded() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet().bbaaar_outcome,
+        sp.packet().bbaaar_outcome(),
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::RiskScoreExceeded),
         "stark-002 should HALT on risk_score (no PO)"
     );
@@ -102,7 +102,7 @@ async fn stark_003_halts_on_secret_leak() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet().bbaaar_outcome,
+        sp.packet().bbaaar_outcome(),
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::SecretLeakDetected),
         "stark-003 should HALT on SecretLeak (OFAC sanctioned vendor)"
     );
@@ -117,7 +117,7 @@ async fn wayne_001_halts_on_coherence_too_low() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet().bbaaar_outcome,
+        sp.packet().bbaaar_outcome(),
         themis_agents::baaar::Outcome::Halt(themis_agents::baaar::BaaarReason::CoherenceTooLow),
         "wayne-001 should HALT on CoherenceTooLow (future invoice_date)"
     );
@@ -132,7 +132,7 @@ async fn wayne_002_approves() {
         .await
         .unwrap();
     assert_eq!(
-        sp.packet().bbaaar_outcome,
+        sp.packet().bbaaar_outcome(),
         themis_agents::baaar::Outcome::Approve,
         "wayne-002 should APPROVE (clean invoice)"
     );
@@ -155,7 +155,7 @@ async fn distribution_4_halt_1_approved() {
             .process_invoice(&f.tenant_id, &f.invoice_id, b"raw".to_vec())
             .await
             .unwrap();
-        match sp.packet().bbaaar_outcome {
+        match sp.packet().bbaaar_outcome() {
             themis_agents::baaar::Outcome::Halt(_) => halts += 1,
             themis_agents::baaar::Outcome::Approve => approves += 1,
         }

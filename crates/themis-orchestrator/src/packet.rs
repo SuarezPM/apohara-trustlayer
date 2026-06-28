@@ -91,35 +91,46 @@ pub struct PeerVerdict {
 }
 
 /// The canonical Evidence Packet. One per invoice run.
+///
+/// P4.6: all fields are `pub(crate)` (only the in-module `new()`
+/// constructor + the `attach_peer_verdict` mutator may write).
+/// External code reads via the 8 `pub` getters below. The previous
+/// `evidence_packet_v` field (0 reads / 0 writes outside the
+/// constructor) was removed — it was a dead wire-format-version
+/// field that the old code never actually consumed. The schema
+/// version is now a const (`SCHEMA_VERSION`) used by the
+/// serialization layer if needed in the future.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidencePacket {
     /// Unique packet id (UUID v4).
-    pub packet_id: Uuid,
+    pub(crate) packet_id: Uuid,
     /// Tenant identifier (Stark or Wayne).
-    pub tenant_id: String,
+    pub(crate) tenant_id: String,
     /// Invoice being processed.
-    pub invoice_id: String,
+    pub(crate) invoice_id: String,
     /// Chain of agent decisions, in order.
-    pub agent_decisions: Vec<AgentDecision>,
-    /// Schema version (bump when the wire format changes).
-    pub evidence_packet_v: u32,
+    pub(crate) agent_decisions: Vec<AgentDecision>,
     /// Unix epoch ms when the packet was sealed.
-    pub generated_at_ms: i64,
+    pub(crate) generated_at_ms: i64,
     /// BAAAR gate verdict (Approve or Halt(reason)).
-    pub bbaaar_outcome: Outcome,
+    pub(crate) bbaaar_outcome: Outcome,
     /// Framework coverage. All 7 default to `true`.
-    pub framework_mappings: FrameworkMappings,
+    pub(crate) framework_mappings: FrameworkMappings,
     /// Independent verdicts from peer agents (PydanticAI,
     /// LangGraph, CrewAI). Empty when no peer responded
     /// before the BAAAR gate sealed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub peer_verdicts: Vec<PeerVerdict>,
+    pub(crate) peer_verdicts: Vec<PeerVerdict>,
 }
+
+/// Schema version (the only `evidence_packet_v` ever used was the
+/// const `1`). Future schema bumps live here.
+pub const SCHEMA_VERSION: u32 = 1;
 
 impl EvidencePacket {
     /// New packet for a (tenant, invoice) pair with the given
-    /// decisions. `evidence_packet_v` defaults to 1; the caller can
-    /// bump it when the schema changes.
+    /// decisions. Sets `generated_at_ms` to the current UTC epoch
+    /// ms; callers can override via `with_generated_at` if needed.
     pub fn new(
         tenant_id: impl Into<String>,
         invoice_id: impl Into<String>,
@@ -131,7 +142,6 @@ impl EvidencePacket {
             tenant_id: tenant_id.into(),
             invoice_id: invoice_id.into(),
             agent_decisions: decisions,
-            evidence_packet_v: 1,
             generated_at_ms: chrono::Utc::now().timestamp_millis(),
             bbaaar_outcome: outcome,
             framework_mappings: FrameworkMappings::default(),
@@ -143,6 +153,58 @@ impl EvidencePacket {
     /// ``peer_verdict`` envelope arrives from the Band room.
     pub fn attach_peer_verdict(&mut self, verdict: PeerVerdict) {
         self.peer_verdicts.push(verdict);
+    }
+
+    /// Override `generated_at_ms` (for tests + backfill on import).
+    pub fn with_generated_at(mut self, ts_ms: i64) -> Self {
+        self.generated_at_ms = ts_ms;
+        self
+    }
+
+    // -- Read accessors (P4.6: pub→private fields; all reads go
+    //    through these). Slices for the Vec fields are intentional:
+    //    callers can iterate but cannot mutate the underlying storage.
+
+    /// Unique packet id (UUID v4).
+    pub fn packet_id(&self) -> Uuid {
+        self.packet_id
+    }
+
+    /// Tenant identifier (Stark or Wayne).
+    pub fn tenant_id(&self) -> &str {
+        &self.tenant_id
+    }
+
+    /// Invoice being processed.
+    pub fn invoice_id(&self) -> &str {
+        &self.invoice_id
+    }
+
+    /// Chain of agent decisions, in order.
+    pub fn agent_decisions(&self) -> &[AgentDecision] {
+        &self.agent_decisions
+    }
+
+    /// Unix epoch ms when the packet was sealed.
+    pub fn generated_at_ms(&self) -> i64 {
+        self.generated_at_ms
+    }
+
+    /// BAAAR gate verdict (Approve or Halt(reason)). Returned by value
+    /// — `Outcome` is `Copy` (a small enum), so callers don't need
+    /// `.clone()` and PartialEq comparisons work without `&` plumbing.
+    pub fn bbaaar_outcome(&self) -> Outcome {
+        self.bbaaar_outcome
+    }
+
+    /// Framework coverage. All 7 default to `true`.
+    pub fn framework_mappings(&self) -> &FrameworkMappings {
+        &self.framework_mappings
+    }
+
+    /// Independent verdicts from peer agents.
+    pub fn peer_verdicts(&self) -> &[PeerVerdict] {
+        &self.peer_verdicts
     }
 
     /// Serialize the packet to canonical JSON bytes. The current

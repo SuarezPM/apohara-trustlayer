@@ -252,7 +252,7 @@ impl AppState {
     /// with the same id already exists; this preserves the id aliasing
     /// between `packets` and `sealed`).
     pub fn store_packet(&self, packet: SignedPacket) {
-        self.packets.insert(packet.packet().packet_id, packet);
+        self.packets.insert(packet.packet().packet_id(), packet);
     }
 
     /// Look up a signed packet by packet_id.
@@ -529,10 +529,10 @@ async fn post_invoices(
         }
     };
     let compliance_packet = themis_compliance::framework::EvidencePacket::new(
-        packet.packet().tenant_id.clone(),
-        packet.packet().invoice_id.clone(),
-        packet.packet().agent_decisions.clone(),
-        packet.packet().bbaaar_outcome,
+        packet.packet().tenant_id().to_string(),
+        packet.packet().invoice_id().to_string(),
+        packet.packet().agent_decisions().to_vec(),
+        packet.packet().bbaaar_outcome(),
     );
     let report = state.compliance().report(&compliance_packet);
 
@@ -567,7 +567,7 @@ async fn post_invoices(
         let delta = (fraud_risk - gaap_risk).abs();
         if delta > 0.3 {
             let ruling = if matches!(
-                packet.packet().bbaaar_outcome,
+                packet.packet().bbaaar_outcome(),
                 themis_agents::baaar::Outcome::Approve
             ) {
                 "approve"
@@ -592,17 +592,17 @@ async fn post_invoices(
         // frontend already knows), not the SealedPacket's
         // internal id (which is a fresh UUIDv4 minted by
         // EvidenceService::seal).
-        state.store_sealed(packet.packet().packet_id, s);
+        state.store_sealed(packet.packet().packet_id(), s);
     }
     state.event_bus().publish(Event::EvidenceSealed {
         run_id,
-        packet_id: packet.packet().packet_id,
+        packet_id: packet.packet().packet_id(),
     });
 
     state.event_bus().publish(Event::RunFinished { run_id });
     Ok(Json(json!({
         "run_id": run_id,
-        "packet_id": packet.packet().packet_id,
+        "packet_id": packet.packet().packet_id(),
         "compliance": report,
         "model_id": state.model_id(),
     })))
@@ -775,7 +775,7 @@ async fn get_packet_pdf(
     })?;
     let disposition = format!(
         "attachment; filename=\"themis-{}-{}.pdf\"",
-        packet.packet().tenant_id, packet.packet().invoice_id
+        packet.packet().tenant_id(), packet.packet().invoice_id()
     );
     build_attachment_response(
         StatusCode::OK,
@@ -823,7 +823,7 @@ async fn get_packet_json(
     })?;
     let disposition = format!(
         "attachment; filename=\"vouch-{}-{}.json\"",
-        packet.packet().tenant_id, packet.packet().invoice_id
+        packet.packet().tenant_id(), packet.packet().invoice_id()
     );
     build_attachment_response(
         StatusCode::OK,

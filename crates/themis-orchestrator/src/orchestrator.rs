@@ -1000,15 +1000,15 @@ mod tests {
             .process_invoice("stark", "inv-001", b"raw bytes".to_vec())
             .await
             .unwrap();
-        assert_eq!(sp.packet().tenant_id, "stark");
-        assert_eq!(sp.packet().invoice_id, "inv-001");
+        assert_eq!(sp.packet().tenant_id(), "stark");
+        assert_eq!(sp.packet().invoice_id(), "inv-001");
         // 8 agents → 8 decisions in the chain.
-        assert_eq!(sp.packet().agent_decisions.len(), 8);
+        assert_eq!(sp.packet().agent_decisions().len(), 8);
         // Public key matches stark's real pubkey (from SignerService).
         let stark_signer = themis_evidence::signer::SignerService::for_tenant("stark").unwrap();
         assert_eq!(sp.public_key_hex(), stark_signer.public_key_hex());
         // Framework mappings all true.
-        assert_eq!(sp.packet().framework_mappings.coverage_count(), 7);
+        assert_eq!(sp.packet().framework_mappings().coverage_count(), 7);
     }
 
     #[tokio::test]
@@ -1073,7 +1073,7 @@ mod tests {
             .unwrap();
         // The packet still has decisions, but the outcome is Halt.
         assert!(matches!(
-            sp.packet().bbaaar_outcome,
+            sp.packet().bbaaar_outcome(),
             Outcome::Halt(BaaarReason::RiskScoreExceeded)
         ));
     }
@@ -1231,7 +1231,7 @@ mod tests {
                 .await
                 .unwrap();
             if matches!(
-                sp.packet().bbaaar_outcome,
+                sp.packet().bbaaar_outcome(),
                 Outcome::Halt(BaaarReason::RiskScoreExceeded)
             ) {
                 halt_count += 1;
@@ -1253,6 +1253,6 @@ mod tests {
             .unwrap();
         // The packet is still returned (Halted with empty decisions).
         // No BAAAR halt (just a fail-closed due to missing agent).
-        assert_eq!(sp.packet().agent_decisions.len(), 0);
+        assert_eq!(sp.packet().agent_decisions().len(), 0);
     }
 }
