@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
@@ -250,26 +251,45 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
     return steps
 
 
+# Pattern matching common Python stack-trace fragments. Anything that *looks*
+# like a stack trace is replaced with a generic placeholder so internal paths,
+# line numbers, and exception types are never echoed to a public HTML page
+# (CodeQL py/stack-trace-exposure, CWE-209).
+_STACKTRACE_RE = re.compile(
+    r"(Traceback \(most recent call last\):"
+    r"|File \"[^\"]+\", line \d+, in "
+    r"|during handling of the above exception, another exception occurred"
+    r"|\b[A-Z][A-Za-z0-9_.]*(?:Error|Exception|Interrupt|Warning)\b)"
+)
+
+
+def _sanitize_for_html(value: str) -> str:
+    """Mask any substring that resembles a Python stack trace."""
+    if not value:
+        return value
+    return _STACKTRACE_RE.sub("[err]", value)
+
+
 def render_html_l1(cert: dict, verification_steps: list[str]) -> str:
     """Render the L1 HTML summary page."""
     import html as html_lib
     return HTML_L1_TEMPLATE.format(
         status_class="status-valid" if cert.get("status") == "valid" else "status-invalid",
-        status=html_lib.escape(cert.get("status", "unknown")),
-        cert_id=html_lib.escape(cert.get("cert_id", "")),
-        content_hash=html_lib.escape(cert.get("content_hash", "")),
-        content_type=html_lib.escape(cert.get("content_type", "")),
-        ai_system_id=html_lib.escape(cert.get("ai_system_id", "")),
-        submitted_by=html_lib.escape(cert.get("submitted_by", "")),
-        notarized_at=html_lib.escape(cert.get("notarized_at", "")),
+        status=html_lib.escape(_sanitize_for_html(str(cert.get("status", "unknown")))),
+        cert_id=html_lib.escape(_sanitize_for_html(str(cert.get("cert_id", "")))),
+        content_hash=html_lib.escape(_sanitize_for_html(str(cert.get("content_hash", "")))),
+        content_type=html_lib.escape(_sanitize_for_html(str(cert.get("content_type", "")))),
+        ai_system_id=html_lib.escape(_sanitize_for_html(str(cert.get("ai_system_id", "")))),
+        submitted_by=html_lib.escape(_sanitize_for_html(str(cert.get("submitted_by", "")))),
+        notarized_at=html_lib.escape(_sanitize_for_html(str(cert.get("notarized_at", "")))),
         primary_key_fingerprint=html_lib.escape(
-            cert.get("primary_key_fingerprint", "")
+            _sanitize_for_html(str(cert.get("primary_key_fingerprint", "")))
         ),
         cwt_claims_json=html_lib.escape(
-            cert.get("cwt_claims_json", "{}")
+            _sanitize_for_html(str(cert.get("cwt_claims_json", "{}")))
         ),
         verification_steps_html="".join(
-            f"<li>{html_lib.escape(s)}</li>" for s in verification_steps
+            f"<li>{html_lib.escape(_sanitize_for_html(s))}</li>" for s in verification_steps
         ),
     )
 

@@ -19,6 +19,7 @@ sessionmaker across tests). These focused tests:
 from __future__ import annotations
 
 import asyncio
+import os
 import sqlite3
 import tempfile
 import uuid
@@ -45,7 +46,12 @@ def fresh_aio_sqlite_url(monkeypatch) -> str:
     reset them via `reset_engine_for_tests()` before each test. This
     isolates tests from each other and from the default Postgres URL.
     """
-    url = f"sqlite+aiosqlite:///{tempfile.mktemp(suffix='.sqlite')}"
+    # Use mkstemp (race-free, atomic file creation) rather than the deprecated
+    # `tempfile.mktemp` (CWE-377). SQLite will recreate the file via aiosqlite.
+    fd, db_path = tempfile.mkstemp(suffix=".sqlite")
+    os.close(fd)
+    os.unlink(db_path)
+    url = f"sqlite+aiosqlite:///{db_path}"
     from app.config import get_settings
     from app.db import session as _sess
 
