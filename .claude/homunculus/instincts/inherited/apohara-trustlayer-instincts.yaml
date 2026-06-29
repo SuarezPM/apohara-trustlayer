@@ -1,0 +1,318 @@
+# Instincts generated from https://github.com/SuarezPM/apohara-trustlayer
+# Generated: 2026-06-29T17:50:10.881Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: apohara-trustlayer-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: chore
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: chore(security): OpenSSF Best Practices, Scorecard, and SLSA L3 workflows
+
+---
+id: apohara-trustlayer-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Commit Length
+
+## Action
+
+Write moderate-length commit messages (~73 characters)
+
+## Evidence
+
+- Average commit message length: 73 chars
+- Based on 1 commits
+
+---
+id: apohara-trustlayer-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: apohara-trustlayer-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: apohara-trustlayer-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: apohara-trustlayer-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: apohara-trustlayer-instinct-camelcase-files
+trigger: "When creating or naming a new file in the codebase"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Camelcase Files
+
+## Action
+
+Use camelCase for file names
+
+## Evidence
+
+- Pattern in namingConventions.files: camelCase
+
+---
+id: apohara-trustlayer-instinct-camelcase-functions
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Camelcase Functions
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: apohara-trustlayer-instinct-pascalcase-classes
+trigger: "When creating a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Pascalcase Classes
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: apohara-trustlayer-instinct-screaming-constants
+trigger: "When declaring a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Screaming Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: apohara-trustlayer-instinct-relative-imports
+trigger: "When importing modules within the codebase"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Relative Imports
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: apohara-trustlayer-instinct-named-exports
+trigger: "When exporting functions, classes, or constants"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: apohara-trustlayer-instinct-separate-tests
+trigger: "When adding new tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Separate Tests
+
+## Action
+
+Place test files in a separate directory from source files
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: separate
+
+---
+id: apohara-trustlayer-instinct-conventional-commits-chore
+trigger: "When making a commit related to maintenance or tooling"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Conventional Commits Chore
+
+## Action
+
+Prefix the commit message with 'chore' following conventional commit format
+
+## Evidence
+
+- Pattern in commits.prefixes: chore
+- Seen in commit: chore(security): OpenSSF Best Practices, Scorecard, and SLSA L3 workflows
+
+---
+id: apohara-trustlayer-instinct-commit-length
+trigger: "When writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Commit Length
+
+## Action
+
+Aim for a commit message length around 73 characters
+
+## Evidence
+
+- Pattern in commits.averageLength: 73
+
+---
+id: apohara-trustlayer-instinct-workflow-location
+trigger: "When adding or modifying CI/CD workflows"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: SuarezPM/apohara-trustlayer
+---
+
+# Apohara Trustlayer Instinct Workflow Location
+
+## Action
+
+Place workflow YAML files in the .github/workflows directory
+
+## Evidence
+
+- Pattern in architecture.configFiles: .github/workflows/*.yml
+
