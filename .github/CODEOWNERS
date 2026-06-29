@@ -1,7 +1,7 @@
 # CODEOWNERS — OpenSSF Scorecard: Code-Review (10/10) + Branch-Protection
 # (10/10). Branch protection requires at least 1 approval from a CODEOWNER
 # on every PR to main. @SuarezPM is the BDFL; co-maintainers
-# @SuarezPM-2 and @SuarezPM-3 are listed per SECURITY.md § Continuity.
+#  and  are listed per SECURITY.md § Continuity.
 #
 # Pattern: every file in the repo has at least one owner. The default
 # `*` rule catches anything not explicitly listed (defense in depth).
@@ -15,33 +15,33 @@
 # (the maintainer runs this once; CI does not need it).
 
 # Default: any change needs a CODEOWNER review.
-/*                                       @SuarezPM @SuarezPM-2 @SuarezPM-3
+/*                                       @SuarezPM 
 
 # Critical paths: BDFL must review explicitly (per the dual-control
 # rule in SECURITY.md § Access Continuity).
 /Cargo.toml                               @SuarezPM
 /Cargo.lock                               @SuarezPM
-/SECURITY.md                              @SuarezPM @SuarezPM-2
-/GOVERNANCE.md                            @SuarezPM @SuarezPM-2
+/SECURITY.md                              @SuarezPM 
+/GOVERNANCE.md                            @SuarezPM 
 /.github/workflows/release.yml            @SuarezPM
 /.github/workflows/publish.yml            @SuarezPM
 /.github/workflows/publish-crates.yml     @SuarezPM
 /.github/workflows/_attest.yml            @SuarezPM
 /deny.toml                                @SuarezPM
 /crates/argus-crypto/                     @SuarezPM
-/crates/argus-verify/src/cordon.rs        @SuarezPM @SuarezPM-2
+/crates/argus-verify/src/cordon.rs        @SuarezPM 
 
 # Audit chain code: the BLAKE3 + Ed25519 chain is the regulator-facing
 # artifact. Any change here is breaking.
-/crates/apohara-argus-core/src/types.rs   @SuarezPM @SuarezPM-2
-/crates/argus-crypto/                     @SuarezPM @SuarezPM-2
+/crates/apohara-argus-core/src/types.rs   @SuarezPM 
+/crates/argus-crypto/                     @SuarezPM 
 
 # Threat model + security docs: BDFL + co-maintainer must both sign off.
-/docs/THREAT_MODEL.md                     @SuarezPM @SuarezPM-2
-/docs/ASSURANCE_CASE.md                   @SuarezPM @SuarezPM-2
-/docs/SECURITY.md                         @SuarezPM @SuarezPM-2
+/docs/THREAT_MODEL.md                     @SuarezPM 
+/docs/ASSURANCE_CASE.md                   @SuarezPM 
+/docs/SECURITY.md                         @SuarezPM 
 
 # CI: CODEOWNER review on workflow changes (defense in depth).
 /.github/workflows/                       @SuarezPM
 /.github/dependabot.yml                   @SuarezPM
-/.github/CODEOWNERS                       @SuarezPM @SuarezPM-2
+/.github/CODEOWNERS                       @SuarezPM 

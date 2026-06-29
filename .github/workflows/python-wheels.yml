@@ -15,6 +15,9 @@ on:
       - "sdk/python/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-wheels:
     name: Build wheel (${{ matrix.target }})
@@ -40,15 +43,15 @@ jobs:
             python_version: "3.12"
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@1bd1e32a3e70a9e90b253bb4fbbb9b8b56fa5fe7 # v4
         with:
           path: |
             ~/.cargo/registry
@@ -58,7 +61,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install Python ${{ matrix.python_version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
         with:
           python-version: ${{ matrix.python_version }}
 
@@ -71,7 +74,7 @@ jobs:
           maturin build --release --out dist/wheels/
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wheel-${{ matrix.target }}
           path: sdk/python/dist/wheels/*.whl
@@ -84,10 +87,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: dist/wheels
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: dist/wheels
           skip-existing: true
