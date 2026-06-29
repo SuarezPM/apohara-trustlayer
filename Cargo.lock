@@ -5610,7 +5610,7 @@ dependencies = [
  "coset 0.4.2",
  "ed25519-dalek",
  "hex",
- "rand_core 0.6.4",
+ "rand_core 0.9.5",
  "serde",
  "serde_cbor_2",
  "serde_json",
