@@ -84,7 +84,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist/wheels
       - uses: pypa/gh-action-pypi-publish@release/v1
