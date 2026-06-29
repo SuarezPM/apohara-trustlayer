@@ -1,0 +1,252 @@
+name: Release
+
+# Builds the `tl-verify` CLI binary for 5 OS/arch targets, attaches a
+# SLSA Build L3 provenance attestation to each staged binary via the
+# isolated reusable `_attest` workflow, assembles a SHA256 manifest of
+# all artifacts, and creates a DRAFT GitHub Release.
+#
+# This workflow does NOT publish wheels to PyPI — `python-wheels.yml`
+# owns that path (it has its own tag-triggered `publish` job using
+# PyPI Trusted Publishing). It focuses on the standalone `tl-verify`
+# CLI binary, which is the user-facing verification surface.
+#
+# Triggers:
+#   - push tag v*       (the canonical release path)
+#   - workflow_dispatch (manual dry-run / pre-flight)
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+# OpenSSF Scorecard Token-Permissions (10/10): top-level default is the
+# strictest minimum (`contents: read`). Jobs that need write scope
+# (`gh-release` creating the GitHub Release, `attest` writing the SLSA
+# L3 provenance) override per-job. This is the scorecard-recommended way
+# to keep the GITHUB_TOKEN least-privilege.
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build matrix: 5 targets matching python-wheels.yml so the standalone
+  # CLI binary coverage matches the wheel coverage.
+  #
+  # SLSA L3 isolation: this job holds NO signing scopes. Provenance is
+  # generated in the separate reusable `attest` job (uses:
+  # ./.github/workflows/_attest.yml) downstream, so caller-controlled
+  # build steps cannot forge or influence signing.
+  #
+  # aarch64-unknown-linux-gnu is cross-compiled with `cross` (provides
+  # the cross toolchain + a suitable container image). The other four
+  # targets build natively on their respective runners.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            ext: ""
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            ext: ""
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: ".exe"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
+
+      # Python is required because `tl-ffi` (PyO3) is in the workspace
+      # tree and `cargo build` / `cross build` links libpython for
+      # the `--bin tl-verify` artifact even though tl-verify itself
+      # doesn't call the Python surface at runtime. Without this,
+      # the build fails with "fatal error: Python.h: No such file".
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cross (aarch64 Linux glibc)
+        if: matrix.cross == true
+        run: cargo install cross --locked
+
+      - name: Build (native)
+        if: matrix.cross != true
+        run: cargo build --release --locked --bin tl-verify --target ${{ matrix.target }}
+
+      - name: Build (cross, aarch64-linux)
+        if: matrix.cross == true
+        run: cross build --release --locked --bin tl-verify --target ${{ matrix.target }}
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          src="target/${{ matrix.target }}/release/tl-verify${{ matrix.ext }}"
+          dst="dist/tl-verify-${{ matrix.target }}${{ matrix.ext }}"
+          cp "$src" "$dst"
+
+      - name: Compute SHA256
+        shell: bash
+        run: |
+          cd dist
+          f="tl-verify-${{ matrix.target }}${{ matrix.ext }}"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$f" > "$f.sha256"
+          else
+            shasum -a 256 "$f" > "$f.sha256"
+          fi
+          cat "$f.sha256"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tl-verify-${{ matrix.target }}
+          path: dist/*
+
+  # ---------------------------------------------------------------------------
+  # SLSA Build L3 attestation: one call per target into the reusable
+  # workflow. The reusable job downloads the staged binary, hashes it
+  # base64-SHA256, and signs via Sigstore + GitHub OIDC keyless. Each
+  # attestation lands in the Rekor transparency log and the GitHub
+  # Attestations API.
+  #
+  # Verification after a public run (two equivalent paths):
+  #   slsa-verifier verify-artifact tl-verify-x86_64-unknown-linux-gnu \
+  #     --provenance-path tl-verify-x86_64-unknown-linux-gnu.intoto.jsonl \
+  #     --source-uri github.com/SuarezPM/apohara-trustlayer \
+  #     --github-workflow-ref .github/workflows/_attest.yml
+  #
+  #   gh attestation verify tl-verify-x86_64-unknown-linux-gnu \
+  #     -R SuarezPM/apohara-trustlayer \
+  #     --signer-workflow SuarezPM/apohara-trustlayer/.github/workflows/_attest.yml
+  #
+  # The release workflow runs this verification over every published
+  # target in the post-release audit; an unattested artifact fails the
+  # release gate.
+  # ---------------------------------------------------------------------------
+  attest:
+    name: attest ${{ matrix.target }}
+    needs: build
+    # Caller job must ALSO declare these for the reusable workflow's
+    # keyless OIDC signing + attestation write to work.
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            ext: ""
+          - target: aarch64-unknown-linux-gnu
+            ext: ""
+          - target: x86_64-apple-darwin
+            ext: ""
+          - target: aarch64-apple-darwin
+            ext: ""
+          - target: x86_64-pc-windows-msvc
+            ext: ".exe"
+    uses: ./.github/workflows/_attest.yml
+    with:
+      artifact-name: tl-verify-${{ matrix.target }}
+      subject-name: tl-verify${{ matrix.ext }}
+
+  # Assemble a combined SHA256SUMS file over all per-target binaries.
+  # The maintainer publishes this alongside the draft release so
+  # downstream users can verify artifact integrity independently of
+  # the SLSA attestation (belt + suspenders).
+  manifest:
+    name: assemble SHA256 manifest
+    needs: [build, attest]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+      - name: Build combined SHA256SUMS
+        shell: bash
+        run: |
+          mkdir -p release
+          # Collect every binary (and its .sha256 file) into one directory.
+          find artifacts -type f -name 'tl-verify-*' -exec cp {} release/ \;
+          cd release
+          : > SHA256SUMS
+          for f in tl-verify-*; do
+            # Skip the .sha256 sidecar files; only hash the binaries.
+            case "$f" in
+              *.sha256) continue ;;
+            esac
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$f" >> SHA256SUMS
+            else
+              shasum -a 256 "$f" >> SHA256SUMS
+            fi
+          done
+          echo "----- SHA256SUMS -----"
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tl-verify-release-manifest
+          path: release/*
+          retention-days: 90
+
+  # Creates a DRAFT GitHub Release (maintainer reviews and publishes).
+  # The release is created AFTER attestation so the maintainer can
+  # verify SLSA L3 provenance in the draft before making it public.
+  # tag_name comes from the triggering ref so tag `v0.1.0` produces
+  # a release titled `v0.1.0` without hardcoding.
+  gh-release:
+    name: create draft GitHub Release
+    needs: [manifest]
+    runs-on: ubuntu-latest
+    # Override: this job needs `contents: write` to create the
+    # GitHub Release via softprops/action-gh-release. The `attest`
+    # job needs `id-token: write` + `attestations: write`
+    # (declared inline above). All other jobs inherit
+    # `contents: read` from the workflow top level.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+      - name: Assemble release files
+        run: |
+          mkdir -p release
+          find artifacts -type f -name 'tl-verify-*' -exec cp {} release/ \;
+      - name: Create draft GitHub Release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            release/tl-verify-*
+            release/SHA256SUMS

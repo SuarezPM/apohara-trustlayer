@@ -1,0 +1,192 @@
+name: CI
+
+# Workspace CI for apohara-trustlayer (Rust + Python hybrid).
+# Adapted from apohara-argus's CI for the trustlayer stack:
+#   - Rust: fmt + clippy (-D warnings) + test matrix (ubuntu/macos/windows)
+#     + cargo-deny (licenses + advisories) + cargo-audit.
+#   - Python: ruff lint + pytest (via uv, matching `make test`) + pip-audit.
+#
+# Push on main and every PR. A red gate blocks the merge.
+# Does NOT publish anything; python-wheels.yml owns PyPI, release.yml owns
+# the `tl-verify` GitHub Release artifacts.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Token-Permissions 10/10: top-level default is `contents: read` only.
+# No job needs to widen (audit/upload steps go to artifacts, not the repo).
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # No-warning-debt rule: any clippy warning is an error.
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ===========================================================================
+  # RUST JOBS
+  # ===========================================================================
+
+  rust-fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  rust-clippy:
+    name: clippy (-D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # Hard gate: full workspace test matrix (Linux / macOS / Windows).
+  # Python is required at test time because `tl-ffi` (PyO3) links against
+  # libpython even in test builds that don't exercise the binding directly.
+  rust-test:
+    name: rust test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run workspace tests
+        run: cargo test --workspace --locked
+
+  # License allowlist + RUSTSEC advisories + cargo-audit (defense in depth).
+  # The 1 ignored advisory (RUSTSEC-2023-0071 rsa Marvin Attack) is
+  # documented in deny.toml with a per-entry rationale: transitive via
+  # themis-evidence (x509-tsp); not signing surface; Ed25519 only.
+  rust-deny:
+    name: cargo-deny + cargo-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install cargo-deny + cargo-audit
+        run: |
+          cargo install --locked cargo-deny
+          cargo install --locked cargo-audit
+      # Fails on any dependency license outside the allowlist in deny.toml.
+      - run: cargo deny check licenses
+      # Monitor RUSTSEC advisories against the dependency tree
+      # (dependency_monitoring). Uses the [advisories] section in deny.toml.
+      - run: cargo deny check advisories
+      # Defense-in-depth: also run the standalone cargo-audit walker.
+      # cargo-deny and cargo-audit share the same RustSec advisory DB but
+      # sometimes catch a crate the other misses (different version range
+      # matching, different sourcing).
+      - run: cargo audit
+
+  # ===========================================================================
+  # PYTHON JOBS
+  # ===========================================================================
+
+  # Lint: ruff over the control plane, the Python SDK sources, the e2e
+  # tests, and the support scripts. ruff default returns non-zero on
+  # findings, which is the merge-blocking signal we want.
+  python-lint:
+    name: ruff (Python lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install --upgrade pip ruff
+      - name: ruff check
+        run: |
+          ruff check \
+            services/control_plane \
+            sdk/python/src \
+            tests/ \
+            scripts/
+
+  # pytest mirrors the Python section of `make test`. The exact `--with`
+  # list is replicated verbatim from the Makefile (services/control_plane
+  # tests pull in fastapi + sqlalchemy + asyncpg + structlog + pyjwt + a
+  # full pydantic email stack), so we don't rely on a committed
+  # requirements.txt (the `uv run --no-project` model is intentional —
+  # dependencies resolve from PyPI per-run, identical to `make test`).
+  python-test:
+    name: pytest (Python tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install --upgrade pip uv
+      - name: Run pytest suite
+        env:
+          PYTHONPATH: services
+        run: |
+          uv run --no-project \
+            --with pytest --with pytest-asyncio --with pytest-cov \
+            --with httpx --with fastapi \
+            --with 'pydantic[email]' --with pydantic-settings \
+            --with sqlalchemy --with asyncpg --with structlog \
+            --with pyjwt --with uvicorn \
+            --with maturin \
+            pytest tests/ -v --tb=short
+
+  # pip-audit: counterpart to `cargo deny check advisories`. The repo has
+  # no committed requirements.txt (uv-managed per-run), so we resolve
+  # the runtime + test deps into a throwaway venv and audit it. The dep
+  # list is the same `--with` set used by `make test` / the python-test
+  # job above — what users actually get at install time.
+  python-audit:
+    name: pip-audit (Python dep audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install --upgrade pip pip-audit
+      - name: Build audit venv from the Python section of `make test`
+        run: |
+          python -m venv .audit-venv
+          . .audit-venv/bin/activate
+          pip install --quiet \
+            pytest pytest-asyncio pytest-cov \
+            httpx fastapi 'pydantic[email]' pydantic-settings \
+            sqlalchemy asyncpg structlog pyjwt uvicorn maturin
+      - name: pip-audit
+        run: . .audit-venv/bin/activate && pip-audit --strict
