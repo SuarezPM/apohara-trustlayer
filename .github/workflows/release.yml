@@ -82,7 +82,7 @@ jobs:
       # the `--bin tl-verify` artifact even though tl-verify itself
       # doesn't call the Python surface at runtime. Without this,
       # the build fails with "fatal error: Python.h: No such file".
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

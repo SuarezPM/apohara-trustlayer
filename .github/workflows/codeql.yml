@@ -42,7 +42,7 @@ jobs:
       # `tl-ffi` and any Python-dependent crate. 3.12 matches the
       # python-wheels.yml matrix.
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
