@@ -22,4 +22,4 @@ thiserror = "1"
 # Use a fixed key for the frozen test fixture (deterministic across runs).
 hex = "0.4"
 # For SigningKey::generate in tests (we provide a tiny deterministic RngCore).
-rand_core = "0.6"
+rand_core = "0.9"
