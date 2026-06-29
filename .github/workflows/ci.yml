@@ -72,7 +72,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
         with:
           python-version: "3.12"
       - name: Run workspace tests
@@ -119,11 +119,11 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
         with:
           python-version: "3.12"
       - name: Install ruff
-        run: pip install --upgrade pip ruff
+        run: pip install --upgrade "pip==24.3.1" "ruff==0.7.4"
       - name: ruff check
         run: |
           ruff check \
@@ -145,11 +145,11 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
         with:
           python-version: "3.12"
       - name: Install uv
-        run: pip install --upgrade pip uv
+        run: pip install --upgrade "pip==24.3.1" "uv==0.5.11"
       - name: Run pytest suite
         env:
           PYTHONPATH: services
@@ -175,18 +175,18 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
         with:
           python-version: "3.12"
       - name: Install pip-audit
-        run: pip install --upgrade pip pip-audit
+        run: pip install --upgrade "pip==24.3.1" "pip-audit==2.7.3"
       - name: Build audit venv from the Python section of `make test`
         run: |
           python -m venv .audit-venv
           . .audit-venv/bin/activate
           pip install --quiet \
-            pytest pytest-asyncio pytest-cov \
-            httpx fastapi 'pydantic[email]' pydantic-settings \
-            sqlalchemy asyncpg structlog pyjwt uvicorn maturin
+            "pytest==8.3.4" "pytest-asyncio==0.24.0" "pytest-cov==6.0.0" \
+            "httpx==0.27.2" "fastapi==0.115.6" "pydantic[email]==2.9.2" "pydantic-settings==2.6.1" \
+            "sqlalchemy==2.0.36" "asyncpg==0.30.0" "structlog==24.4.0" "pyjwt==2.10.1" "uvicorn==0.32.0" "maturin==1.8.3"
       - name: pip-audit
         run: . .audit-venv/bin/activate && pip-audit --strict
