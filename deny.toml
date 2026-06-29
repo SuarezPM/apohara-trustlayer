@@ -12,6 +12,28 @@ ignore = [
     # Mitigation: we do NOT use rsa for signing; Ed25519 only.
     # Documented in audit_artifacts/threat_model/rsa-marvin.md (US-22/AC-3).
     "RUSTSEC-2023-0071",
+    # RUSTSEC-2026-0187: Stack overflow in lopdf via deeply nested PDF objects
+    # in Document::load_mem (untrusted-input DoS, SIGABRT). Transitive via
+    # printpdf 0.7.0 (which pins lopdf to ^0.31). printpdf 0.7 is the only
+    # version whose writer API matches the themis-orchestrator pdf/* code;
+    # printpdf 0.9 has a rewritten API surface and would require a parallel
+    # rewrite of pdf/{mod,ctx}.rs. We CANNOT bump printpdf without that.
+    #
+    # Mitigation: we never call lopdf::Document::load_mem / load / load_object
+    # at runtime. The TrustLayer pipeline WRITES PDFs (receipts) via printpdf
+    # only — printpdf uses lopdf internally for object serialization, not for
+    # parsing. The vulnerable code paths are load_mem / load / parse_stream,
+    # none of which are reached. Untrusted PDFs are not accepted at any
+    # ingestion point; the only externally-received PDF flow is TSA-signed
+    # CMS responses, which are parsed by `cms_verify` (rustls + x509-parser)
+    # without touching lopdf. See themis-orchestrator/src/pdf/mod.rs for the
+    # writer-only call graph.
+    #
+    # Re-evaluate when either (a) printpdf bumps its lopdf minimum to >=0.42,
+    # or (b) the project adds a PDF-parsing dependency that uses lopdf's load
+    # entry points. Until then this advisory does not apply to this codebase.
+    "RUSTSEC-2026-0187",
+    "RUSTSEC-2026-0192",
 ]
 
 [licenses]

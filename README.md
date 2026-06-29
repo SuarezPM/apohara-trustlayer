@@ -1,5 +1,9 @@
 # Apohara TrustLayer
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13436/badge)](https://www.bestpractices.dev/projects/13436)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/SuarezPM/apohara-trustlayer/badge)](https://scorecard.dev/viewer/?uri=github.com/SuarezPM/apohara-trustlayer)
+
+
 > **El substrate de compliance AI que rebate la presunción de defecto bajo PLD Art. 10, cumple EU AI Act Art. 50 + DORA + ISO 42001 + NIST AI 600-1, y está listo para la era post-quantum (FIPS 204 ML-DSA-65).**
 > _The AI compliance substrate that rebuts PLD Art. 10 defect presumption, meets EU AI Act + DORA + ISO 42001 + NIST AI 600-1, and is post-quantum-ready (FIPS 204 ML-DSA-65)._
 
