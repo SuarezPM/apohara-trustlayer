@@ -41,14 +41,17 @@ class CertificateArtifactGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def generate(self, cert: dict) -> str:
-        """Generate the PDF for a certificate. Returns the file path."""
+        """Generate the PDF for a certificate. Returns the file path.
+
+        The 5 sections (Content, Cryptographic Details, Public Anchors,
+        Verification QR, Watermark Status) live in private helpers below
+        so this method stays under the PLR0915 too-many-statements limit.
+        """
         cert_id = cert.get("cert_id", "unknown")
         pdf_path = self.output_dir / f"{cert_id}.pdf"
         qr_payload = cert.get("qr_payload", f"https://apohara.org/verify/{cert_id}")
 
         try:
-            from reportlab.graphics.barcode.qr import QrCodeWidget
-            from reportlab.graphics.shapes import Drawing
             from reportlab.lib import colors
             from reportlab.lib.pagesizes import letter
             from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -63,7 +66,6 @@ class CertificateArtifactGenerator:
             self._write_minimal_pdf(pdf_path, cert_id)
             return str(pdf_path)
 
-        # Build the document.
         doc = SimpleDocTemplate(
             str(pdf_path),
             pagesize=letter,
@@ -94,114 +96,11 @@ class CertificateArtifactGenerator:
         )
         story.append(Spacer(1, 0.15 * inch))
 
-        # Section 1: Content
-        story.append(Paragraph("1. Content", h2))
-        content_rows = [
-            ["Content Hash", cert.get("content_hash", "—")],
-            ["Content Type", str(cert.get("content_type", "—"))],
-            ["AI System", cert.get("ai_system_id", "—")],
-            ["Submitted By", cert.get("submitted_by", "—")],
-            ["Submitted At", str(cert.get("submitted_at", "—"))],
-            ["Notarized At", str(cert.get("notarized_at", "—"))],
-        ]
-        story.append(self._kv_table(content_rows))
-        story.append(Spacer(1, 0.15 * inch))
-
-        # Section 2: Cryptographic details
-        story.append(Paragraph("2. Cryptographic Details", h2))
-        crypto_rows = [
-            [
-                "Issuer Key Fingerprint",
-                cert.get("primary_key_fingerprint", "—"),
-            ],
-            [
-                "COSE_Sign1 (truncated)",
-                (cert.get("cose_sign1_b64", "") or "")[:COSE_PREVIEW_CHARS]
-                + (
-                    "…"
-                    if len(cert.get("cose_sign1_b64", "") or "") > COSE_PREVIEW_CHARS
-                    else ""
-                ),
-            ],
-        ]
-        story.append(self._kv_table(crypto_rows))
-        story.append(Spacer(1, 0.15 * inch))
-
-        # Section 3: Anchors (TSA + SCITT)
-        story.append(Paragraph("3. Public Anchors", h2))
-        anchor_rows = [
-            [
-                "TSA URL",
-                cert.get("tsa_url") or "— (degraded mode)",
-            ],
-            [
-                "TSA Token (present?)",
-                "yes" if cert.get("tsa_token_b64") else "no (degraded mode)",
-            ],
-            [
-                "SCITT Entry ID",
-                cert.get("rekor_entry_id") or "— (degraded mode)",
-            ],
-            [
-                "SCITT Log ID",
-                cert.get("rekor_log_id") or "—",
-            ],
-        ]
-        story.append(self._kv_table(anchor_rows))
-        story.append(Spacer(1, 0.2 * inch))
-
-        # Section 4: QR code (kept together with the verify URL)
-        story.append(Paragraph("4. Verification", h2))
-        try:
-            qr_widget = QrCodeWidget(qr_payload, barLevel="M", barHeight=1.5 * inch)
-            qr_drawing = Drawing()
-            qr_drawing.add(qr_widget)
-            qr_drawing.width = 2.0 * inch
-            qr_drawing.height = 2.0 * inch
-            story.append(qr_drawing)
-        except Exception as qr_err:
-            logger.warning(f"QR widget failed: {qr_err}; skipping")
-        story.append(
-            Paragraph(
-                f"Scan the QR code or visit <b>{qr_payload}</b> to verify this certificate online.",
-                body,
-            )
-        )
-        story.append(Spacer(1, 0.25 * inch))
-
-        # Section 5: EU AI Act Art. 50(3) Watermark Status (Kirchenbauer z-test)
-        # Visible stamp overlay + machine-readable k/v row. LLM serving
-        # stacks pre-detect via /v1/disclosure/generate (with token_ids)
-        # and the z-score is stored in `cert["watermark_result"]`.
-        story.append(Paragraph("5. EU AI Act Art. 50(3) Watermark Status", h2))
-        story.append(self._watermark_stamp_drawing(cert))
-        wm = cert.get("watermark_result") or {}
-        if wm:
-            wm_rows = [
-                ["Kirchenbauer z-score", f"{wm.get('z_score', 0.0):.2f}"],
-                ["Green tokens / total", f"{wm.get('green_count', 0)}/{wm.get('total_count', 0)}"],
-                ["Threshold (one-sided)", str(wm.get("z_threshold", 4.0))],
-                [
-                    "Status",
-                    (
-                        "WATERMARK DETECTED (Compliant Art. 50(3))"
-                        if wm.get("detected")
-                        else "Watermark absent (z below threshold)"
-                    ),
-                ],
-            ]
-            story.append(self._kv_table(wm_rows))
-        else:
-            story.append(
-                Paragraph(
-                    "Not in scope for this disclosure (no token_ids supplied). "
-                    "EU AI Act Art. 50(3) requires machine-readable watermarks on "
-                    "<i>AI-generated text content</i>; hashes and binary content "
-                    "are out of scope per the Code of Practice on Transparency.",
-                    small,
-                )
-            )
-        story.append(Spacer(1, 0.2 * inch))
+        story.extend(self._section_content(cert, h2))
+        story.extend(self._section_crypto(cert, h2))
+        story.extend(self._section_anchors(cert, h2))
+        story.extend(self._section_verification_qr(cert, qr_payload, h2, body, inch=inch))
+        story.extend(self._section_watermark_status(cert, h2, small))
 
         # Footer / disclaimers
         story.append(
@@ -227,6 +126,144 @@ class CertificateArtifactGenerator:
             self._write_minimal_pdf(pdf_path, cert_id)
 
         return str(pdf_path)
+
+    @staticmethod
+    def _section_content(cert: dict, h2) -> list:
+        """Build section 1 (Content) flowables."""
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, Spacer
+
+        rows = [
+            ["Content Hash", cert.get("content_hash", "—")],
+            ["Content Type", str(cert.get("content_type", "—"))],
+            ["AI System", cert.get("ai_system_id", "—")],
+            ["Submitted By", cert.get("submitted_by", "—")],
+            ["Submitted At", str(cert.get("submitted_at", "—"))],
+            ["Notarized At", str(cert.get("notarized_at", "—"))],
+        ]
+        return [
+            Paragraph("1. Content", h2),
+            CertificateArtifactGenerator._kv_table(rows),
+            Spacer(1, 0.15 * inch),
+        ]
+
+    @staticmethod
+    def _section_crypto(cert: dict, h2) -> list:
+        """Build section 2 (Cryptographic Details) flowables."""
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, Spacer
+
+        rows = [
+            ["Issuer Key Fingerprint", cert.get("primary_key_fingerprint", "—")],
+            [
+                "COSE_Sign1 (truncated)",
+                (cert.get("cose_sign1_b64", "") or "")[:COSE_PREVIEW_CHARS]
+                + (
+                    "…"
+                    if len(cert.get("cose_sign1_b64", "") or "") > COSE_PREVIEW_CHARS
+                    else ""
+                ),
+            ],
+        ]
+        return [
+            Paragraph("2. Cryptographic Details", h2),
+            CertificateArtifactGenerator._kv_table(rows),
+            Spacer(1, 0.15 * inch),
+        ]
+
+    @staticmethod
+    def _section_anchors(cert: dict, h2) -> list:
+        """Build section 3 (Public Anchors) flowables."""
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, Spacer
+
+        rows = [
+            ["TSA URL", cert.get("tsa_url") or "— (degraded mode)"],
+            [
+                "TSA Token (present?)",
+                "yes" if cert.get("tsa_token_b64") else "no (degraded mode)",
+            ],
+            ["SCITT Entry ID", cert.get("rekor_entry_id") or "— (degraded mode)"],
+            ["SCITT Log ID", cert.get("rekor_log_id") or "—"],
+        ]
+        return [
+            Paragraph("3. Public Anchors", h2),
+            CertificateArtifactGenerator._kv_table(rows),
+            Spacer(1, 0.2 * inch),
+        ]
+
+    @staticmethod
+    def _section_verification_qr(_cert: dict, qr_payload: str, h2, body, *, inch) -> list:
+        """Build section 4 (Verification QR) flowables."""
+        from reportlab.graphics.barcode.qr import QrCodeWidget
+        from reportlab.graphics.shapes import Drawing
+        from reportlab.platypus import Paragraph, Spacer
+
+        out = [Paragraph("4. Verification", h2)]
+        try:
+            qr_widget = QrCodeWidget(qr_payload, barLevel="M", barHeight=1.5 * inch)
+            qr_drawing = Drawing()
+            qr_drawing.add(qr_widget)
+            qr_drawing.width = 2.0 * inch
+            qr_drawing.height = 2.0 * inch
+            out.append(qr_drawing)
+        except Exception as qr_err:
+            logger.warning(f"QR widget failed: {qr_err}; skipping")
+        out.append(
+            Paragraph(
+                f"Scan the QR code or visit <b>{qr_payload}</b> "
+                "to verify this certificate online.",
+                body,
+            )
+        )
+        out.append(Spacer(1, 0.25 * inch))
+        return out
+
+    @staticmethod
+    def _section_watermark_status(cert: dict, h2, small) -> list:
+        """Build section 5 (EU AI Act Art. 50(3) Watermark Status) flowables.
+
+        The watermark z-test result is pre-computed by the LLM serving
+        stack (POST /v1/disclosure/generate with token_ids) and stored
+        in `cert["watermark_result"]`; here we render it as a stamp +
+        machine-readable key/value row.
+        """
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, Spacer
+
+        out = [Paragraph("5. EU AI Act Art. 50(3) Watermark Status", h2)]
+        out.append(CertificateArtifactGenerator._watermark_stamp_drawing(cert))
+        wm = cert.get("watermark_result") or {}
+        if wm:
+            wm_rows = [
+                ["Kirchenbauer z-score", f"{wm.get('z_score', 0.0):.2f}"],
+                [
+                    "Green tokens / total",
+                    f"{wm.get('green_count', 0)}/{wm.get('total_count', 0)}",
+                ],
+                ["Threshold (one-sided)", str(wm.get("z_threshold", 4.0))],
+                [
+                    "Status",
+                    (
+                        "WATERMARK DETECTED (Compliant Art. 50(3))"
+                        if wm.get("detected")
+                        else "Watermark absent (z below threshold)"
+                    ),
+                ],
+            ]
+            out.append(CertificateArtifactGenerator._kv_table(wm_rows))
+        else:
+            out.append(
+                Paragraph(
+                    "Not in scope for this disclosure (no token_ids supplied). "
+                    "EU AI Act Art. 50(3) requires machine-readable watermarks on "
+                    "<i>AI-generated text content</i>; hashes and binary content "
+                    "are out of scope per the Code of Practice on Transparency.",
+                    small,
+                )
+            )
+        out.append(Spacer(1, 0.2 * inch))
+        return out
 
     @staticmethod
     def _watermark_stamp_drawing(cert: dict):

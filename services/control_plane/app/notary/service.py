@@ -124,7 +124,7 @@ class NotaryServiceProduction:
 
     def _cose_sign1(
         self,
-        args: "_CoseSign1Args",
+        args: _CoseSign1Args,
     ) -> tuple[str, dict, str]:
         """Build the COSE_Sign1 envelope.
 
