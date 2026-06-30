@@ -29,7 +29,6 @@ import json
 import os
 import socket
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -64,13 +63,22 @@ def _uvicorn_server(port: int, extra_env: dict | None = None):
     if extra_env:
         env.update(extra_env)
 
+    # Use `python` (not `sys.executable`) — `uv run --no-project --with X`
+    # builds an ephemeral env and injects deps into THAT env's python.
+    # An absolute `sys.executable` path bypasses the injection, and the
+    # child python then crashes with `No module named uvicorn` before
+    # binding the port (which is why every prior run hung for the full
+    # 60s). We also `--with aiosqlite` (the SQLite async dialect loaded
+    # by `_get_engine()` during lifespan) and reportlab (lazy-imported).
     cmd = [
         "uv", "run", "--no-project",
         "--with", "uvicorn", "--with", "fastapi",
         "--with", "pydantic", "--with", "pydantic-settings",
         "--with", "sqlalchemy", "--with", "structlog",
         "--with", "httpx", "--with", "cryptography",
-        sys.executable, "-m", "uvicorn",
+        "--with", "aiosqlite", "--with", "asyncpg",
+        "--with", "reportlab",
+        "python", "-m", "uvicorn",
         "app.main:app", "--host", "127.0.0.1",
         "--port", str(port), "--log-level", "warning",
     ]
@@ -94,16 +102,27 @@ def _uvicorn_server(port: int, extra_env: dict | None = None):
             time.sleep(0.5)
     else:
         proc.terminate()
+        # Wait for uvicorn's clean shutdown to close stderr (otherwise
+        # `stderr.read()` blocks forever on the open PIPE). Best-effort.
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
         stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+        try:
+            Path("/tmp/uvicorn_p5_4_stderr.log").write_text(stderr)
+        except Exception:
+            pass
         raise RuntimeError(f"uvicorn did not start within 60s\nstderr: {stderr}")
 
-    # DEBUG: dump uvicorn stderr to a file for diagnosis
-    try:
-        stderr_path = Path("/tmp/uvicorn_p5_4_stderr.log")
-        stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        stderr_path.write_text(stderr)
-    except Exception:
-        pass
+    # Success path: skip the stderr drain entirely — `Popen.stderr.read()`
+    # blocks until the child closes its end of the pipe (which only
+    # happens when uvicorn shuts down, not on /health 200). Yielding
+    # here lets the test body run while uvicorn continues serving.
 
     try:
         yield base_url

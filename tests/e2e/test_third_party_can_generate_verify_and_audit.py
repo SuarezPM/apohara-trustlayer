@@ -92,8 +92,15 @@ def _uvicorn_server(port: int) -> Iterator[str]:
         "TL_ALLOW_HASHLIB_FALLBACK": "true",  # CI/dev only; production fails loud
     }
     # Use `uv run` to ensure uvicorn + all deps are available in the
-    # subprocess (sys.executable may not have uvicorn on its sys.path
-    # when pytest is invoked via `uv run --with pytest --with uvicorn`).
+    # subprocess. We pass `python` (NOT `sys.executable`) as the
+    # interpreter: `uv run --no-project --with X` injects deps into
+    # the env's own `bin/python`, so an absolute `sys.executable`
+    # path bypasses the injection and crashes with
+    # `No module named uvicorn` before binding the port.
+    # aiosqlite/asyncpg/cryptography/reportlab/httpx are required
+    # because lifespan calls `_get_engine()` which loads the aiosqlite
+    # dialect at startup, and the disclose/verify routes transitively
+    # import reportlab+cryptography.
     cmd = [
         "uv",
         "run",
@@ -110,7 +117,17 @@ def _uvicorn_server(port: int) -> Iterator[str]:
         "pydantic-settings",
         "--with",
         "sqlalchemy",
-        sys.executable,
+        "--with",
+        "aiosqlite",
+        "--with",
+        "asyncpg",
+        "--with",
+        "cryptography",
+        "--with",
+        "reportlab",
+        "--with",
+        "httpx",
+        "python",
         "-m",
         "uvicorn",
         "app.main:app",
@@ -141,6 +158,14 @@ def _uvicorn_server(port: int) -> Iterator[str]:
             time.sleep(0.5)
     else:
         proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
         stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
         raise RuntimeError(f"uvicorn did not start within 30s\nstderr: {stderr}")
 
