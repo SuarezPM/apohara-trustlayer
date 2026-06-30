@@ -15,33 +15,34 @@
 # (the maintainer runs this once; CI does not need it).
 
 # Default: any change needs a CODEOWNER review.
-/*                                       @SuarezPM 
+/*                                       @SuarezPM
 
 # Critical paths: BDFL must review explicitly (per the dual-control
 # rule in SECURITY.md § Access Continuity).
 /Cargo.toml                               @SuarezPM
 /Cargo.lock                               @SuarezPM
-/SECURITY.md                              @SuarezPM 
-/GOVERNANCE.md                            @SuarezPM 
+/SECURITY.md                              @SuarezPM
+/GOVERNANCE.md                            @SuarezPM
 /.github/workflows/release.yml            @SuarezPM
 /.github/workflows/publish.yml            @SuarezPM
 /.github/workflows/publish-crates.yml     @SuarezPM
 /.github/workflows/_attest.yml            @SuarezPM
 /deny.toml                                @SuarezPM
 /crates/argus-crypto/                     @SuarezPM
-/crates/argus-verify/src/cordon.rs        @SuarezPM 
+/crates/argus-verify/src/cordon.rs        @SuarezPM
 
 # Audit chain code: the BLAKE3 + Ed25519 chain is the regulator-facing
 # artifact. Any change here is breaking.
-/crates/apohara-argus-core/src/types.rs   @SuarezPM 
-/crates/argus-crypto/                     @SuarezPM 
+/crates/apohara-argus-core/src/types.rs   @SuarezPM
+/crates/argus-crypto/                     @SuarezPM
 
 # Threat model + security docs: BDFL + co-maintainer must both sign off.
-/docs/THREAT_MODEL.md                     @SuarezPM 
-/docs/ASSURANCE_CASE.md                   @SuarezPM 
-/docs/SECURITY.md                         @SuarezPM 
+/docs/THREAT_MODEL.md                     @SuarezPM
+/docs/ASSURANCE_CASE.md                   @SuarezPM
+/docs/SECURITY.md                         @SuarezPM
 
 # CI: CODEOWNER review on workflow changes (defense in depth).
 /.github/workflows/                       @SuarezPM
 /.github/dependabot.yml                   @SuarezPM
-/.github/CODEOWNERS                       @SuarezPM 
+/.github/CODEOWNERS                       @SuarezPM
+
