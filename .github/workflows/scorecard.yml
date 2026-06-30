@@ -38,6 +38,16 @@ jobs:
           results_format: sarif
           # Publish to the public OpenSSF dashboard, enabling the README badge.
           publish_results: true
+          # Fine-grained PAT with `Administration: read` scope. Required so
+          # scorecard-action's Branch-Protection check can read the new
+          # branch protection API (rulesets) — the default GITHUB_TOKEN
+          # is a classic OAuth token that lacks the ruleset scope and
+          # surfaces "internal error: some github tokens can't read
+          # classic branch protection rules". Set the secret via
+          # `gh secret set SCORECARD_PAT` with a fine-grained PAT bound
+          # to this repo with Administration:read + Contents:read +
+          # Metadata:read.
+          repo_token: ${{ secrets.SCORECARD_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
