@@ -41,16 +41,18 @@ def federate_scitt_evidence(
         # In production: verify RFC 9162 inclusion proof + verify the
         # root was signed by the foreign trust domain's TS key.
         # For now: mark all as trust-pending (degraded mode is honest).
-        statuses.append({
-            "entry_id": entry.get("entry_id"),
-            "trust_domain": entry.get("trust_domain", "unknown"),
-            "verified": False,
-            "reason": (
-                "Federated SCITT proof verification deferred to W11 "
-                "production wire-up; pattern scaffolded here per "
-                "IETF draft-ietf-scitt-federation-00."
-            ),
-        })
+        statuses.append(
+            {
+                "entry_id": entry.get("entry_id"),
+                "trust_domain": entry.get("trust_domain", "unknown"),
+                "verified": False,
+                "reason": (
+                    "Federated SCITT proof verification deferred to W11 "
+                    "production wire-up; pattern scaffolded here per "
+                    "IETF draft-ietf-scitt-federation-00."
+                ),
+            }
+        )
     return {
         "local_entry_id": local_entry_id,
         "trust_domain": trust_domain,

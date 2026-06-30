@@ -11,6 +11,7 @@ z = (|s| - γT) / sqrt(γ(1-γ)T); one-sided threshold z > 4.0 (p < 0.00003).
 Used by `app.domain.disclosure_service.assess_4_layers` for the
 watermark layer of the most-restrictive-wins rollup.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,12 +31,8 @@ from app.constants import (
 class WatermarkResult(BaseModel):
     """Result of a Kirchenbauer watermark detection."""
 
-    detected: bool = Field(
-        description="True iff z_score > z_threshold (one-sided test)."
-    )
-    z_score: float = Field(
-        description="z-statistic: (|s| - γT) / sqrt(γ(1-γ)T)"
-    )
+    detected: bool = Field(description="True iff z_score > z_threshold (one-sided test).")
+    z_score: float = Field(description="z-statistic: (|s| - γT) / sqrt(γ(1-γ)T)")
     green_count: int = Field(description="|s|: tokens falling in green list")
     total_count: int = Field(description="T: total tokens analysed")
     gamma: float = Field(description="Green-list fraction used")
@@ -45,9 +42,7 @@ class WatermarkResult(BaseModel):
     )
 
 
-def _green_list_for_position(
-    key: bytes, position: int, vocab_size: int, gamma: float
-) -> set[int]:
+def _green_list_for_position(key: bytes, position: int, vocab_size: int, gamma: float) -> set[int]:
     """Derive the green list for a single token position.
 
     Pure-Python port of `KirchenbauerTextWatermark::green_list_for_position`
@@ -143,9 +138,7 @@ def detect_or_not_applicable(
             ),
             "watermark": None,
         }
-    result = kirchenbauer_detect(
-        tokens=token_ids, vocab_size=vocab_size, key=key
-    )
+    result = kirchenbauer_detect(tokens=token_ids, vocab_size=vocab_size, key=key)
     if result.detected:
         return {
             "status": "Compliant",
@@ -172,11 +165,11 @@ def detect_or_not_applicable(
 
 
 __all__ = [
-    "WatermarkResult",
-    "kirchenbauer_detect",
-    "detect_or_not_applicable",
-    "DEFAULT_Z_THRESHOLD",
     "DEFAULT_GAMMA",
+    "DEFAULT_Z_THRESHOLD",
+    "WatermarkResult",
+    "detect_or_not_applicable",
+    "kirchenbauer_detect",
 ]
 
 
@@ -271,11 +264,11 @@ def kirchenbauer_embed_tokens(
 
 
 __all__ = [
+    "DEFAULT_GAMMA",
+    "DEFAULT_Z_THRESHOLD",
     "WatermarkResult",
-    "kirchenbauer_detect",
     "detect_or_not_applicable",
     "kirchenbauer_bias_logits",
+    "kirchenbauer_detect",
     "kirchenbauer_embed_tokens",
-    "DEFAULT_Z_THRESHOLD",
-    "DEFAULT_GAMMA",
 ]

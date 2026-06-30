@@ -241,7 +241,7 @@ def generate_disclosure(
     return DisclosureGenerateResponse(
         disclosure_id=disclosure_id,
         disclosure_text=disclosure_text,
-        disclosure_html_widget=f"<div class=\"apohara-disclosure\">{disclosure_text}</div>",
+        disclosure_html_widget=f'<div class="apohara-disclosure">{disclosure_text}</div>',
         json_ld=json_ld,
         c2pa_manifest_ref={"manifest_id": str(uuid.uuid4()), "url": None},
         receipt=receipt,
@@ -277,8 +277,8 @@ def verify_provenance(
         "verification_id": str(uuid.uuid4()),
         "cose_signature": {"valid": sig_valid, "algorithm": "EdDSA"},
         "tsa_verification": {"valid": False, "reason": "TSA not verified in v1 stub"}
-            if tsa_token_b64
-            else None,
+        if tsa_token_b64
+        else None,
         "chain_verification": None,
         "key_verification": None,
         "overall_status": "PASS" if sig_valid else "FAIL",

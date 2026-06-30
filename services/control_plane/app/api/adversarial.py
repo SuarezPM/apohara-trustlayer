@@ -19,6 +19,7 @@ Compliance: EU AI Act Art. 9 (risk management), NIST AI 600-1
 GV-9 (information security), NIST AI 100-2e2025 (adversarial ML
 taxonomy), MITRE ATLAS agentic threat catalog (AML.T0080-T0101).
 """
+
 from __future__ import annotations
 
 import logging
@@ -172,6 +173,7 @@ def post_run_scenario(
     if scenario is None:
         from fastapi import HTTPException
         from fastapi import status as _status
+
         raise HTTPException(
             status_code=_status.HTTP_404_NOT_FOUND,
             detail=f"unknown scenario code: {req.code}",

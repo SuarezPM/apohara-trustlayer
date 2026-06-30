@@ -16,6 +16,7 @@ Magic constants live here ONLY if they are:
 - Regulatory/standards-referenced (OIDs, thresholds), or
 - Configurable in production (default URLs, vocab sizes)
 """
+
 from __future__ import annotations
 
 import os
@@ -108,6 +109,7 @@ EU_TRUST_LIST_FINGERPRINTS: Final[dict[str, str]] = {
 # Helpers — env-var overrides for production tuning
 # ============================================================================
 
+
 def env_tsa_url(default: str = DEFAULT_TSA_URL) -> str:
     """Resolve the TSA URL with `TL_TSA_URL` env-var override."""
     return os.environ.get("TL_TSA_URL", default)
@@ -127,21 +129,21 @@ def env_text_watermark_key() -> bytes:
 
 
 __all__ = [
-    "DEFAULT_TSA_URL",
+    "DEFAULT_BPE_VOCAB_SIZE",
+    "DEFAULT_GAMMA",
     "DEFAULT_ISSUER_DID",
     "DEFAULT_KEY_ID",
-    "DEFAULT_ORG_ID",
-    "DEFAULT_NOTARY_OUTPUT_DIR",
     "DEFAULT_NOTARY_DB_PATH",
-    "DEFAULT_GAMMA",
+    "DEFAULT_NOTARY_OUTPUT_DIR",
+    "DEFAULT_ORG_ID",
+    "DEFAULT_TSA_URL",
     "DEFAULT_Z_THRESHOLD",
-    "DEFAULT_BPE_VOCAB_SIZE",
-    "OID_ETSI_TSTS",
+    "EU_TRUST_LIST_FINGERPRINTS",
     "OID_ES_I4_QTST_STATEMENT_1",
+    "OID_ETSI_TSTS",
+    "OID_QC_STATEMENTS",
     "OID_QC_TSTS",
     "OID_QC_TSTS_ARCH",
-    "OID_QC_STATEMENTS",
-    "EU_TRUST_LIST_FINGERPRINTS",
-    "env_tsa_url",
     "env_text_watermark_key",
+    "env_tsa_url",
 ]

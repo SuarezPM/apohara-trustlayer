@@ -8,6 +8,7 @@ graceful degradation (minimal hand-crafted PDF if reportlab is missing).
 The helpers (_watermark_stamp_drawing, _kv_table, _write_minimal_pdf)
 are now thin wrappers around `app.pdf_helpers` (single source of truth).
 """
+
 from __future__ import annotations
 
 import logging
@@ -41,9 +42,7 @@ class CertificateArtifactGenerator:
         """Generate the PDF for a certificate. Returns the file path."""
         cert_id = cert.get("cert_id", "unknown")
         pdf_path = self.output_dir / f"{cert_id}.pdf"
-        qr_payload = cert.get(
-            "qr_payload", f"https://apohara.org/verify/{cert_id}"
-        )
+        qr_payload = cert.get("qr_payload", f"https://apohara.org/verify/{cert_id}")
 
         try:
             from reportlab.graphics.barcode.qr import QrCodeWidget
@@ -58,9 +57,7 @@ class CertificateArtifactGenerator:
                 Spacer,
             )
         except ImportError as imp_err:
-            logger.error(
-                f"reportlab import failed ({imp_err}); writing degraded PDF."
-            )
+            logger.error(f"reportlab import failed ({imp_err}); writing degraded PDF.")
             self._write_minimal_pdf(pdf_path, cert_id)
             return str(pdf_path)
 
@@ -160,8 +157,7 @@ class CertificateArtifactGenerator:
             logger.warning(f"QR widget failed: {qr_err}; skipping")
         story.append(
             Paragraph(
-                f"Scan the QR code or visit <b>{qr_payload}</b> to verify this "
-                "certificate online.",
+                f"Scan the QR code or visit <b>{qr_payload}</b> to verify this certificate online.",
                 body,
             )
         )
@@ -171,9 +167,7 @@ class CertificateArtifactGenerator:
         # Visible stamp overlay + machine-readable k/v row. LLM serving
         # stacks pre-detect via /v1/disclosure/generate (with token_ids)
         # and the z-score is stored in `cert["watermark_result"]`.
-        story.append(
-            Paragraph("5. EU AI Act Art. 50(3) Watermark Status", h2)
-        )
+        story.append(Paragraph("5. EU AI Act Art. 50(3) Watermark Status", h2))
         story.append(self._watermark_stamp_drawing(cert))
         wm = cert.get("watermark_result") or {}
         if wm:
@@ -281,7 +275,7 @@ class CertificateArtifactGenerator:
 
         write_minimal_pdf(pdf_path, cert_id)
 
+
 # ============================================================================
 # 5. NotaryService production (W8.5)
 # ============================================================================
-

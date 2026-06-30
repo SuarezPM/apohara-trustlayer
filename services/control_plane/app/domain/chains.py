@@ -35,6 +35,7 @@ def _hasher():
 
         def _blake3(data: bytes) -> str:
             return blake3_hash_hex(data)
+
         return _blake3
     except ImportError:
         if os.environ.get("TL_ALLOW_HASHLIB_FALLBACK", "true").lower() != "true":
@@ -43,6 +44,7 @@ def _hasher():
                 "Production requires `uv pip install apohara-trustlayer`."
             )
         import warnings
+
         warnings.warn(
             "tl-ffi not importable; falling back to hashlib.sha256 (INSECURE for prod).",
             stacklevel=2,
@@ -50,6 +52,7 @@ def _hasher():
 
         def _sha256(data: bytes) -> str:
             return hashlib.sha256(data).hexdigest()
+
         return _sha256
 
 
@@ -78,6 +81,7 @@ GENESIS_HASH = "0" * 64
 # Adding new fields to the canonical form requires a chain migration
 # strategy (re-hash all existing entries or accept the chain break).
 
+
 def compute_row_hash(
     *,
     chain_id: str,
@@ -94,8 +98,7 @@ def compute_row_hash(
     """
     hasher = _hasher()
     canonical = (
-        f"{chain_id}|{row_number}|{prev_hash}|"
-        f"{cose_sign1_b64}|{created_at.isoformat()}"
+        f"{chain_id}|{row_number}|{prev_hash}|{cose_sign1_b64}|{created_at.isoformat()}"
     ).encode()
     # Mix payload hash into the canonical form so payload bytes
     # participate in the chain integrity.

@@ -11,17 +11,20 @@ The third party clicks the URL and sees the full three-tier disclosure:
 
 This is the driver of viral adoption for the Notary Layer.
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from app.notary_production import NotaryDB
+if TYPE_CHECKING:
+    from app.notary_production import NotaryDB
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +122,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
       [DEFERRED]       — requires external infrastructure (see note)
     """
     import base64
+
     steps: list[str] = []
 
     # Step 1: retrieval (always succeeds if we got here)
@@ -126,14 +130,12 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
 
     # Step 2: content hash format check
     content_hash = cert.get("content_hash") or ""
-    if content_hash.startswith("sha256:") and len(content_hash) == 7 + 64 or content_hash.startswith("blake3:") and len(content_hash) == 7 + 64:
-        steps.append(
-            f"[STRUCTURE_OK] Content hash present and well-formed: {content_hash}"
-        )
+    if (content_hash.startswith("sha256:") and len(content_hash) == 7 + 64) or (
+        content_hash.startswith("blake3:") and len(content_hash) == 7 + 64
+    ):
+        steps.append(f"[STRUCTURE_OK] Content hash present and well-formed: {content_hash}")
     else:
-        steps.append(
-            f"[ABSENT] Content hash missing or malformed: {content_hash!r}"
-        )
+        steps.append(f"[ABSENT] Content hash missing or malformed: {content_hash!r}")
 
     # Step 3: COSE_Sign1 structure parse
     cose_b64 = cert.get("cose_sign1_b64")
@@ -161,9 +163,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
             raw = base64.b64decode(tsa_token_b64, validate=True)
             # CMS ContentInfo starts with SEQUENCE tag (0x30) — minimal structural check.
             if raw and raw[0] == 0x30:
-                steps.append(
-                    f"[STRUCTURE_OK] TSA token parsed ({len(raw)} bytes CMS ContentInfo)"
-                )
+                steps.append(f"[STRUCTURE_OK] TSA token parsed ({len(raw)} bytes CMS ContentInfo)")
             else:
                 steps.append(
                     f"[ABSENT] TSA token decoded ({len(raw)} bytes) but missing CMS envelope tag"
@@ -185,6 +185,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
         if rekor_entry_json:
             try:
                 import json as _json
+
                 entry = _json.loads(rekor_entry_json)
                 leaf_hash = entry.get("leaf_hash") or entry.get("uuid")
                 log_index = int(entry.get("log_index", 0))
@@ -193,6 +194,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
                 audit_path = entry.get("audit_path", [])
                 if leaf_hash and log_index and tree_size and root_hash:
                     from app.rfc9162_verifier import verify_inclusion_proof
+
                     ok = verify_inclusion_proof(
                         leaf_hex=leaf_hash,
                         leaf_index=log_index,
@@ -217,9 +219,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
                         f"(proof fields incomplete — verification deferred)"
                     )
             except (ValueError, TypeError, KeyError) as e:
-                steps.append(
-                    f"[FAILED] SCITT/Rekor inclusion proof parse error: {e}"
-                )
+                steps.append(f"[FAILED] SCITT/Rekor inclusion proof parse error: {e}")
         else:
             steps.append(
                 f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
@@ -268,6 +268,7 @@ def _sanitize_for_html(value: str) -> str:
 def render_html_l1(cert: dict, verification_steps: list[str]) -> str:
     """Render the L1 HTML summary page."""
     import html as html_lib
+
     return HTML_L1_TEMPLATE.format(
         status_class="status-valid" if cert.get("status") == "valid" else "status-invalid",
         status=html_lib.escape(_sanitize_for_html(str(cert.get("status", "unknown")))),
@@ -280,9 +281,7 @@ def render_html_l1(cert: dict, verification_steps: list[str]) -> str:
         primary_key_fingerprint=html_lib.escape(
             _sanitize_for_html(str(cert.get("primary_key_fingerprint", "")))
         ),
-        cwt_claims_json=html_lib.escape(
-            _sanitize_for_html(str(cert.get("cwt_claims_json", "{}")))
-        ),
+        cwt_claims_json=html_lib.escape(_sanitize_for_html(str(cert.get("cwt_claims_json", "{}")))),
         verification_steps_html="".join(
             f"<li>{html_lib.escape(_sanitize_for_html(s))}</li>" for s in verification_steps
         ),

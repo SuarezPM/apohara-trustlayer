@@ -37,6 +37,7 @@ References:
 - ai-data-doc/ai-management-system (control catalog as YAML,
   published 2026-06-21)
 """
+
 from __future__ import annotations
 
 import logging
@@ -50,16 +51,18 @@ logger = logging.getLogger(__name__)
 # ISO 23894:2023 Clause 6 — 5 process stages
 class ISO23894Stage(str, Enum):
     """ISO/IEC 23894:2023 Clause 6 process stages."""
-    CONTEXT = "6.1_context"             # scope, criteria, risk appetite
+
+    CONTEXT = "6.1_context"  # scope, criteria, risk appetite
     IDENTIFICATION = "6.2_identification"  # assets, sources, events
-    ANALYSIS = "6.3_analysis"            # likelihood x consequence
-    EVALUATION = "6.4_evaluation"        # compare to criteria
-    TREATMENT = "6.5_treatment"          # avoid/reduce/transfer/accept
+    ANALYSIS = "6.3_analysis"  # likelihood x consequence
+    EVALUATION = "6.4_evaluation"  # compare to criteria
+    TREATMENT = "6.5_treatment"  # avoid/reduce/transfer/accept
 
 
 # NIST AI RMF 1.0 — 4 Core Functions
 class NISTAIRMFFunction(str, Enum):
     """NIST AI RMF 1.0 Core Functions."""
+
     GOVERN = "GOVERN"
     MAP = "MAP"
     MEASURE = "MEASURE"
@@ -83,13 +86,15 @@ NIST_AI_RMF_TO_ISO23894: dict[NISTAIRMFFunction, list[ISO23894Stage]] = {
     NISTAIRMFFunction.MANAGE: [ISO23894Stage.TREATMENT],
 }
 
+
 # Risk treatment options per Clause 6.5
 class RiskTreatment(str, Enum):
     """ISO 23894:2023 Clause 6.5 risk treatment options."""
-    AVOID = "avoid"           # eliminate the risk source
-    REDUCE = "reduce"         # implement controls
-    TRANSFER = "transfer"     # insurance, third-party
-    ACCEPT = "accept"         # within risk appetite
+
+    AVOID = "avoid"  # eliminate the risk source
+    REDUCE = "reduce"  # implement controls
+    TRANSFER = "transfer"  # insurance, third-party
+    ACCEPT = "accept"  # within risk appetite
 
 
 @dataclass
@@ -107,7 +112,7 @@ class Risk:
     iso23894_stage: ISO23894Stage
     nist_rmf_function: NISTAIRMFFunction
     likelihood: int  # 1-5
-    impact: int      # 1-5
+    impact: int  # 1-5
     inherent_risk_score: int = field(init=False)
     """Likelihood x Impact (before controls)."""
     residual_risk_score: int = field(init=False)
@@ -123,15 +128,11 @@ class Risk:
 
     def __post_init__(self):
         if not 1 <= self.likelihood <= 5:
-            raise ValueError(
-                f"likelihood must be 1-5, got {self.likelihood}"
-            )
+            raise ValueError(f"likelihood must be 1-5, got {self.likelihood}")
         if not 1 <= self.impact <= 5:
             raise ValueError(f"impact must be 1-5, got {self.impact}")
         if not 0.0 <= self.control_effectiveness <= 1.0:
-            raise ValueError(
-                f"control_effectiveness must be 0-1, got {self.control_effectiveness}"
-            )
+            raise ValueError(f"control_effectiveness must be 0-1, got {self.control_effectiveness}")
         # Inherent risk = L x I (before controls)
         self.inherent_risk_score = self.likelihood * self.impact
         # Residual = inherent x (1 - control_effectiveness)
@@ -146,15 +147,16 @@ class Risk:
         if self.residual_risk_score >= 16:
             return "critical"  # 4-5 x 4-5
         if self.residual_risk_score >= 9:
-            return "high"      # 3-5 x 3-5
+            return "high"  # 3-5 x 3-5
         if self.residual_risk_score >= 4:
-            return "medium"    # 2-4 x 2-4
-        return "low"           # 1-2 x 1-2
+            return "medium"  # 2-4 x 2-4
+        return "low"  # 1-2 x 1-2
 
 
 @dataclass
 class RiskScoreSummary:
     """Summary of a risk scoring session for a given org."""
+
     org_id: str
     total_risks: int
     by_band: dict[str, int]  # {"critical": N, "high": M, ...}
@@ -180,6 +182,7 @@ class RiskRegister:
     def add(self, risk: Risk) -> None:
         if not risk.persistent_id:
             import uuid as _uuid
+
             risk.persistent_id = f"risk-{_uuid.uuid4().hex[:8]}"
         self.risks[risk.risk_id] = risk
 
@@ -198,6 +201,7 @@ class RiskRegister:
     def summary(self) -> RiskScoreSummary:
         """Build a summary for the dashboard."""
         from collections import Counter
+
         bands = Counter(r.risk_band for r in self.risks.values())
         stages = Counter(r.iso23894_stage.value for r in self.risks.values())
         rmfs = Counter(r.nist_rmf_function.value for r in self.risks.values())
@@ -236,13 +240,13 @@ def assess_iso_23894_risk(
 
 
 __all__ = [
-    "ISO23894Stage",
-    "NISTAIRMFFunction",
     "ISO23894_TO_NIST_AI_RMF",
     "NIST_AI_RMF_TO_ISO23894",
-    "RiskTreatment",
+    "ISO23894Stage",
+    "NISTAIRMFFunction",
     "Risk",
-    "RiskScoreSummary",
     "RiskRegister",
+    "RiskScoreSummary",
+    "RiskTreatment",
     "assess_iso_23894_risk",
 ]

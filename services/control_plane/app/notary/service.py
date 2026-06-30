@@ -10,6 +10,7 @@ Also contains the FastAPI router factory (`_make_router`) and the
 `post_notarize` route handler. The handler is bound to the
 NotaryService via `app.state.notary_service` (set in main.py lifespan).
 """
+
 from __future__ import annotations
 
 import base64
@@ -18,15 +19,17 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field  # noqa: F401  (kept for legacy callers)
 
-from app.notary.certificate_generator import CertificateArtifactGenerator
-from app.notary.db import NotaryDB
-from app.notary.models import NotarizeRequest, NotarizeResponse
-from app.notary.qtsp import QTSPClient
-from app.notary.scitt import SCITTClient
+if TYPE_CHECKING:
+    from app.notary.certificate_generator import CertificateArtifactGenerator
+    from app.notary.db import NotaryDB
+    from app.notary.models import NotarizeRequest, NotarizeResponse
+    from app.notary.qtsp import QTSPClient
+    from app.notary.scitt import SCITTClient
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +67,7 @@ class NotaryServiceProduction:
         # lifespan startup.
         if signer is None:
             from app.hsm_adapter import EphemeralEd25519Signer
+
             self.signer = EphemeralEd25519Signer()
         else:
             self.signer = signer
@@ -73,6 +77,7 @@ class NotaryServiceProduction:
     def _canonical_hash(self, content: bytes) -> str:
         try:
             import blake3
+
             return "blake3:" + blake3.blake3(content).hexdigest()
         except ImportError:
             return "sha256:" + hashlib.sha256(content).hexdigest()
@@ -122,21 +127,26 @@ class NotaryServiceProduction:
             "typ": "application/notary+cose",
             "kid": f"{self.issuer}#{self.key_id}",
         }
-        protected_b64 = base64.urlsafe_b64encode(
-            json.dumps(protected).encode()
-        ).rstrip(b"=").decode()
-        payload_b64 = base64.urlsafe_b64encode(
-            json.dumps(cwt_claims, sort_keys=True).encode()
-        ).rstrip(b"=").decode()
+        protected_b64 = (
+            base64.urlsafe_b64encode(json.dumps(protected).encode()).rstrip(b"=").decode()
+        )
+        payload_b64 = (
+            base64.urlsafe_b64encode(json.dumps(cwt_claims, sort_keys=True).encode())
+            .rstrip(b"=")
+            .decode()
+        )
         # Sign_structure per RFC 9052 §4.4:
         #   Sig_structure = [
         #     "Signature1", body_protected, external_aad, payload
         #   ]
         sig_structure = (
             b"Signature1"
-            + b"\x00" + protected_b64.encode("ascii")
-            + b"\x00" + b""  # external_aad is empty
-            + b"\x00" + payload_b64.encode("ascii")
+            + b"\x00"
+            + protected_b64.encode("ascii")
+            + b"\x00"
+            + b""  # external_aad is empty
+            + b"\x00"
+            + payload_b64.encode("ascii")
         )
         # W8.3.1: actual HSM-backed signing. For Ed25519, this returns
         # 64 bytes. For ML-DSA-65, 3309 bytes. For ML-DSA-44, 2420.
@@ -147,9 +157,7 @@ class NotaryServiceProduction:
 
         return cose_sign1_b64, cwt_claims, primary_key_fingerprint
 
-    def _generate_cert_id(
-        self, content_hash: str, submitted_by: str
-    ) -> str:
+    def _generate_cert_id(self, content_hash: str, submitted_by: str) -> str:
         full_key = f"{submitted_by}:{content_hash}"
         digest = hashlib.sha256(full_key.encode()).hexdigest()[:8]
         return f"cert_{uuid.uuid4().hex[:8]}_{digest}"
@@ -210,9 +218,7 @@ class NotaryServiceProduction:
 
                 # Detection key: TL_TEXT_WATERMARK_KEY env or all-zero dev
                 wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
-                wm_key = (
-                    wm_key_env.encode("utf-8")[:32] if wm_key_env else b"\x00" * 32
-                )
+                wm_key = wm_key_env.encode("utf-8")[:32] if wm_key_env else b"\x00" * 32
                 if len(wm_key) < 32:
                     wm_key = wm_key + b"\x00" * (32 - len(wm_key))
 
@@ -263,7 +269,6 @@ class NotaryServiceProduction:
         await self.db.save_certificate(cert_record)
 
         return cert_record
-
 
 
 # ============================================================================

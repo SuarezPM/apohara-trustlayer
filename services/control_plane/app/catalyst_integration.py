@@ -1,4 +1,3 @@
-
 """W7.2 Catalyst Orchestrator Integration — design doc.
 
 Per Plan v3.0 W7.2, integrate TrustLayer as the attestation substrate
@@ -200,7 +199,7 @@ def orchestration_manifest(
 
     # Chain validation
     prev_hash = None
-    for i, receipt in enumerate(step_receipts):
+    for _i, receipt in enumerate(step_receipts):
         if receipt.get("prev_step_hash") != prev_hash:
             raise ValueError(
                 f"step {receipt['step_id']} chain mismatch: "

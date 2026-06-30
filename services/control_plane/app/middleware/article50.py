@@ -16,6 +16,7 @@ middleware writes headers directly to the ASGI response start message,
 which is guaranteed to reach the client. See app/middleware/__init__.py
 for the full rationale on why we use pure ASGI for all TrustLayer middleware.
 """
+
 from __future__ import annotations
 
 import logging
@@ -67,7 +68,7 @@ def _should_disclose(path: str) -> bool:
 
 def _is_evidence_path(path: str) -> bool:
     """True iff the path is a disclosure/evidence creation endpoint."""
-    return path.startswith("/v1/disclosure") or path.startswith("/v1/evidence")
+    return path.startswith(("/v1/disclosure", "/v1/evidence"))
 
 
 class Article50DisclosureMiddleware:
@@ -99,10 +100,7 @@ class Article50DisclosureMiddleware:
         path = scope.get("path") or scope.get("path_info") or ""
         if not path:
             raw = scope.get("raw_path", b"")
-            if isinstance(raw, bytes):
-                path = raw.decode("latin-1", errors="replace")
-            else:
-                path = str(raw)
+            path = raw.decode("latin-1", errors="replace") if isinstance(raw, bytes) else str(raw)
         method = scope.get("method", "")
         request_id = str(uuid.uuid4())
         start_time = time.monotonic()

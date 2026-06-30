@@ -4,6 +4,7 @@ Single-responsibility module: COSE_Sign1 building via scitt-cose + POST
 to {ts_url}/entries. Degraded mode: returns (None, None, None) on
 failure. No DB, no PDF, no orchestrator.
 """
+
 from __future__ import annotations
 
 import base64
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class SCITTError(Exception):
     """Error from the SCITT ledger client."""
+
 
 class SCITTClient:
     """SCITT Transparency Service client per IETF RFC 9943.
@@ -46,9 +48,7 @@ class SCITTClient:
         self.timeout = timeout
         self.issuer = issuer
 
-    def submit(
-        self, statement_b64: str
-    ) -> tuple[str | None, str | None, str | None]:
+    def submit(self, statement_b64: str) -> tuple[str | None, str | None, str | None]:
         """Submit a COSE_Sign1 statement to the SCITT TS.
 
         Args:
@@ -66,10 +66,7 @@ class SCITTClient:
                 from cryptography.hazmat.primitives import serialization
                 from cryptography.hazmat.primitives.asymmetric import ed25519
             except ImportError as imp_err:
-                logger.error(
-                    f"scitt-cose / cryptography import failed; SCITT disabled: "
-                    f"{imp_err}"
-                )
+                logger.error(f"scitt-cose / cryptography import failed; SCITT disabled: {imp_err}")
                 return None, None, None
 
             # Decode the incoming base64url/base64 envelope to bytes.
@@ -121,6 +118,7 @@ class SCITTClient:
 
             # POST to {ts_url}/entries per IETF draft-ietf-scitt-scrapi.
             import httpx
+
             entry_url = self.ts_url.rstrip("/") + "/entries"
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.post(
@@ -148,7 +146,7 @@ class SCITTClient:
             logger.exception(f"SCITT unexpected error for {self.ts_url}")
             return None, None, None
 
+
 # ============================================================================
 # 4. PDF + QR generation
 # ============================================================================
-

@@ -7,7 +7,6 @@ Consumed by `assess_cross_jurisdiction()` in `app.compliance`."""
 
 # ============================================================================
 
-
 CROSS_JURISDICTION_PROFILES: dict[str, dict] = {
     "EU_AI_ACT": {
         "name": "EU AI Act",

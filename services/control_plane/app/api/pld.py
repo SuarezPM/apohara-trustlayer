@@ -18,6 +18,7 @@ All endpoints use `Depends(get_org_id)` for multi-tenant org_id resolution
 Emits `X-Disclosure-AI` (Art. 50(2)), `X-TrustLayer-Request-ID`, and
 `X-Response-Time-Ms` headers via `Article50DisclosureMiddleware`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,7 +61,7 @@ class DisclosureOrderRequest(BaseModel):
     product_id: str
     scope: list[str] = Field(
         description="Evidence categories: training-data, model-weights, "
-                   "decision-logs, audit-trails, security-incidents"
+        "decision-logs, audit-trails, security-incidents"
     )
 
 

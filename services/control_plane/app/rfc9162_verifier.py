@@ -24,6 +24,7 @@ Migration path: the W9.2 federated_scitt stub returns "verifier
 pending" for every entry. This module replaces that with a real
 verifier that returns (verified: bool, root: str, error: str|None).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -53,9 +54,7 @@ def reconstruct_root_rfc9162(
     if tree_size <= 0:
         raise ValueError(f"tree_size must be > 0, got {tree_size}")
     if leaf_index < 0 or leaf_index >= tree_size:
-        raise ValueError(
-            f"leaf_index {leaf_index} out of range [0, {tree_size})"
-        )
+        raise ValueError(f"leaf_index {leaf_index} out of range [0, {tree_size})")
     if len(audit_path) == 0 and tree_size > 1:
         # A single-leaf tree has no audit path; the leaf IS the root.
         return leaf_hex
@@ -161,16 +160,12 @@ def reconstruct_root_ccf(
     if len(internal_transaction_hash) != 32:
         raise ValueError("internal_transaction_hash must be 32 bytes")
     if not 1 <= len(internal_evidence) <= 1024:
-        raise ValueError(
-            f"internal_evidence must be 1-1024 bytes, got {len(internal_evidence)}"
-        )
+        raise ValueError(f"internal_evidence must be 1-1024 bytes, got {len(internal_evidence)}")
     if len(data_hash) != 32:
         raise ValueError("data_hash must be 32 bytes")
 
     evidence_digest = hashlib.sha256(internal_evidence).digest()
-    h = hashlib.sha256(
-        internal_transaction_hash + evidence_digest + data_hash
-    ).digest()
+    h = hashlib.sha256(internal_transaction_hash + evidence_digest + data_hash).digest()
 
     for is_left, sibling in audit_path:
         if len(sibling) != 32:
@@ -247,9 +242,13 @@ def verify_federated_receipt(
             audit_path=inclusion_path_in_b,
         )
         if reconstructed_a != res.root.hex():
-            return False, None, (
-                f"Log A root mismatch: reconstructed={reconstructed_a} "
-                f"vs receipt={res.root.hex()}"
+            return (
+                False,
+                None,
+                (
+                    f"Log A root mismatch: reconstructed={reconstructed_a} "
+                    f"vs receipt={res.root.hex()}"
+                ),
             )
 
         # Step 3: verify Log B's STH. The STH must be a signed artifact
@@ -264,9 +263,13 @@ def verify_federated_receipt(
         # For now, accept the extracted root as-is (production
         # wire-up uses Ed25519 verify on the STH bytes).
         if sth_root != reconstructed_a:
-            return False, None, (
-                f"Cross-log anchor mismatch: Log B root={sth_root} "
-                f"vs Log A anchor={reconstructed_a}"
+            return (
+                False,
+                None,
+                (
+                    f"Cross-log anchor mismatch: Log B root={sth_root} "
+                    f"vs Log A anchor={reconstructed_a}"
+                ),
             )
 
         return True, reconstructed_a, "federated receipt verified"
@@ -307,10 +310,10 @@ def extract_sth_root(sth_bytes: bytes) -> str | None:
 
 
 __all__ = [
-    "reconstruct_root_rfc9162",
-    "verify_inclusion_proof",
-    "verify_consistency_proof",
-    "reconstruct_root_ccf",
-    "verify_federated_receipt",
     "extract_sth_root",
+    "reconstruct_root_ccf",
+    "reconstruct_root_rfc9162",
+    "verify_consistency_proof",
+    "verify_federated_receipt",
+    "verify_inclusion_proof",
 ]

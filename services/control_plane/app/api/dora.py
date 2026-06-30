@@ -16,6 +16,7 @@ All endpoints:
 - Emit `X-TrustLayer-Request-ID` header (operational audit)
 - Emit `X-Response-Time-Ms` header (performance monitoring)
 """
+
 from __future__ import annotations
 
 import logging
@@ -104,4 +105,4 @@ def get_dora_evidence_pack(
     )
 
 
-__all__ = ["router", "get_dora_evidence_pack", "DORAEvidencePackResponse"]
+__all__ = ["DORAEvidencePackResponse", "get_dora_evidence_pack", "router"]

@@ -3,6 +3,7 @@
 Uses SQLAlchemy 2.0 with sync engine. The async variant is deferred
 to W12.1 (not in this wave).
 """
+
 from __future__ import annotations
 
 import os
@@ -35,6 +36,7 @@ Base = declarative_base()
 
 class RiskRecord(Base):
     """SQLAlchemy model for the risk_register table."""
+
     __tablename__ = "risk_register"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     persistent_id = Column(String, unique=True, nullable=False)
@@ -50,9 +52,7 @@ class RiskRecord(Base):
     # GENERATED ALWAYS AS STORED columns — DB enforces the formula.
     # Marked as Computed(sqltext="...") so SQLAlchemy does not try to INSERT
     # a value for these columns (PostgreSQL rejects non-DEFAULT writes).
-    inherent_risk_score = Column(
-        Integer, Computed("likelihood * impact", persisted=True)
-    )
+    inherent_risk_score = Column(Integer, Computed("likelihood * impact", persisted=True))
     control_effectiveness = Column(Float, nullable=False, default=0.0)
     residual_risk_score = Column(
         Integer,
@@ -64,9 +64,16 @@ class RiskRecord(Base):
     treatment = Column(String, nullable=False)
     owner = Column(String)
     review_cadence_days = Column(Integer, nullable=False, default=90)
-    last_reviewed = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
+    last_reviewed = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     def to_risk(self) -> Risk:
         return Risk(
@@ -90,6 +97,7 @@ class RiskRecord(Base):
 
 class DBRiskRegister(RiskRegister):
     """DB-backed RiskRegister (production wire-up)."""
+
     def __init__(self, org_id: str, session_factory):
         super().__init__(org_id)
         self._session_factory = session_factory
@@ -129,10 +137,9 @@ class DBRiskRegister(RiskRegister):
     def summary(self) -> RiskScoreSummary:
         """Build summary from the DB."""
         with self._session_factory() as session:
-            records = session.query(RiskRecord).filter(
-                RiskRecord.org_id == self.org_id
-            ).all()
+            records = session.query(RiskRecord).filter(RiskRecord.org_id == self.org_id).all()
             from collections import Counter
+
             bands = Counter(_band(r.residual_risk_score) for r in records)
             stages = Counter(r.iso23894_stage for r in records)
             rmfs = Counter(r.nist_rmf_fn for r in records)
@@ -152,15 +159,20 @@ class DBRiskRegister(RiskRegister):
 
 
 def _band(residual: int) -> str:
-    if residual >= 16: return "critical"
-    if residual >= 9: return "high"
-    if residual >= 4: return "medium"
+    if residual >= 16:
+        return "critical"
+    if residual >= 9:
+        return "high"
+    if residual >= 4:
+        return "medium"
     return "low"
 
 
 def get_db_session_factory():
     """Build the SQLAlchemy session factory from TRUSTLAYER_DB_URL env var."""
-    url = os.environ.get("TRUSTLAYER_DB_URL", "postgresql+psycopg://trustlayer:trustlayer@localhost:5432/trustlayer")
+    url = os.environ.get(
+        "TRUSTLAYER_DB_URL", "postgresql+psycopg://trustlayer:trustlayer@localhost:5432/trustlayer"
+    )
     engine = create_engine(url, echo=False)
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)

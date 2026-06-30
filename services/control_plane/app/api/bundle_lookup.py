@@ -43,6 +43,7 @@ class DbBundleLookup:
     circular import. It implements the same surface contract
     (a `lookup_async` method) and is structurally compatible.
     """
+
     """Real bundle lookup via the `disclosure_records` table.
 
     Per Plan v1.2 Block 3 v1.1.0-US-12 AC-2: when the id exists in
@@ -71,6 +72,7 @@ class DbBundleLookup:
         `lookup_async` as the canonical async path.
         """
         import asyncio
+
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -80,8 +82,7 @@ class DbBundleLookup:
         # The FastAPI route uses Depends() with the async path
         # directly; this branch is unreachable in production.
         raise RuntimeError(
-            "DbBundleLookup.lookup called from an async context; "
-            "use lookup_async() instead"
+            "DbBundleLookup.lookup called from an async context; use lookup_async() instead"
         )
 
     async def lookup_async(self, bundle_id: str) -> dict | None:

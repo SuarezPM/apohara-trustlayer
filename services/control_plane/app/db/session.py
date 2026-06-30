@@ -35,7 +35,7 @@ Per SQLAlchemy 2.0 async best practices:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -45,6 +45,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # Global state: the engine + sessionmaker are created lazily on first
 # access. Tests override `get_async_session` via FastAPI's
@@ -89,7 +92,7 @@ def _get_engine() -> AsyncEngine:
         # (so None propagates) and `.immutabledict(...).union(None)`
         # then raises `TypeError: 'NoneType' object is not iterable`.
         is_sqlite = settings.database_url.startswith("sqlite")
-        engine_kwargs: dict = dict(echo=False)
+        engine_kwargs: dict = {"echo": False}
         if not is_sqlite:
             engine_kwargs.update(
                 pool_size=settings.database_pool_size,

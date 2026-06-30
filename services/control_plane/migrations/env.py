@@ -4,6 +4,7 @@ Per Plan v1.2 Block 4 v1.2-US-1: async-compatible migrations using
 SQLAlchemy 2.0 + asyncpg/aiosqlite. Reads `TL_DATABASE_URL` from the
 environment (defaults to SQLite async for local dev).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -14,13 +15,17 @@ from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
-from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Add the control_plane package to sys.path so `app.db.models` resolves.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from typing import TYPE_CHECKING
+
 from app.db.models import Base
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Connection
 
 config = context.config
 

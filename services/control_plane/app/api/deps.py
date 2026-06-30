@@ -12,6 +12,7 @@ Production paths:
 Tests use X-Org-Id directly. Tests that need a clean
 request state can override the dependency with a no-op.
 """
+
 from __future__ import annotations
 
 from fastapi import HTTPException, Request, status

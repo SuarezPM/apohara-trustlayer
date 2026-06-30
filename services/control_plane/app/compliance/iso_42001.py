@@ -91,8 +91,7 @@ ISO_42001_ANNEX_A_CONTROLS: list[dict] = [
         "implementation_status": "partial",
         "evidence_refs": ["docs/SERIES_A_DECK.md"],
         "notes": (
-            "Local dev: Apple silicon / Linux. Production: AWS + Azure "
-            "confidential VMs (W6.5)."
+            "Local dev: Apple silicon / Linux. Production: AWS + Azure confidential VMs (W6.5)."
         ),
     },
     {
@@ -111,10 +110,7 @@ ISO_42001_ANNEX_A_CONTROLS: list[dict] = [
         "applicable": True,
         "implementation_status": "implemented",
         "evidence_refs": ["crates/apohara-agentguard/src/sandbox/"],
-        "notes": (
-            "apohara-agentguard sandboxing + cargo deny license/advisory "
-            "hygiene."
-        ),
+        "notes": ("apohara-agentguard sandboxing + cargo deny license/advisory hygiene."),
     },
     # A.5 Assessing impacts of AI systems (4 controls)
     {
@@ -279,7 +275,10 @@ ISO_42001_ANNEX_A_CONTROLS: list[dict] = [
         "name": "Data provenance",
         "applicable": True,
         "implementation_status": "implemented",
-        "evidence_refs": ["crates/tl-evidence/src/hmac_chain.rs", "services/control_plane/app/domain/chains.py"],
+        "evidence_refs": [
+            "crates/tl-evidence/src/hmac_chain.rs",
+            "services/control_plane/app/domain/chains.py",
+        ],
         "notes": "Every receipt has a content_hash + BLAKE3 chain link.",
     },
     {
@@ -325,7 +324,10 @@ ISO_42001_ANNEX_A_CONTROLS: list[dict] = [
         "name": "Information to interested parties",
         "applicable": True,
         "implementation_status": "implemented",
-        "evidence_refs": ["services/control_plane/app/api/pld.py", "services/control_plane/app/notary_production.py"],
+        "evidence_refs": [
+            "services/control_plane/app/api/pld.py",
+            "services/control_plane/app/notary_production.py",
+        ],
         "notes": "PLD rebuttal pack + Notary verify URL.",
     },
     # A.9 Use of AI systems (3 controls)
@@ -390,9 +392,10 @@ ISO_42001_ANNEX_A_CONTROLS: list[dict] = [
         "name": "Customers",
         "applicable": True,
         "implementation_status": "implemented",
-        "evidence_refs": ["services/control_plane/app/notary_production.py", "services/control_plane/app/verification_page.py"],
+        "evidence_refs": [
+            "services/control_plane/app/notary_production.py",
+            "services/control_plane/app/verification_page.py",
+        ],
         "notes": "Notary certificate + public verify URL.",
     },
 ]
-
-

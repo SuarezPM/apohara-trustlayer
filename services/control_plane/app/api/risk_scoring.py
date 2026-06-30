@@ -12,6 +12,7 @@ process — not the full GRC).
 Compliance: EU AI Act Art. 9 (risk management), DORA Art. 11
 (DOR testing), ISO 42001 A.6.2.6 (logging traceability).
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -33,12 +34,14 @@ router = APIRouter(prefix="/v1/risk-scoring", tags=["risk-scoring"])
 
 class RiskStageCount(BaseModel):
     """One ISO 23894:2023 stage or NIST AI RMF function count."""
+
     key: str
     count: int
 
 
 class TopRisk(BaseModel):
     """Summary of one high-residual risk."""
+
     risk_id: str
     title: str
     inherent_risk_score: int
@@ -51,6 +54,7 @@ class TopRisk(BaseModel):
 
 class RiskSummaryResponse(BaseModel):
     """Response for GET /v1/risk-scoring/summary."""
+
     org_id: str
     total_risks: int
     by_band: dict[str, int]
@@ -65,6 +69,7 @@ class RiskSummaryResponse(BaseModel):
 
 class AddRiskRequest(BaseModel):
     """Request for POST /v1/risk-scoring/risks."""
+
     risk_id: str
     title: str
     description: str
@@ -160,6 +165,7 @@ def post_add_risk(
     from app.risk_scoring.iso_23894 import (
         RiskTreatment as _Treatment,
     )
+
     risk = _Risk(
         risk_id=req.risk_id,
         title=req.title,

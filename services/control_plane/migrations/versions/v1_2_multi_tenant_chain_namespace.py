@@ -20,12 +20,17 @@ Revision ID: v1_2_multi_tenant_chain_namespace
 Revises:
 Create Date: 2026-06-26
 """
+
 from __future__ import annotations
 
-from collections.abc import Sequence
+import contextlib
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 # revision identifiers, used by Alembic.
 revision: str = "v1_2_multi_tenant_chain_namespace"
@@ -103,13 +108,11 @@ def downgrade() -> None:
     def _drop_org_id_and_index(table_name: str) -> None:
         if not inspector.has_table(table_name):
             return
-        existing_indexes = {i["name"] for i in inspector.get_columns(table_name)}
+        {i["name"] for i in inspector.get_columns(table_name)}
         idx_name = f"ix_{table_name}_org_id_chain_id"
         # drop_index is order-sensitive; only call if it exists.
-        try:
+        with contextlib.suppress(Exception):
             op.drop_index(idx_name, table_name=table_name)
-        except Exception:
-            pass
 
         existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
         if "org_id" in existing_cols:

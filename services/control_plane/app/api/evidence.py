@@ -23,17 +23,19 @@ import base64
 import hashlib
 import json
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.bundle_lookup import _record_to_bundle_dict
 from app.api.deps import get_org_id
 from app.db.models import DisclosureRecord
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 # v1.1.0.x+1+2: closed CRÍTICO 2 (66-byte COSE_Sign1 placeholder) by
 # using the real tl-ffi signing function. This path is ONLY for the
@@ -52,6 +54,7 @@ except ImportError:
             "apohara_trustlayer Python wheel not built. Run: "
             "`maturin develop --release` to enable synthetic COSE_Sign1."
         )
+
 
 router = APIRouter()
 
@@ -218,9 +221,7 @@ def _build_scitt_envelope_from_bundle(bundle: dict) -> dict:
     # Deterministic issued_at from the bundle's row_hash (NOT
     # wall-clock). The SCITT property: same bundle → same receipt.
     issued_at = int.from_bytes(
-        hashlib.sha256(
-            (signature.get("row_hash", "default") + "issued").encode()
-        ).digest()[:4],
+        hashlib.sha256((signature.get("row_hash", "default") + "issued").encode()).digest()[:4],
         "big",
     )
 
@@ -291,6 +292,7 @@ def get_async_session_dep():
     tests that want a custom session per app.
     """
     from app.db.session import get_async_session
+
     return get_async_session
 
 
@@ -345,7 +347,9 @@ async def get_stix_bundle(
     Microsoft Sentinel, Elastic Security all have STIX 2.1 ingestion).
     """
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    stmt = select(DisclosureRecord).where(
+        DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 
@@ -515,7 +519,9 @@ async def get_scitt_receipt(
     `disclaimers` field makes this honest.
     """
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    stmt = select(DisclosureRecord).where(
+        DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 
@@ -601,7 +607,9 @@ async def get_evidence_bundle(
         )
 
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    stmt = select(DisclosureRecord).where(
+        DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
     if record is None:

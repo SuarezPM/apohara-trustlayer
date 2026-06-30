@@ -14,6 +14,7 @@ The W7.2 stub functions (`agent_step_receipt`, `orchestration_manifest`)
 remain available for direct programmatic use; the router wraps them with
 request validation.
 """
+
 from __future__ import annotations
 
 import logging
@@ -78,9 +79,7 @@ class ManifestRequest(BaseModel):
     """Body for POST /v1/catalyst/manifest."""
 
     run_id: str
-    step_receipts: list[dict] = Field(
-        ..., min_length=1, description="Step receipts in DAG order"
-    )
+    step_receipts: list[dict] = Field(..., min_length=1, description="Step receipts in DAG order")
 
 
 class ManifestResponse(BaseModel):
@@ -182,12 +181,12 @@ def post_manifest(req: ManifestRequest) -> ManifestResponse:
 
 
 __all__ = [
-    "router",
-    "StepReceiptRequest",
-    "StepReceiptResponse",
     "ManifestRequest",
     "ManifestResponse",
+    "StepReceiptRequest",
+    "StepReceiptResponse",
     # Re-exports for programmatic use
     "agent_step_receipt",
     "orchestration_manifest",
+    "router",
 ]

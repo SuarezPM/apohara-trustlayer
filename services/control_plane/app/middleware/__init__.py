@@ -33,6 +33,7 @@ the same dict shared with the FastAPI `Request` object downstream.
 `scope["state"]` is the canonical Starlette pattern for passing
 per-request data between middleware and route handlers.
 """
+
 from __future__ import annotations
 
 import base64
@@ -263,8 +264,9 @@ class OrgResolverASGIMiddleware:
 
         await self.app(scope, receive, send)
 
+
 __all__ = [
-    "OrgResolverASGIMiddleware",
     "PUBLIC_PATHS",
+    "OrgResolverASGIMiddleware",
     "reset_jwt_secret_cache_for_tests",
 ]

@@ -14,6 +14,7 @@ This shim preserves the legacy `from app.notary_production import X`
 import path for 9.1-era callers (main.py, verification_page.py, tests).
 New code should use `from app.notary import X` (the clean path).
 """
+
 from app.notary import (
     CertificateArtifactGenerator,
     NotaryDB,
@@ -32,12 +33,12 @@ from app.notary import (
 from app.notary.service import router
 
 __all__ = [
+    "CertificateArtifactGenerator",
     "NotaryDB",
+    "NotaryServiceProduction",
     "QTSPClient",
     "QTSPError",
     "SCITTClient",
     "SCITTError",
-    "CertificateArtifactGenerator",
-    "NotaryServiceProduction",
     "router",
 ]

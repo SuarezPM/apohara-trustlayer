@@ -76,6 +76,7 @@ def _legacy_row_to_dict(row: tuple) -> dict[str, Any]:
     # Parse the legacy timestamp strings to `datetime` so the SQLAlchemy
     # `DateTime(timezone=False)` columns receive naive-UTC values.
     from datetime import datetime as _dt
+
     for key in ("submitted_at", "notarized_at", "tsa_fetched_at"):
         if out.get(key):
             # Legacy rows are stored as 'YYYY-MM-DD HH:MM:SS.ffffff'
