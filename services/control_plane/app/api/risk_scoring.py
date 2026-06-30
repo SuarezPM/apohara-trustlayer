@@ -157,7 +157,7 @@ def post_add_risk(
         ISO23894Stage as _Stage,
     )
     from app.risk_scoring.iso_23894 import (
-        NISTAIRMFFunction as _RMF,
+        NISTAIRMFFunction as _RMF,  # noqa: N814
     )
     from app.risk_scoring.iso_23894 import (
         Risk as _Risk,

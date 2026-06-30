@@ -262,7 +262,7 @@ def test_get_signer_picks_thales_when_pkcs11_module_set(
     try:
         from app.hsm_adapter import get_signer
         try:
-            signer = get_signer()
+            get_signer()
         except (ImportError, OSError, FileNotFoundError):
             # Module load failed — expected for a fake path. The selection
             # code returned the right type; we re-run with a stub.

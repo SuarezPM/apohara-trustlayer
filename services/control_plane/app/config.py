@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         default=10,
         description=(
             "SQLAlchemy async connection pool size. Rule of thumb:"
-            " 2 × CPU cores per app instance. Production: 10–50."
+            " 2 x CPU cores per app instance. Production: 10-50."
         ),
     )
     database_pool_max_overflow: int = Field(

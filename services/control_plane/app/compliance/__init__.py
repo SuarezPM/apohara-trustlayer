@@ -18,8 +18,6 @@ shim that re-exports everything from this package.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from app.compliance.cross_jurisdiction import CROSS_JURISDICTION_PROFILES
 from app.compliance.dora import DORA_EVIDENCE_CHECKS
 from app.compliance.federated_scitt import federate_scitt_evidence

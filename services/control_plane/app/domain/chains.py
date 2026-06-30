@@ -37,12 +37,12 @@ def _hasher():
             return blake3_hash_hex(data)
 
         return _blake3
-    except ImportError:
+    except ImportError as err:
         if os.environ.get("TL_ALLOW_HASHLIB_FALLBACK", "true").lower() != "true":
             raise RuntimeError(
                 "tl-ffi not importable + TL_ALLOW_HASHLIB_FALLBACK=false. "
                 "Production requires `uv pip install apohara-trustlayer`."
-            )
+            ) from err
         import warnings
 
         warnings.warn(

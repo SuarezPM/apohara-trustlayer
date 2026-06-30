@@ -13,7 +13,7 @@ suites to the apohara-argus CordonEnforcer.
   cases, latest release March 2026.
 - **MITRE ATLAS 2026** (Adversarial Threat Landscape for AI Systems)
   — January 2026 release: 15 tactics, 66 techniques + 14 agentic
-  (AML.T0080–T0100).
+  (AML.T0080-T0100).
 
 ## Mapping to TrustLayer controls
 

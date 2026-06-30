@@ -84,7 +84,7 @@ def _legacy_row_to_dict(row: tuple) -> dict[str, Any]:
             try:
                 out[key] = _dt.fromisoformat(out[key])
             except ValueError:
-                out[key] = _dt.strptime(out[key], "%Y-%m-%d %H:%M:%S.%f")
+                out[key] = _dt.strptime(out[key], "%Y-%m-%d %H:%M:%S.%f")  # noqa: DTZ007
         else:
             out[key] = None
     return out

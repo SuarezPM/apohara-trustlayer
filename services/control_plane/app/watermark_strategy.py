@@ -6,7 +6,7 @@ in the W9.0 milestone: text disclosed via the control plane now has
 its watermark layer assessed via real z-test detection.
 
 Per Kirchenbauer et al. (2023) "A Watermark for Large Language Models":
-z = (|s| - γT) / sqrt(γ(1-γ)T); one-sided threshold z > 4.0 (p < 0.00003).
+z = (|s| - \u03b3T) / sqrt(\u03b3(1-\u03b3)T); one-sided threshold z > 4.0 (p < 0.00003).
 
 Used by `app.domain.disclosure_service.assess_4_layers` for the
 watermark layer of the most-restrictive-wins rollup.
@@ -32,7 +32,7 @@ class WatermarkResult(BaseModel):
     """Result of a Kirchenbauer watermark detection."""
 
     detected: bool = Field(description="True iff z_score > z_threshold (one-sided test).")
-    z_score: float = Field(description="z-statistic: (|s| - γT) / sqrt(γ(1-γ)T)")
+    z_score: float = Field(description="z-statistic: (|s| - γT) / sqrt(γ(1-γ)T)")  # noqa: RUF001
     green_count: int = Field(description="|s|: tokens falling in green list")
     total_count: int = Field(description="T: total tokens analysed")
     gamma: float = Field(description="Green-list fraction used")

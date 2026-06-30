@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from reportlab.platypus import Paragraph, Table
+
 
 def safe_html(s: str | None) -> str:
     """Minimal HTML escape for Paragraph payloads.

@@ -75,7 +75,7 @@ logger = logging.getLogger(__name__)
 # OID_QC_TSTS = "0.4.0.194112.1.2" — id-qc-tsts
 # OID_QC_TSTS_ARCH = "0.4.0.194112.1.3" — id-qc-tsts-arch
 # OID_QC_STATEMENTS = "1.3.6.1.5.5.7.1.3" — qcStatements X.509v3 extension
-from app.constants import (
+from app.constants import (  # noqa: E402
     EU_TRUST_LIST_FINGERPRINTS,
     OID_ES_I4_QTST_STATEMENT_1,
     OID_ETSI_TSTS,

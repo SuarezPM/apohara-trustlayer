@@ -54,8 +54,8 @@ DEFAULT_NOTARY_DB_PATH: Final[str] = "notary.db"
 # LLM watermark defaults (Kirchenbauer et al. 2023)
 # ============================================================================
 
-# Green-list fraction γ per Kirchenbauer §3.1. Higher γ → more biased
-# but easier to detect; lower γ → less visible watermark. Default 0.25.
+# Green-list fraction γ per Kirchenbauer §3.1. Higher γ → more biased  # noqa: RUF003
+# but easier to detect; lower γ → less visible watermark. Default 0.25.  # noqa: RUF003
 DEFAULT_GAMMA: Final[float] = 0.25
 
 # One-sided z-score threshold per Kirchenbauer §4 (z > 4.0 → p < 0.00003).

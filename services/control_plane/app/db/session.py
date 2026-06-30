@@ -35,6 +35,7 @@ Per SQLAlchemy 2.0 async best practices:
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import (
@@ -128,14 +129,12 @@ def reset_engine_for_tests() -> None:
     global _engine, _sessionmaker
     if _engine is not None:
         # Best-effort dispose. In production, this is never called.
-        try:
+        # W8.9.1+narrowed: catch is documented in the function docstring.
+        # Best-effort dispose for test cleanup. Disposal errors are not actionable here
+        # (the test is over and we are about to drop the reference anyway). Swallow
+        # so the test teardown is never blocked by a transient dispose failure.
+        with contextlib.suppress(Exception):
             _engine.sync_engine.dispose()
-        except Exception:
-            # W8.9.1+narrowed: catch is documented in the function docstring.
-            # Best-effort dispose for test cleanup. Disposal errors are not actionable here
-            # (the test is over and we are about to drop the reference anyway). Swallow
-            # so the test teardown is never blocked by a transient dispose failure.
-            pass
     _engine = None
     _sessionmaker = None
 
