@@ -243,7 +243,7 @@ async def generate_rebuttal_pack(
 )
 async def get_regulatory_deadline(
     regulation: str,
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """Return days until a regulatory deadline."""
 
@@ -287,7 +287,7 @@ async def get_regulatory_deadline(
     ),
 )
 async def get_iso42001_soa(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> ISO42001StatementOfApplicability:
     """Generate the ISO/IEC 42001 SoA."""
 
@@ -315,7 +315,7 @@ async def get_iso42001_soa(
     summary="List all ISO/IEC 42001 Annex A controls",
 )
 async def list_iso42001_controls(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """List all ISO/IEC 42001 Annex A controls with status."""
 
@@ -335,7 +335,7 @@ async def list_iso42001_controls(
     summary="List NIST AI 600-1 GenAI risks + TrustLayer mitigations",
 )
 async def list_nist_risks(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """List all NIST AI 600-1 GenAI risks with TrustLayer mitigations."""
 
@@ -350,7 +350,7 @@ async def list_nist_risks(
     summary="Overall NIST AI 600-1 GenAI profile compliance score",
 )
 async def get_nist_profile_compliance(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """Return overall NIST AI 600-1 GenAI profile compliance score."""
 

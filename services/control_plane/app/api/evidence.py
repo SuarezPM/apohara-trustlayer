@@ -49,7 +49,7 @@ except ImportError:
     # Fall back to a stub that raises — production code never reaches
     # this path; tests that need the synthetic bundle must build the
     # wheel first.
-    def _cose_sign1_synthetic(payload: bytes, aad: bytes) -> bytes:  # type: ignore
+    def _cose_sign1_synthetic(payload: bytes, aad: bytes) -> bytes:  # type: ignore  # noqa: ARG001
         raise RuntimeError(
             "apohara_trustlayer Python wheel not built. Run: "
             "`maturin develop --release` to enable synthetic COSE_Sign1."
@@ -241,15 +241,15 @@ def _parse_accept(accept_header: str | None) -> list[str]:
     if not accept_header or accept_header.strip() == "":
         return ["*/*"]
     items: list[tuple[float, str]] = []
-    for raw in accept_header.split(","):
-        raw = raw.strip()
-        if not raw:
+    for raw_chunk in accept_header.split(","):
+        chunk = raw_chunk.strip()
+        if not chunk:
             continue
-        parts = raw.split(";")
+        parts = chunk.split(";")
         media = parts[0].strip()
         q = 1.0
-        for param in parts[1:]:
-            param = param.strip()
+        for param_part in parts[1:]:
+            param = param_part.strip()
             if param.startswith("q="):
                 try:
                     q = float(param[2:])
@@ -326,7 +326,7 @@ def get_bundle_lookup(request: Request) -> BundleLookup:
 async def get_stix_bundle(
     bundle_id: str,
     org_id: str = Depends(get_org_id),
-    session: AsyncSession = Depends(get_async_session_dep),
+    session: AsyncSession = Depends(get_async_session_dep),  # noqa: B008
 ) -> Response:
     """Return a STIX 2.1 bundle for an evidence bundle (v1.1.1-US-4).
 
@@ -501,7 +501,7 @@ async def get_stix_bundle(
 async def get_scitt_receipt(
     bundle_id: str,
     org_id: str = Depends(get_org_id),
-    session: AsyncSession = Depends(get_async_session_dep),
+    session: AsyncSession = Depends(get_async_session_dep),  # noqa: B008
 ) -> Response:
     """Return the counter-signed SCITT receipt for a bundle.
 
@@ -577,7 +577,7 @@ async def get_evidence_bundle(
     bundle_id: str,
     accept: str | None = Header(default=None),
     org_id: str = Depends(get_org_id),
-    session: AsyncSession = Depends(get_async_session_dep),
+    session: AsyncSession = Depends(get_async_session_dep),  # noqa: B008
 ) -> Response:
     """Download a complete evidence bundle with content negotiation.
 

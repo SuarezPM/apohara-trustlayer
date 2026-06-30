@@ -30,7 +30,7 @@ router = APIRouter()
 )
 async def generate_disclosure_endpoint(
     req: DisclosureGenerateRequest,
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> DisclosureGenerateResponse:
     """Generate a signed, chained, timestamped disclosure.
 

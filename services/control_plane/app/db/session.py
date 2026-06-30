@@ -69,7 +69,7 @@ def _get_engine() -> AsyncEngine:
       `database_ssl_root_cert_path='/path/to/rds-ca-bundle.pem'`
       is the strictest setting — the production target.
     """
-    global _engine
+    global _engine  # noqa: PLW0603 (lazy-init module-level singleton)
     if _engine is None:
         settings = get_settings()
         connect_args: dict = {}
@@ -109,7 +109,7 @@ def _get_engine() -> AsyncEngine:
 
 def _get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     """Return the global async sessionmaker, creating it on first access."""
-    global _sessionmaker
+    global _sessionmaker  # noqa: PLW0603 (lazy-init module-level singleton)
     if _sessionmaker is None:
         _sessionmaker = async_sessionmaker(
             _get_engine(),
@@ -126,7 +126,7 @@ def reset_engine_for_tests() -> None:
     engine is disposed (best-effort — we don't await since this is a
     sync function called from test setup).
     """
-    global _engine, _sessionmaker
+    global _engine, _sessionmaker  # noqa: PLW0603 (lazy-init module-level singleton)
     if _engine is not None:
         # Best-effort dispose. In production, this is never called.
         # W8.9.1+narrowed: catch is documented in the function docstring.

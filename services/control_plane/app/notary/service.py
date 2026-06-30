@@ -276,7 +276,7 @@ class NotaryServiceProduction:
 # ============================================================================
 
 
-def _make_router(service_getter):
+def _make_router(_service_getter):
     """Build the FastAPI router bound to a lazy service accessor.
 
     The router does NOT take the NotaryService as a dependency at import

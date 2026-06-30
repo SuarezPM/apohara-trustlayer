@@ -1,4 +1,20 @@
 from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+# Make the control_plane package importable. The control_plane
+# service is a sub-project, not part of the root python package.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONTROL_PLANE = REPO_ROOT / "services" / "control_plane"
+sys.path.insert(0, str(CONTROL_PLANE))
+
+
+from test_org_id_helpers import OrgIdTestClient  # noqa: E402
+from app.api.evidence import SUPPORTED_TYPES  # noqa: E402
+
 """
 Test the content negotiation contract on GET /v1/evidence/{bundle_id}.
 
@@ -14,24 +30,6 @@ subprocess), exercise all 4 scenarios, assert (a) status code,
 The bundle is synthetic for v1.0.5 (real lookup lands in US-12);
 the synthetic content is deterministic per bundle_id.
 """
-
-
-from test_org_id_helpers import OrgIdTestClient  # noqa: E402
-
-import json
-import re
-import sys
-from pathlib import Path
-
-
-# Make the control_plane package importable. The control_plane
-# service is a sub-project, not part of the root python package.
-REPO_ROOT = Path(__file__).resolve().parent.parent
-CONTROL_PLANE = REPO_ROOT / "services" / "control_plane"
-sys.path.insert(0, str(CONTROL_PLANE))
-
-# Now we can import the FastAPI app and the evidence router.
-from app.api.evidence import SUPPORTED_TYPES  # noqa: E402
 
 
 # Test helpers (also used by tests/test_real_evidence_lookup.py).

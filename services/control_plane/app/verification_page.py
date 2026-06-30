@@ -36,7 +36,7 @@ _db: NotaryDB | None = None
 
 def init_verification_routes(db: NotaryDB) -> None:
     """Wire the verification routes to a database. Called at startup."""
-    global _db
+    global _db  # noqa: PLW0603 (module-level singleton initialised at app startup)
     _db = db
     logger.info("Verification routes initialized")
 

@@ -100,9 +100,9 @@ def verify_inclusion_proof(
 
 
 def verify_consistency_proof(
-    old_size: int,
+    old_size: int,  # noqa: ARG001 (RFC 9162 §6.4 API: tree_size is part of the proof shape)
     old_root_hex: str,
-    new_size: int,
+    new_size: int,  # noqa: ARG001 (RFC 9162 §6.4 API: tree_size is part of the proof shape)
     new_root_hex: str,
     consistency_path: list[tuple[bool, str]],
 ) -> bool:
@@ -190,7 +190,7 @@ def verify_federated_receipt(
     tree_size_b: int,
     leaf_index_b: int,
     sth_b_signature_material: bytes,
-    log_b_public_key_pem: bytes,
+    log_b_public_key_pem: bytes,  # noqa: ARG001 (reserved for future cross-log verification)
 ) -> tuple[bool, str | None, str]:
     """Verify a federated SCITT receipt (Log A anchors Log B's STH).
 

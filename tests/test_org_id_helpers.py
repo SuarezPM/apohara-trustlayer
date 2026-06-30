@@ -25,8 +25,8 @@ from pathlib import Path
 control_plane_dir = Path(__file__).resolve().parent.parent / "services" / "control_plane"
 sys.path.insert(0, str(control_plane_dir))
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 # v1.2 (post-EXA research + runtime debugging 2026-06-26): the
 # middleware is PURE ASGI, not function-based. Pure ASGI writes
