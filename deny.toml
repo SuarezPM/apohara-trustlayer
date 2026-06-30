@@ -34,6 +34,9 @@ ignore = [
     # entry points. Until then this advisory does not apply to this codebase.
     "RUSTSEC-2026-0187",
     "RUSTSEC-2026-0192",
+    # RUSTSEC-2026-0173: proc-macro-error2 unmaintained (transitive).
+    "RUSTSEC-2026-0173",
+
 ]
 
 [licenses]
