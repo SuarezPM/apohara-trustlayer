@@ -11,6 +11,8 @@ import logging
 import os
 from datetime import UTC, datetime
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +77,13 @@ class QTSPClient:
                 return None, None, None
 
             # POST the DER-encoded request to the TSA.
-            import httpx
+            # `httpx` is imported at module top so the `except httpx.HTTPError`
+            # clause below is evaluable even when the inner rfc3161-client
+            # import succeeds but the TSA POST itself raises a non-ImportError
+            # exception (e.g. TypeError on a bad TimestampRequestBuilder arg).
+            # Without this the outer `except httpx.HTTPError` triggers
+            # `UnboundLocalError: cannot access local variable 'httpx'`
+            # because line 78 is never reached in that error path.
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.post(
                     self.tsa_url,
