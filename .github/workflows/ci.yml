@@ -124,7 +124,7 @@ jobs:
       # Point cargo-audit at a separate DB path so it doesn't conflict
       # with cargo-deny's clone at ~/.cargo/advisory-db (cargo-audit
       # refuses to git-clone into a non-empty dir).
-      - run: cargo audit -d ~/.cargo/advisory-db-audit
+      - run: cargo audit -d ~/.cargo/advisory-db-audit --deny warnings
 
   # ===========================================================================
   # PYTHON JOBS
@@ -144,7 +144,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install ruff
-        run: pip install --upgrade "pip==26.1.2" "ruff==0.7.4"
+        run: pip install --require-hashes --quiet -r requirements-ci.txt
       - name: ruff check
         run: |
           ruff check \
@@ -186,7 +186,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install uv
-        run: pip install --upgrade "pip==26.1.2" "uv==0.5.11"
+        run: pip install --require-hashes --quiet -r requirements-ci.txt
       - name: Install protoc
         # Required by tests/test_config_fail_fast.py::test_tsa_fail_fast_compile_test
         # which spawns cargo test tsa::tests (uses prost-build / Rekor v2 codegen).
@@ -225,7 +225,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install pip-audit
-        run: pip install --upgrade "pip==26.1.2" "pip-audit==2.7.3"
+        run: pip install --require-hashes --quiet -r requirements-ci.txt
       - name: Build audit venv from hash-pinned requirements-audit.txt
         run: |
           python -m venv .audit-venv
