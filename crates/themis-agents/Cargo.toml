@@ -22,7 +22,7 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 blake3 = "1"
 base64 = "0.22"
 hex = "0.4"
-rand = "0.9"
+rand = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1.40", features = ["time"] }
 themis-compressor = { path = "../themis-compressor" }
