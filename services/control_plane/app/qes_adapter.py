@@ -51,6 +51,7 @@ For each TST in the NotaryService evidence pack, this module:
 This is the **detection** side; signing is delegated to the QTSP itself
 (Actalis endpoint at `http://timestamp.actalis.com`).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -74,7 +75,7 @@ logger = logging.getLogger(__name__)
 # OID_QC_TSTS = "0.4.0.194112.1.2" — id-qc-tsts
 # OID_QC_TSTS_ARCH = "0.4.0.194112.1.3" — id-qc-tsts-arch
 # OID_QC_STATEMENTS = "1.3.6.1.5.5.7.1.3" — qcStatements X.509v3 extension
-from app.constants import (
+from app.constants import (  # noqa: E402
     EU_TRUST_LIST_FINGERPRINTS,
     OID_ES_I4_QTST_STATEMENT_1,
     OID_ETSI_TSTS,
@@ -84,15 +85,15 @@ from app.constants import (
 )
 
 __all__ = [
-    "QESValidationResult",
-    "OID_ETSI_TSTS",
+    "EU_TRUST_LIST_FINGERPRINTS",
     "OID_ES_I4_QTST_STATEMENT_1",
+    "OID_ETSI_TSTS",
+    "OID_QC_STATEMENTS",
     "OID_QC_TSTS",
     "OID_QC_TSTS_ARCH",
-    "OID_QC_STATEMENTS",
-    "EU_TRUST_LIST_FINGERPRINTS",
-    "validate_qtsp_certificate",
+    "QESValidationResult",
     "qtsp_qualified_for_jurisdiction",
+    "validate_qtsp_certificate",
 ]
 
 
@@ -128,7 +129,10 @@ class QESValidationResult:
     """List of regulatory references backing the qualification."""
 
     issues: list[str] = field(default_factory=list)
-    """List of validation issues (empty if is_qualified=True and chain_root_in_eu_trust_list=True)."""
+    """List of validation issues.
+
+    Empty iff is_qualified=True and chain_root_in_eu_trust_list=True.
+    """
 
 
 # ============================================================================
@@ -219,9 +223,7 @@ def validate_qtsp_certificate(cert_der: bytes) -> QESValidationResult:
                 "(OID 0.4.0.19422.1.1) not found in the TSA certificate"
             )
     except x509.ExtensionNotFound:
-        issues.append(
-            "qcStatements extension not present — TSA is not a qualified provider"
-        )
+        issues.append("qcStatements extension not present — TSA is not a qualified provider")
     except Exception as qc_err:
         issues.append(f"qcStatements walk failed: {qc_err}")
 
@@ -363,9 +365,7 @@ def walk_eu_trust_list_chain_pyhanko(
     try:
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
     except Exception as e:
-        return TrustListChainResult(
-            verified=False, error=f"failed to parse QTSP cert: {e}"
-        )
+        return TrustListChainResult(verified=False, error=f"failed to parse QTSP cert: {e}")
 
     cert_sha1 = cert.fingerprint(_hashes.SHA1()).hex().upper()
     cert_subject = cert.subject.rfc4514_string()
@@ -385,8 +385,11 @@ def walk_eu_trust_list_chain_pyhanko(
         async with aiohttp.ClientSession() as client:
             xml_str: str | None = None
             if lotl_xml is not None:
-                xml_str = lotl_xml.decode("utf-8", errors="replace") \
-                    if isinstance(lotl_xml, (bytes, bytearray)) else lotl_xml
+                xml_str = (
+                    lotl_xml.decode("utf-8", errors="replace")
+                    if isinstance(lotl_xml, bytes | bytearray)
+                    else lotl_xml
+                )
             else:
                 async with client.get(
                     lotl_url,
@@ -480,6 +483,7 @@ def walk_eu_trust_list_chain(
     """
     try:
         import pyhanko  # noqa: F401  (presence check)
+
         return walk_eu_trust_list_chain_pyhanko(
             cert_der=cert_der,
             lotl_xml=lotl_xml,
@@ -520,9 +524,7 @@ def _walk_eu_trust_list_chain_crypto(
     try:
         cert = x509.load_der_x509_certificate(cert_der, default_backend())
     except Exception as e:
-        return TrustListChainResult(
-            verified=False, error=f"failed to parse QTSP cert: {e}"
-        )
+        return TrustListChainResult(verified=False, error=f"failed to parse QTSP cert: {e}")
 
     # If pre-fetched LOTL XML is provided, use it; otherwise fetch.
     if lotl_xml is None:
@@ -560,14 +562,19 @@ def _walk_eu_trust_list_chain_crypto(
                 anchor_der = cert_elem.text
                 if anchor_der is None:
                     continue
-                anchor_der_bytes = anchor_der.encode("ascii") \
-                    if isinstance(anchor_der, str) else anchor_der
-                anchor_cert = x509.load_der_x509_certificate(
-                    anchor_der_bytes, default_backend()
+                anchor_der_bytes = (
+                    anchor_der.encode("ascii") if isinstance(anchor_der, str) else anchor_der
                 )
-                fp = anchor_cert.fingerprint(
-                    __import__("cryptography.hazmat.primitives.hashes", fromlist=["SHA1"]).SHA1()
-                ).hex().upper()
+                anchor_cert = x509.load_der_x509_certificate(anchor_der_bytes, default_backend())
+                fp = (
+                    anchor_cert.fingerprint(
+                        __import__(
+                            "cryptography.hazmat.primitives.hashes", fromlist=["SHA1"]
+                        ).SHA1()
+                    )
+                    .hex()
+                    .upper()
+                )
                 anchors.append(fp)
             except Exception:
                 # W8.9.1+narrowed: catch is documented in the function docstring.
@@ -595,10 +602,17 @@ def _walk_eu_trust_list_chain_crypto(
             chain.append(current)
             # Find a cert in the chain that matches the issuer
             # (production code uses a trust store)
-            issuer_fingerprint = current.fingerprint(
-                __import__("cryptography.hazmat.primitives.hashes", fromlist=["SHA1"]).SHA1()
-            ).hex().upper()
-            if issuer_fingerprint in anchors or issuer_fingerprint in EU_TRUST_LIST_FINGERPRINTS.values():
+            issuer_fingerprint = (
+                current.fingerprint(
+                    __import__("cryptography.hazmat.primitives.hashes", fromlist=["SHA1"]).SHA1()
+                )
+                .hex()
+                .upper()
+            )
+            if (
+                issuer_fingerprint in anchors
+                or issuer_fingerprint in EU_TRUST_LIST_FINGERPRINTS.values()
+            ):
                 # Chain terminates at a trusted root
                 return TrustListChainResult(
                     verified=True,
@@ -614,14 +628,16 @@ def _walk_eu_trust_list_chain_crypto(
         return TrustListChainResult(
             verified=False,
             chain_root_fingerprint=(
-                chain[-1].fingerprint(
+                chain[-1]
+                .fingerprint(
                     __import__("cryptography.hazmat.primitives.hashes", fromlist=["SHA1"]).SHA1()
-                ).hex().upper()
-                if chain else None
+                )
+                .hex()
+                .upper()
+                if chain
+                else None
             ),
-            chain_root_subject=(
-                chain[-1].subject.rfc4514_string() if chain else None
-            ),
+            chain_root_subject=(chain[-1].subject.rfc4514_string() if chain else None),
             chain_length=len(chain),
             jurisdiction="EU",
             error="chain walk incomplete: full trust store integration "
@@ -637,15 +653,15 @@ def _walk_eu_trust_list_chain_crypto(
 
 
 __all__ = [
-    "OID_ETSI_TSTS",
+    "EU_TRUST_LIST_FINGERPRINTS",
     "OID_ES_I4_QTST_STATEMENT_1",
+    "OID_ETSI_TSTS",
     "OID_QC_TSTS",
     "OID_QC_TSTS_ARCH",
-    "EU_TRUST_LIST_FINGERPRINTS",
     "QESValidationResult",
     "TrustListChainResult",
-    "validate_qtsp_certificate",
     "qtsp_qualified_for_jurisdiction",
+    "validate_qtsp_certificate",
     "walk_eu_trust_list_chain",
     "walk_eu_trust_list_chain_pyhanko",
 ]

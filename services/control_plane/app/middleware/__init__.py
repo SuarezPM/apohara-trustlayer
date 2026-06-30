@@ -33,6 +33,7 @@ the same dict shared with the FastAPI `Request` object downstream.
 `scope["state"]` is the canonical Starlette pattern for passing
 per-request data between middleware and route handlers.
 """
+
 from __future__ import annotations
 
 import base64
@@ -181,7 +182,7 @@ _jwt_secret_cache: object = _UNSET
 
 
 def _get_jwt_secret() -> str | None:
-    global _jwt_secret_cache
+    global _jwt_secret_cache  # noqa: PLW0603 (lazy-init module-level cache)
     if _jwt_secret_cache is _UNSET:
         _jwt_secret_cache = os.environ.get("TL_JWT_SECRET")
     if isinstance(_jwt_secret_cache, str) or _jwt_secret_cache is None:
@@ -193,7 +194,7 @@ def reset_jwt_secret_cache_for_tests() -> None:
     """Reset the JWT secret cache. Used by tests that change
     TL_JWT_SECRET between cases.
     """
-    global _jwt_secret_cache
+    global _jwt_secret_cache  # noqa: PLW0603 (lazy-init module-level cache)
     _jwt_secret_cache = _UNSET
 
 
@@ -263,8 +264,9 @@ class OrgResolverASGIMiddleware:
 
         await self.app(scope, receive, send)
 
+
 __all__ = [
-    "OrgResolverASGIMiddleware",
     "PUBLIC_PATHS",
+    "OrgResolverASGIMiddleware",
     "reset_jwt_secret_cache_for_tests",
 ]

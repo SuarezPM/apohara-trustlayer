@@ -10,9 +10,11 @@ Also contains the FastAPI router factory (`_make_router`) and the
 `post_notarize` route handler. The handler is bound to the
 NotaryService via `app.state.notary_service` (set in main.py lifespan).
 """
+
 from __future__ import annotations
 
 import base64
+import dataclasses
 import hashlib
 import json
 import logging
@@ -22,13 +24,56 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field  # noqa: F401  (kept for legacy callers)
 
-from app.notary.certificate_generator import CertificateArtifactGenerator
-from app.notary.db import NotaryDB
-from app.notary.models import NotarizeRequest, NotarizeResponse
-from app.notary.qtsp import QTSPClient
-from app.notary.scitt import SCITTClient
+from app.constants import HASH_OUTPUT_BYTES
+from app.notary.certificate_generator import (  # noqa: TCH001 (runtime: __init__ type annotations)
+    CertificateArtifactGenerator,
+)
+from app.notary.db import NotaryDB  # noqa: TCH001 (runtime: __init__ type annotations)
+from app.notary.models import (  # noqa: TCH001 (runtime: FastAPI body param + response_model)
+    NotarizeRequest,
+    NotarizeResponse,
+)
+from app.notary.qtsp import QTSPClient  # noqa: TCH001 (runtime: __init__ type annotations)
+from app.notary.scitt import SCITTClient  # noqa: TCH001 (runtime: __init__ type annotations)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class _CoseSign1Args:
+    """Bundled arguments for `_cose_sign1` (PLR0913 reduction).
+
+    The original signature had 6 parameters; per the W8.5 refactor we
+    group them into a frozen kw-only dataclass so the call site is
+    self-documenting and adding new fields does not break callers.
+    """
+
+    cert_id: str
+    content_hash: str
+    content_type: str
+    ai_system_id: str
+    submitted_by: str
+    notarized_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class NotarizeArgs:
+    """Bundled arguments for `notarize` (PLR0913 reduction).
+
+    The original signature had 8 parameters; per the W8.5 refactor we
+    group them into a frozen kw-only dataclass so the call site is
+    self-documenting. The optional fields (metadata, token_ids,
+    vocab_size) keep their default values via kw_only semantics.
+    """
+
+    content_hash: str
+    content_type: str
+    ai_system_id: str
+    submitted_by: str
+    submitted_at: datetime
+    metadata: dict | None = None
+    token_ids: list[int] | None = None
+    vocab_size: int | None = None
 
 
 class NotaryServiceProduction:
@@ -44,7 +89,7 @@ class NotaryServiceProduction:
     Idempotent on (content_hash, submitted_by).
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 (DI container — all 7 deps are intentional collaborator injection points)
         self,
         db: NotaryDB,
         qtsp: QTSPClient,
@@ -64,6 +109,7 @@ class NotaryServiceProduction:
         # lifespan startup.
         if signer is None:
             from app.hsm_adapter import EphemeralEd25519Signer
+
             self.signer = EphemeralEd25519Signer()
         else:
             self.signer = signer
@@ -73,18 +119,14 @@ class NotaryServiceProduction:
     def _canonical_hash(self, content: bytes) -> str:
         try:
             import blake3
+
             return "blake3:" + blake3.blake3(content).hexdigest()
         except ImportError:
             return "sha256:" + hashlib.sha256(content).hexdigest()
 
     def _cose_sign1(
         self,
-        cert_id: str,
-        content_hash: str,
-        content_type: str,
-        ai_system_id: str,
-        submitted_by: str,
-        notarized_at: datetime,
+        args: _CoseSign1Args,
     ) -> tuple[str, dict, str]:
         """Build the COSE_Sign1 envelope.
 
@@ -105,12 +147,12 @@ class NotaryServiceProduction:
         cwt_claims = {
             "iss": self.issuer,
             "sub": f"{self.issuer}:notary",
-            "iat": int(notarized_at.timestamp()),
-            "cert_id": cert_id,
-            "content_hash": content_hash,
-            "content_type": content_type,
-            "ai_system_id": ai_system_id,
-            "submitted_by": submitted_by,
+            "iat": int(args.notarized_at.timestamp()),
+            "cert_id": args.cert_id,
+            "content_hash": args.content_hash,
+            "content_type": args.content_type,
+            "ai_system_id": args.ai_system_id,
+            "submitted_by": args.submitted_by,
         }
 
         # COSE_Sign1 structure per RFC 9052 §4.4. The protected header
@@ -122,21 +164,26 @@ class NotaryServiceProduction:
             "typ": "application/notary+cose",
             "kid": f"{self.issuer}#{self.key_id}",
         }
-        protected_b64 = base64.urlsafe_b64encode(
-            json.dumps(protected).encode()
-        ).rstrip(b"=").decode()
-        payload_b64 = base64.urlsafe_b64encode(
-            json.dumps(cwt_claims, sort_keys=True).encode()
-        ).rstrip(b"=").decode()
+        protected_b64 = (
+            base64.urlsafe_b64encode(json.dumps(protected).encode()).rstrip(b"=").decode()
+        )
+        payload_b64 = (
+            base64.urlsafe_b64encode(json.dumps(cwt_claims, sort_keys=True).encode())
+            .rstrip(b"=")
+            .decode()
+        )
         # Sign_structure per RFC 9052 §4.4:
         #   Sig_structure = [
         #     "Signature1", body_protected, external_aad, payload
         #   ]
         sig_structure = (
             b"Signature1"
-            + b"\x00" + protected_b64.encode("ascii")
-            + b"\x00" + b""  # external_aad is empty
-            + b"\x00" + payload_b64.encode("ascii")
+            + b"\x00"
+            + protected_b64.encode("ascii")
+            + b"\x00"
+            + b""  # external_aad is empty
+            + b"\x00"
+            + payload_b64.encode("ascii")
         )
         # W8.3.1: actual HSM-backed signing. For Ed25519, this returns
         # 64 bytes. For ML-DSA-65, 3309 bytes. For ML-DSA-44, 2420.
@@ -147,23 +194,14 @@ class NotaryServiceProduction:
 
         return cose_sign1_b64, cwt_claims, primary_key_fingerprint
 
-    def _generate_cert_id(
-        self, content_hash: str, submitted_by: str
-    ) -> str:
+    def _generate_cert_id(self, content_hash: str, submitted_by: str) -> str:
         full_key = f"{submitted_by}:{content_hash}"
         digest = hashlib.sha256(full_key.encode()).hexdigest()[:8]
         return f"cert_{uuid.uuid4().hex[:8]}_{digest}"
 
     async def notarize(
         self,
-        content_hash: str,
-        content_type: str,
-        ai_system_id: str,
-        submitted_by: str,
-        submitted_at: datetime,
-        metadata: dict | None = None,
-        token_ids: list[int] | None = None,
-        vocab_size: int | None = None,
+        args: NotarizeArgs,
     ) -> dict:
         """Notarize content. Production W8.5. Idempotent on content_hash + submitted_by.
 
@@ -171,28 +209,30 @@ class NotaryServiceProduction:
         tokenizer. When supplied, runs the Kirchenbauer z-test and embeds
         the result on the certificate PDF as a visible stamp.
         """
-        metadata = metadata or {}
+        metadata = args.metadata or {}
 
         # Idempotency check
-        existing = await self.db.list_certificates(submitted_by=submitted_by, limit=100)
+        existing = await self.db.list_certificates(submitted_by=args.submitted_by, limit=100)
         for cert in existing:
-            if cert.get("content_hash") == content_hash:
+            if cert.get("content_hash") == args.content_hash:
                 return await self.db.get_certificate(cert["cert_id"]) or cert
 
-        cert_id = self._generate_cert_id(content_hash, submitted_by)
+        cert_id = self._generate_cert_id(args.content_hash, args.submitted_by)
         notarized_at = datetime.now(UTC)
 
         cose_sign1_b64, cwt_claims, key_fp = self._cose_sign1(
-            cert_id=cert_id,
-            content_hash=content_hash,
-            content_type=content_type,
-            ai_system_id=ai_system_id,
-            submitted_by=submitted_by,
-            notarized_at=notarized_at,
+            _CoseSign1Args(
+                cert_id=cert_id,
+                content_hash=args.content_hash,
+                content_type=args.content_type,
+                ai_system_id=args.ai_system_id,
+                submitted_by=args.submitted_by,
+                notarized_at=notarized_at,
+            )
         )
 
         # QTSP timestamp
-        raw_hash = content_hash.removeprefix("sha256:").removeprefix("blake3:")
+        raw_hash = args.content_hash.removeprefix("sha256:").removeprefix("blake3:")
         tsa_token_b64, tsa_url, tsa_fetched_at = self.qtsp.timestamp(raw_hash)
 
         # SCITT submission
@@ -202,7 +242,7 @@ class NotaryServiceProduction:
         # LLM serving stacks pre-detect and pass token_ids; control plane
         # verifies via the same algorithm and embeds the result on the PDF.
         watermark_result: dict | None = None
-        if token_ids:
+        if args.token_ids:
             try:
                 import os
 
@@ -211,14 +251,16 @@ class NotaryServiceProduction:
                 # Detection key: TL_TEXT_WATERMARK_KEY env or all-zero dev
                 wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
                 wm_key = (
-                    wm_key_env.encode("utf-8")[:32] if wm_key_env else b"\x00" * 32
+                    wm_key_env.encode("utf-8")[:HASH_OUTPUT_BYTES]
+                    if wm_key_env
+                    else b"\x00" * HASH_OUTPUT_BYTES
                 )
-                if len(wm_key) < 32:
-                    wm_key = wm_key + b"\x00" * (32 - len(wm_key))
+                if len(wm_key) < HASH_OUTPUT_BYTES:
+                    wm_key = wm_key + b"\x00" * (HASH_OUTPUT_BYTES - len(wm_key))
 
                 detected_result = kirchenbauer_detect(
-                    tokens=list(token_ids),
-                    vocab_size=int(vocab_size) if vocab_size else 50257,
+                    tokens=list(args.token_ids),
+                    vocab_size=int(args.vocab_size) if args.vocab_size else 50257,
                     key=wm_key,
                 )
                 watermark_result = detected_result.model_dump()
@@ -230,11 +272,11 @@ class NotaryServiceProduction:
 
         cert_record = {
             "cert_id": cert_id,
-            "content_hash": content_hash,
-            "content_type": content_type,
-            "ai_system_id": ai_system_id,
-            "submitted_by": submitted_by,
-            "submitted_at": submitted_at,
+            "content_hash": args.content_hash,
+            "content_type": args.content_type,
+            "ai_system_id": args.ai_system_id,
+            "submitted_by": args.submitted_by,
+            "submitted_at": args.submitted_at,
             "notarized_at": notarized_at,
             "cose_sign1_b64": cose_sign1_b64,
             "cwt_claims_json": json.dumps(cwt_claims, sort_keys=True),
@@ -265,13 +307,12 @@ class NotaryServiceProduction:
         return cert_record
 
 
-
 # ============================================================================
 # FastAPI router (W8.5)
 # ============================================================================
 
 
-def _make_router(service_getter):
+def _make_router(_service_getter):
     """Build the FastAPI router bound to a lazy service accessor.
 
     The router does NOT take the NotaryService as a dependency at import
@@ -312,14 +353,16 @@ def _make_router(service_getter):
         svc = _get_service(request)
         try:
             cert = await svc.notarize(
-                content_hash=req.content_hash,
-                content_type=req.content_type.value,
-                ai_system_id=req.ai_system_id,
-                submitted_by=req.submitted_by,
-                submitted_at=req.submitted_at,
-                metadata=req.metadata,
-                token_ids=req.token_ids,
-                vocab_size=req.vocab_size,
+                NotarizeArgs(
+                    content_hash=req.content_hash,
+                    content_type=req.content_type.value,
+                    ai_system_id=req.ai_system_id,
+                    submitted_by=req.submitted_by,
+                    submitted_at=req.submitted_at,
+                    metadata=req.metadata,
+                    token_ids=req.token_ids,
+                    vocab_size=req.vocab_size,
+                )
             )
         except (ValueError, TypeError, RuntimeError) as exc:
             # Known recoverable errors (bad input, downstream failure).
@@ -371,7 +414,8 @@ def _make_router(service_getter):
             rekor_log_id=cert.get("rekor_log_id"),
             watermark=wm_summary,
             disclaimers=[
-                "W9.0: production notary + watermark stamp. RFC 3161 + SCITT + reportlab + Kirchenbauer.",
+                "W9.0: production notary + watermark stamp. RFC 3161 + SCITT + reportlab + "
+                "Kirchenbauer.",
                 "W9.0: degraded TSA/SCITT → degraded mode (logged in metadata).",
             ],
         )

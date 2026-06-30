@@ -6,7 +6,6 @@ Consumed by `assess_dora_evidence_pack()` in `app.compliance`."""
 
 # ============================================================================
 
-
 DORA_EVIDENCE_CHECKS: list[dict] = [
     {
         "check_id": "DORA-01",

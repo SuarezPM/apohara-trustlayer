@@ -24,6 +24,7 @@ Per the auditor's recommendation: show each jurisdiction's status
 explicitly so a CISO/counsel can answer "are we compliant in the
 UK?" without reading 200 lines of policy text.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

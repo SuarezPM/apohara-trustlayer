@@ -12,8 +12,7 @@ NIST_AI_RMF_FUNCTIONS: dict[str, dict] = {
     "GV": {
         "name": "GOVERN",
         "description": (
-            "Establish a culture of AI risk management; policies, roles, "
-            "accountability."
+            "Establish a culture of AI risk management; policies, roles, accountability."
         ),
         "trustlayer_implementation": [
             "BUS FACTOR documentation in README",
@@ -34,8 +33,7 @@ NIST_AI_RMF_FUNCTIONS: dict[str, dict] = {
     "MS": {
         "name": "MEASURE",
         "description": (
-            "Employ quantitative, qualitative, or mixed-method tools to "
-            "analyze AI risk."
+            "Employ quantitative, qualitative, or mixed-method tools to analyze AI risk."
         ),
         "trustlayer_implementation": [
             "Kirchenbauer z-test watermark detection (Art. 50(3))",
@@ -46,10 +44,7 @@ NIST_AI_RMF_FUNCTIONS: dict[str, dict] = {
     },
     "MG": {
         "name": "MANAGE",
-        "description": (
-            "Allocate risk resources to mapped and measured risks on a "
-            "regular basis."
-        ),
+        "description": ("Allocate risk resources to mapped and measured risks on a regular basis."),
         "trustlayer_implementation": [
             "PLD Art. 10 rebuttable-presumption rebutter",
             "Notary Layer (kill the trustless content-notarized market)",

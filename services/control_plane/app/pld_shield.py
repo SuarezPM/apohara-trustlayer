@@ -54,10 +54,11 @@ Reference:
 - Digital Omnibus agreement (7 May 2026) — high-risk AI systems
   embedded in regulated products deferred to 2 Aug 2028
 """
+
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime  # noqa: TCH003 (runtime: Pydantic field type resolution)
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -85,6 +86,7 @@ NIST_AI_600_1_PUBLISHED = "2024-07-26"  # GenAI Profile
 
 class ComplianceRegime(str, Enum):
     """Compliance regime identifier for evidence pack generation."""
+
     EU_AI_ACT = "eu-ai-act"  # Regulation 2024/1689
     DORA = "dora"  # Regulation 2022/2554
     PLD = "pld"  # Directive 2024/2853
@@ -99,6 +101,7 @@ class PLDDisclosureOrder(BaseModel):
     The control plane must respond within the court's deadline
     (typically 30-90 days for EU member state transposition).
     """
+
     order_id: str = Field(description="Unique court order identifier")
     court: str = Field(description="Issuing court (e.g., 'Landgericht Berlin')")
     issued_at: datetime = Field(description="Order issuance date")
@@ -108,8 +111,8 @@ class PLDDisclosureOrder(BaseModel):
     product_id: str = Field(description="Specific AI product at issue")
     scope: list[str] = Field(
         description="Evidence categories requested "
-                   "(e.g., 'training-data', 'model-weights', 'decision-logs', "
-                   "'audit-trails', 'security-incidents')"
+        "(e.g., 'training-data', 'model-weights', 'decision-logs', "
+        "'audit-trails', 'security-incidents')"
     )
     # The response is built on demand via PLDDisclosureResponse.
 
@@ -121,26 +124,27 @@ class PLDDisclosureResponse(BaseModel):
     scope. Rebuttable presumption under Art. 10(1) is REBUTTED by
     production of this evidence within the deadline.
     """
+
     order_id: str
     produced_at: datetime
     evidence_packs: list[dict] = Field(
         description="Per-scope evidence packs (technical docs, training data, "
-                   "decision logs, audit trails, COSE/SCITT receipts, etc.)"
+        "decision logs, audit trails, COSE/SCITT receipts, etc.)"
     )
     declaration: str = Field(
         description="Provider's declaration that this is the complete "
-                   "responsive evidence within the scope of the order"
+        "responsive evidence within the scope of the order"
     )
     signed_by: str = Field(description="Officer signing the response")
     cose_sign1_b64: str | None = Field(
         default=None,
         description="COSE_Sign1 of the entire response payload "
-                   "(Ed25519 per RFC 9052). Signs the response for tamper-evidence."
+        "(Ed25519 per RFC 9052). Signs the response for tamper-evidence.",
     )
     scitt_entry_id: str | None = Field(
         default=None,
         description="SCITT entry ID after submission to SCITT TS. "
-                   "Anchors the response in a public append-only log."
+        "Anchors the response in a public append-only log.",
     )
 
 
@@ -156,13 +160,14 @@ class PLDDefectRebuttalPack(BaseModel):
 
     Producing this pack SHIFTS THE BURDEN back to the plaintiff.
     """
+
     product_id: str
     generated_at: datetime
     rebuttals: list[dict] = Field(
         description="Per-presumption rebuttal: "
-                   "(a) Article 10(1) disclosure: complete evidence produced. "
-                   "(b) Article 10(2) mandatory safety: compliance evidence. "
-                   "(c) Article 10(3) excessive complexity: technical docs."
+        "(a) Article 10(1) disclosure: complete evidence produced. "
+        "(b) Article 10(2) mandatory safety: compliance evidence. "
+        "(c) Article 10(3) excessive complexity: technical docs."
     )
     compliance_summary: dict = Field(
         description="Per-regime compliance status (EU AI Act, DORA, ISO 42001, PLD)"
@@ -178,6 +183,7 @@ class PLDDefectRebuttalPack(BaseModel):
 
 class ISO42001AnnexAControl(BaseModel):
     """A single ISO/IEC 42001:2023 Annex A control (A.2 through A.10)."""
+
     control_id: str = Field(description="e.g., 'A.5.2', 'A.6.2.6', 'A.10.1'")
     name: str
     description: str
@@ -186,8 +192,7 @@ class ISO42001AnnexAControl(BaseModel):
         description="implemented | partial | planned | not_applicable"
     )
     evidence_refs: list[str] = Field(
-        default_factory=list,
-        description="Paths to code/docs/audit logs that evidence this control"
+        default_factory=list, description="Paths to code/docs/audit logs that evidence this control"
     )
     notes: str | None = None
 
@@ -198,6 +203,7 @@ class ISO42001StatementOfApplicability(BaseModel):
     Maps every Annex A control to its implementation status in
     TrustLayer. Auto-generated from the codebase inventory.
     """
+
     organization: str = "Apohara TrustLayer"
     version: str
     generated_at: datetime
@@ -206,24 +212,21 @@ class ISO42001StatementOfApplicability(BaseModel):
         description="Aggregate counts: implemented/partial/planned/not_applicable"
     )
     exclusions: list[str] = Field(
-        default_factory=list,
-        description="Justified exclusions (with rationale)"
+        default_factory=list, description="Justified exclusions (with rationale)"
     )
-    version_hash: str = Field(
-        description="BLAKE3 hash of the canonical SoA for tamper-evidence"
-    )
+    version_hash: str = Field(description="BLAKE3 hash of the canonical SoA for tamper-evidence")
 
 
 class NISTAI6001GenAIRisk(BaseModel):
     """One of the 12 GAI risks in NIST AI 600-1 (July 2024)."""
+
     risk_id: str = Field(description="e.g., 'GV-001', 'GV-002'")
     name: str
     description: str
     severity: str = Field(description="low | medium | high | critical")
     applicable_to_trustlayer: bool
     mitigations: list[str] = Field(
-        default_factory=list,
-        description="TrustLayer features that mitigate this risk"
+        default_factory=list, description="TrustLayer features that mitigate this risk"
     )
 
 
@@ -286,7 +289,10 @@ ISO_42001_CONTROLS: list[ISO42001AnnexAControl] = [
             "crates/tl-mcp-server/src/envelope.rs",
             "services/control_plane/app/middleware/__init__.py",
         ],
-        notes="seccomp+Landlock sandbox, prompt envelope (Spotlighting), OrgResolverASGIMiddleware.",
+        notes=(
+            "seccomp+Landlock sandbox, prompt envelope (Spotlighting), "
+            "OrgResolverASGIMiddleware."
+        ),
     ),
     ISO42001AnnexAControl(
         control_id="A.9.4",

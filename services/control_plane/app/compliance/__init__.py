@@ -15,9 +15,8 @@ for the API endpoints.
 Backwards-compatible: `app.compliance_mappers` is now a thin compat
 shim that re-exports everything from this package.
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 from app.compliance.cross_jurisdiction import CROSS_JURISDICTION_PROFILES
 from app.compliance.dora import DORA_EVIDENCE_CHECKS
@@ -29,17 +28,17 @@ from app.compliance.nist_ai_rmf import (
 )
 
 __all__ = [
-    "ISO_42001_ANNEX_A_CONTROLS",
-    "NIST_AI_RMF_FUNCTIONS",
-    "NIST_AI_600_1_RISKS",
-    "DORA_EVIDENCE_CHECKS",
     "CROSS_JURISDICTION_PROFILES",
-    "federate_scitt_evidence",
-    "assess_iso_42001_aims",
-    "assess_nist_ai_rmf",
-    "assess_nist_ai_600_1_risks",
-    "assess_dora_evidence_pack",
+    "DORA_EVIDENCE_CHECKS",
+    "ISO_42001_ANNEX_A_CONTROLS",
+    "NIST_AI_600_1_RISKS",
+    "NIST_AI_RMF_FUNCTIONS",
     "assess_cross_jurisdiction",
+    "assess_dora_evidence_pack",
+    "assess_iso_42001_aims",
+    "assess_nist_ai_600_1_risks",
+    "assess_nist_ai_rmf",
+    "federate_scitt_evidence",
 ]
 
 
@@ -88,9 +87,7 @@ def assess_nist_ai_rmf(org_id: str = "apohara") -> dict:
         "functions": NIST_AI_RMF_FUNCTIONS,
         "genai_profile": "NIST AI 600-1",
         "risks_identified": len(NIST_AI_600_1_RISKS),
-        "applicable_risks": sum(
-            1 for r in NIST_AI_600_1_RISKS if r["applicable_to_trustlayer"]
-        ),
+        "applicable_risks": sum(1 for r in NIST_AI_600_1_RISKS if r["applicable_to_trustlayer"]),
         "non_applicable_risks": sum(
             1 for r in NIST_AI_600_1_RISKS if not r["applicable_to_trustlayer"]
         ),
@@ -129,16 +126,15 @@ def assess_cross_jurisdiction(jurisdiction: str | None = None) -> dict:
 
 
 __all__ = [
-    "ISO_42001_ANNEX_A_CONTROLS",
-    "NIST_AI_RMF_FUNCTIONS",
-    "NIST_AI_600_1_RISKS",
-    "DORA_EVIDENCE_CHECKS",
     "CROSS_JURISDICTION_PROFILES",
-    "assess_iso_42001_aims",
-    "assess_nist_ai_rmf",
-    "assess_nist_ai_600_1_risks",
-    "assess_dora_evidence_pack",
+    "DORA_EVIDENCE_CHECKS",
+    "ISO_42001_ANNEX_A_CONTROLS",
+    "NIST_AI_600_1_RISKS",
+    "NIST_AI_RMF_FUNCTIONS",
     "assess_cross_jurisdiction",
+    "assess_dora_evidence_pack",
+    "assess_iso_42001_aims",
+    "assess_nist_ai_600_1_risks",
+    "assess_nist_ai_rmf",
     "federate_scitt_evidence",
 ]
-

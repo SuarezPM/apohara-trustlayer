@@ -5,6 +5,7 @@ NotarizeResponse) to `app.notary.models` so the NotaryService can
 import them without a circular dependency. This shim preserves the
 legacy import path for 9.1-era callers.
 """
+
 from app.notary.models import ContentType, NotarizeRequest, NotarizeResponse
 
 __all__ = ["ContentType", "NotarizeRequest", "NotarizeResponse"]

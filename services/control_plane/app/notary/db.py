@@ -17,14 +17,16 @@ in-memory or file-backed SQLite via aiosqlite. The migration script
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 
 from app.db.models import CertificateRecord
 from app.db.session import get_async_session
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class NotaryDB:
@@ -70,9 +72,7 @@ class NotaryDB:
                 tsa_token_b64=cert.get("tsa_token_b64"),
                 tsa_url=cert.get("tsa_url"),
                 tsa_fetched_at=(
-                    _parse_dt(cert["tsa_fetched_at"])
-                    if cert.get("tsa_fetched_at")
-                    else None
+                    _parse_dt(cert["tsa_fetched_at"]) if cert.get("tsa_fetched_at") else None
                 ),
                 rekor_entry_id=cert.get("rekor_entry_id"),
                 rekor_log_id=cert.get("rekor_log_id"),
@@ -84,6 +84,7 @@ class NotaryDB:
             session.add(row)
             await session.commit()
             return row.cert_id
+        return None
 
     @staticmethod
     async def get_certificate(cert_id: str) -> dict[str, Any] | None:
@@ -92,12 +93,11 @@ class NotaryDB:
         `None` when the cert does not exist.
         """
         async for session in get_async_session():
-            stmt = select(CertificateRecord).where(
-                CertificateRecord.cert_id == cert_id
-            )
+            stmt = select(CertificateRecord).where(CertificateRecord.cert_id == cert_id)
             result = await session.execute(stmt)
             row = result.scalar_one_or_none()
             return _row_to_dict(row) if row is not None else None
+        return None
 
     @staticmethod
     async def list_certificates(
@@ -109,17 +109,14 @@ class NotaryDB:
         the legacy `LIMIT 100` default).
         """
         async for session in get_async_session():
-            stmt = select(CertificateRecord).order_by(
-                CertificateRecord.notarized_at.desc()
-            )
+            stmt = select(CertificateRecord).order_by(CertificateRecord.notarized_at.desc())
             if submitted_by is not None:
-                stmt = stmt.where(
-                    CertificateRecord.submitted_by == submitted_by
-                )
+                stmt = stmt.where(CertificateRecord.submitted_by == submitted_by)
             stmt = stmt.limit(limit)
             result = await session.execute(stmt)
             rows: Iterable[CertificateRecord] = result.scalars().all()
             return [_row_to_dict(r) for r in rows]
+        return None
 
 
 def _row_to_dict(row: CertificateRecord) -> dict[str, Any]:
@@ -140,9 +137,7 @@ def _row_to_dict(row: CertificateRecord) -> dict[str, Any]:
         "primary_key_fingerprint": row.primary_key_fingerprint,
         "tsa_token_b64": row.tsa_token_b64,
         "tsa_url": row.tsa_url,
-        "tsa_fetched_at": (
-            row.tsa_fetched_at.isoformat() if row.tsa_fetched_at else None
-        ),
+        "tsa_fetched_at": (row.tsa_fetched_at.isoformat() if row.tsa_fetched_at else None),
         "rekor_entry_id": row.rekor_entry_id,
         "rekor_log_id": row.rekor_log_id,
         "rekor_entry_json": row.rekor_entry_json,

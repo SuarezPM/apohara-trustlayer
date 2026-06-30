@@ -24,10 +24,14 @@ Migration path: the W9.2 federated_scitt stub returns "verifier
 pending" for every entry. This module replaces that with a real
 verifier that returns (verified: bool, root: str, error: str|None).
 """
+
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import logging
+
+from app.constants import HASH_OUTPUT_BYTES, MAX_INTERNAL_EVIDENCE_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +57,7 @@ def reconstruct_root_rfc9162(
     if tree_size <= 0:
         raise ValueError(f"tree_size must be > 0, got {tree_size}")
     if leaf_index < 0 or leaf_index >= tree_size:
-        raise ValueError(
-            f"leaf_index {leaf_index} out of range [0, {tree_size})"
-        )
+        raise ValueError(f"leaf_index {leaf_index} out of range [0, {tree_size})")
     if len(audit_path) == 0 and tree_size > 1:
         # A single-leaf tree has no audit path; the leaf IS the root.
         return leaf_hex
@@ -101,9 +103,9 @@ def verify_inclusion_proof(
 
 
 def verify_consistency_proof(
-    old_size: int,
+    old_size: int,  # noqa: ARG001 (RFC 9162 §6.4 API: tree_size is part of the proof shape)
     old_root_hex: str,
-    new_size: int,
+    new_size: int,  # noqa: ARG001 (RFC 9162 §6.4 API: tree_size is part of the proof shape)
     new_root_hex: str,
     consistency_path: list[tuple[bool, str]],
 ) -> bool:
@@ -158,22 +160,21 @@ def reconstruct_root_ccf(
 
     Returns: bytes of the reconstructed root.
     """
-    if len(internal_transaction_hash) != 32:
+    if len(internal_transaction_hash) != HASH_OUTPUT_BYTES:
         raise ValueError("internal_transaction_hash must be 32 bytes")
-    if not 1 <= len(internal_evidence) <= 1024:
+    if not 1 <= len(internal_evidence) <= MAX_INTERNAL_EVIDENCE_BYTES:
         raise ValueError(
-            f"internal_evidence must be 1-1024 bytes, got {len(internal_evidence)}"
+            f"internal_evidence must be 1-{MAX_INTERNAL_EVIDENCE_BYTES} bytes, "
+            f"got {len(internal_evidence)}"
         )
-    if len(data_hash) != 32:
+    if len(data_hash) != HASH_OUTPUT_BYTES:
         raise ValueError("data_hash must be 32 bytes")
 
     evidence_digest = hashlib.sha256(internal_evidence).digest()
-    h = hashlib.sha256(
-        internal_transaction_hash + evidence_digest + data_hash
-    ).digest()
+    h = hashlib.sha256(internal_transaction_hash + evidence_digest + data_hash).digest()
 
     for is_left, sibling in audit_path:
-        if len(sibling) != 32:
+        if len(sibling) != HASH_OUTPUT_BYTES:
             raise ValueError("audit path siblings must be 32 bytes")
         if is_left:
             h = hashlib.sha256(h + sibling).digest()
@@ -187,15 +188,29 @@ def reconstruct_root_ccf(
 # ---------------------------------------------------------------------------
 
 
-def verify_federated_receipt(
-    receipt_bytes: bytes,
-    leaf_hex: str,
-    log_a_public_key_pem: bytes,
-    inclusion_path_in_b: list[str],
-    tree_size_b: int,
-    leaf_index_b: int,
-    sth_b_signature_material: bytes,
-    log_b_public_key_pem: bytes,
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class VerifyFederatedReceiptArgs:
+    """Bundled arguments for `verify_federated_receipt` (PLR0913 reduction).
+
+    The original signature had 8 parameters; per the W11.1 refactor we
+    group them into a frozen kw-only dataclass so the call site is
+    self-documenting. The optional `log_b_public_key_pem` is reserved
+    for future cross-log verification (the W11.1 stub does not use it
+    yet).
+    """
+
+    receipt_bytes: bytes
+    leaf_hex: str
+    log_a_public_key_pem: bytes
+    inclusion_path_in_b: list[str]
+    tree_size_b: int
+    leaf_index_b: int
+    sth_b_signature_material: bytes
+    log_b_public_key_pem: bytes  # reserved for future cross-log verification
+
+
+def verify_federated_receipt(  # noqa: PLR0911 (each return carries a distinct verifier-error message)
+    args: VerifyFederatedReceiptArgs,
 ) -> tuple[bool, str | None, str]:
     """Verify a federated SCITT receipt (Log A anchors Log B's STH).
 
@@ -226,9 +241,9 @@ def verify_federated_receipt(
         # Step 1: extract the payload of the Log A receipt (the
         # signed material is Log B's STH, hex-encoded).
         res = verify_receipt(
-            receipt_bytes,
-            leaf_entry_hex=leaf_hex,
-            log_public_key_pem=log_a_public_key_pem,
+            args.receipt_bytes,
+            leaf_entry_hex=args.leaf_hex,
+            log_public_key_pem=args.log_a_public_key_pem,
         )
         if not res.ok:
             return False, None, f"Log A receipt invalid: {res}"
@@ -241,15 +256,19 @@ def verify_federated_receipt(
         # verify that the receipt's signed root matches the root
         # reconstructed from (leaf, index, size, path).
         reconstructed_a = reconstruct_root_rfc9162(
-            leaf_hex=leaf_hex,
-            leaf_index=leaf_index_b,  # the index in Log A's tree
-            tree_size=tree_size_b,
-            audit_path=inclusion_path_in_b,
+            leaf_hex=args.leaf_hex,
+            leaf_index=args.leaf_index_b,  # the index in Log A's tree
+            tree_size=args.tree_size_b,
+            audit_path=args.inclusion_path_in_b,
         )
         if reconstructed_a != res.root.hex():
-            return False, None, (
-                f"Log A root mismatch: reconstructed={reconstructed_a} "
-                f"vs receipt={res.root.hex()}"
+            return (
+                False,
+                None,
+                (
+                    f"Log A root mismatch: reconstructed={reconstructed_a} "
+                    f"vs receipt={res.root.hex()}"
+                ),
             )
 
         # Step 3: verify Log B's STH. The STH must be a signed artifact
@@ -258,15 +277,19 @@ def verify_federated_receipt(
         # scitt-cose.verify_receipt with the STH as the leaf.
         # For the stub implementation, we check the signature_material
         # format and the embedded root.
-        sth_root = extract_sth_root(sth_b_signature_material)
+        sth_root = extract_sth_root(args.sth_b_signature_material)
         if sth_root is None:
             return False, None, "Log B STH format invalid"
         # For now, accept the extracted root as-is (production
         # wire-up uses Ed25519 verify on the STH bytes).
         if sth_root != reconstructed_a:
-            return False, None, (
-                f"Cross-log anchor mismatch: Log B root={sth_root} "
-                f"vs Log A anchor={reconstructed_a}"
+            return (
+                False,
+                None,
+                (
+                    f"Cross-log anchor mismatch: Log B root={sth_root} "
+                    f"vs Log A anchor={reconstructed_a}"
+                ),
             )
 
         return True, reconstructed_a, "federated receipt verified"
@@ -300,17 +323,18 @@ def extract_sth_root(sth_bytes: bytes) -> str | None:
 
     # Fallback: scan for a 32-byte sequence that looks like a SHA-256
     # root hash (heuristic; production uses cbor2 decode).
-    if len(sth_bytes) >= 32:
+    if len(sth_bytes) >= HASH_OUTPUT_BYTES:
         # Return the first 32 bytes as hex (heuristic fallback)
-        return sth_bytes[:32].hex()
+        return sth_bytes[:HASH_OUTPUT_BYTES].hex()
     return None
 
 
 __all__ = [
-    "reconstruct_root_rfc9162",
-    "verify_inclusion_proof",
-    "verify_consistency_proof",
-    "reconstruct_root_ccf",
-    "verify_federated_receipt",
+    "VerifyFederatedReceiptArgs",
     "extract_sth_root",
+    "reconstruct_root_ccf",
+    "reconstruct_root_rfc9162",
+    "verify_consistency_proof",
+    "verify_federated_receipt",
+    "verify_inclusion_proof",
 ]

@@ -7,7 +7,6 @@ Consumed by `assess_cross_jurisdiction()` in `app.compliance`."""
 
 # ============================================================================
 
-
 CROSS_JURISDICTION_PROFILES: dict[str, dict] = {
     "EU_AI_ACT": {
         "name": "EU AI Act",
@@ -24,7 +23,9 @@ CROSS_JURISDICTION_PROFILES: dict[str, dict] = {
             "services/control_plane/app/notary_production.py (Art. 50(2) COSE_Sign1)",
             "services/control_plane/app/watermark_strategy.py (Art. 50(3) z-test)",
         ],
-        "compliance_status": "Compliant for text content (with token_ids); image/audio deferred to v1.1.1",
+        "compliance_status": (
+            "Compliant for text content (with token_ids); image/audio deferred to v1.1.1"
+        ),
     },
     "UK_AI_BILL": {
         "name": "UK AI (Regulation) Bill",

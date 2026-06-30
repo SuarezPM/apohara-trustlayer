@@ -6,13 +6,15 @@ in the W9.0 milestone: text disclosed via the control plane now has
 its watermark layer assessed via real z-test detection.
 
 Per Kirchenbauer et al. (2023) "A Watermark for Large Language Models":
-z = (|s| - γT) / sqrt(γ(1-γ)T); one-sided threshold z > 4.0 (p < 0.00003).
+z = (|s| - \u03b3T) / sqrt(\u03b3(1-\u03b3)T); one-sided threshold z > 4.0 (p < 0.00003).
 
 Used by `app.domain.disclosure_service.assess_4_layers` for the
 watermark layer of the most-restrictive-wins rollup.
 """
+
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import math
 
@@ -24,18 +26,15 @@ from pydantic import BaseModel, Field
 from app.constants import (
     DEFAULT_GAMMA,
     DEFAULT_Z_THRESHOLD,
+    HASH_OUTPUT_BYTES,
 )
 
 
 class WatermarkResult(BaseModel):
     """Result of a Kirchenbauer watermark detection."""
 
-    detected: bool = Field(
-        description="True iff z_score > z_threshold (one-sided test)."
-    )
-    z_score: float = Field(
-        description="z-statistic: (|s| - γT) / sqrt(γ(1-γ)T)"
-    )
+    detected: bool = Field(description="True iff z_score > z_threshold (one-sided test).")
+    z_score: float = Field(description="z-statistic: (|s| - γT) / sqrt(γ(1-γ)T)")  # noqa: RUF001
     green_count: int = Field(description="|s|: tokens falling in green list")
     total_count: int = Field(description="T: total tokens analysed")
     gamma: float = Field(description="Green-list fraction used")
@@ -45,9 +44,7 @@ class WatermarkResult(BaseModel):
     )
 
 
-def _green_list_for_position(
-    key: bytes, position: int, vocab_size: int, gamma: float
-) -> set[int]:
+def _green_list_for_position(key: bytes, position: int, vocab_size: int, gamma: float) -> set[int]:
     """Derive the green list for a single token position.
 
     Pure-Python port of `KirchenbauerTextWatermark::green_list_for_position`
@@ -93,7 +90,11 @@ def kirchenbauer_detect(
     if not (0.0 < gamma < 1.0):
         raise ValueError(f"gamma must be in (0, 1), got {gamma}")
 
-    key32 = (key + b"\x00" * 32)[:32] if len(key) < 32 else key[:32]
+    key32 = (
+        (key + b"\x00" * HASH_OUTPUT_BYTES)[:HASH_OUTPUT_BYTES]
+        if len(key) < HASH_OUTPUT_BYTES
+        else key[:HASH_OUTPUT_BYTES]
+    )
 
     green_count = 0
     for pos, tok in enumerate(tokens):
@@ -143,9 +144,7 @@ def detect_or_not_applicable(
             ),
             "watermark": None,
         }
-    result = kirchenbauer_detect(
-        tokens=token_ids, vocab_size=vocab_size, key=key
-    )
+    result = kirchenbauer_detect(tokens=token_ids, vocab_size=vocab_size, key=key)
     if result.detected:
         return {
             "status": "Compliant",
@@ -172,11 +171,11 @@ def detect_or_not_applicable(
 
 
 __all__ = [
-    "WatermarkResult",
-    "kirchenbauer_detect",
-    "detect_or_not_applicable",
-    "DEFAULT_Z_THRESHOLD",
     "DEFAULT_GAMMA",
+    "DEFAULT_Z_THRESHOLD",
+    "WatermarkResult",
+    "detect_or_not_applicable",
+    "kirchenbauer_detect",
 ]
 
 
@@ -185,14 +184,25 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def kirchenbauer_bias_logits(
-    logits: list[float],
-    position: int,
-    key: bytes,
-    vocab_size: int | None = None,
-    gamma: float = DEFAULT_GAMMA,
-    delta: float = 2.0,
-) -> list[float]:
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class KirchenbauerBiasLogitsArgs:
+    """Bundled arguments for `kirchenbauer_bias_logits` (PLR0913 reduction).
+
+    The original signature had 6 parameters; per the W9.0 watermark
+    refactor we group them into a frozen kw-only dataclass so the call
+    site is self-documenting. The optional fields (vocab_size, gamma,
+    delta) keep their default values via kw_only semantics.
+    """
+
+    logits: list[float]
+    position: int
+    key: bytes
+    vocab_size: int | None = None
+    gamma: float = DEFAULT_GAMMA
+    delta: float = 2.0
+
+
+def kirchenbauer_bias_logits(args: KirchenbauerBiasLogitsArgs) -> list[float]:
     """Sampling-side hook: bias logits at green-list positions.
 
     Pure-Python port of `KirchenbauerTextWatermark::bias_logits` in
@@ -201,29 +211,34 @@ def kirchenbauer_bias_logits(
     exponentially more likely during sampling.
 
     Args:
-        logits: logit vector of length vocab_size.
-        position: token position (0-indexed).
-        key: 32-byte secret watermark key.
-        vocab_size: vocab size; default `len(logits)`.
-        gamma: green-list fraction (default 0.25).
-        delta: logit bias added to green-list tokens (default 2.0).
+        args.logits: logit vector of length vocab_size.
+        args.position: token position (0-indexed).
+        args.key: 32-byte secret watermark key.
+        args.vocab_size: vocab size; default `len(logits)`.
+        args.gamma: green-list fraction (default 0.25).
+        args.delta: logit bias added to green-list tokens (default 2.0).
 
     Returns:
         New logit vector with `delta` added to each green-list token's
         logit. The input list is not mutated.
     """
+    vocab_size = args.vocab_size
     if vocab_size is None:
-        vocab_size = len(logits)
+        vocab_size = len(args.logits)
     if vocab_size <= 0:
-        return list(logits)
-    if not (0.0 < gamma < 1.0):
-        raise ValueError(f"gamma must be in (0, 1), got {gamma}")
-    key32 = (key + b"\x00" * 32)[:32] if len(key) < 32 else key[:32]
-    green = _green_list_for_position(key32, position, vocab_size, gamma)
-    biased = list(logits)
+        return list(args.logits)
+    if not (0.0 < args.gamma < 1.0):
+        raise ValueError(f"gamma must be in (0, 1), got {args.gamma}")
+    key32 = (
+        (args.key + b"\x00" * HASH_OUTPUT_BYTES)[:HASH_OUTPUT_BYTES]
+        if len(args.key) < HASH_OUTPUT_BYTES
+        else args.key[:HASH_OUTPUT_BYTES]
+    )
+    green = _green_list_for_position(key32, args.position, vocab_size, args.gamma)
+    biased = list(args.logits)
     for i in range(min(vocab_size, len(biased))):
         if i in green:
-            biased[i] += delta
+            biased[i] += args.delta
     return biased
 
 
@@ -259,7 +274,11 @@ def kirchenbauer_embed_tokens(
         vocab_size = max(tokens) + 1
     if not (0.0 < gamma < 1.0):
         raise ValueError(f"gamma must be in (0, 1), got {gamma}")
-    key32 = (key + b"\x00" * 32)[:32] if len(key) < 32 else key[:32]
+    key32 = (
+        (key + b"\x00" * HASH_OUTPUT_BYTES)[:HASH_OUTPUT_BYTES]
+        if len(key) < HASH_OUTPUT_BYTES
+        else key[:HASH_OUTPUT_BYTES]
+    )
     out: list[int] = []
     for pos, tok in enumerate(tokens):
         green = _green_list_for_position(key32, pos, vocab_size, gamma)
@@ -271,11 +290,12 @@ def kirchenbauer_embed_tokens(
 
 
 __all__ = [
+    "DEFAULT_GAMMA",
+    "DEFAULT_Z_THRESHOLD",
+    "KirchenbauerBiasLogitsArgs",
     "WatermarkResult",
-    "kirchenbauer_detect",
     "detect_or_not_applicable",
     "kirchenbauer_bias_logits",
+    "kirchenbauer_detect",
     "kirchenbauer_embed_tokens",
-    "DEFAULT_Z_THRESHOLD",
-    "DEFAULT_GAMMA",
 ]

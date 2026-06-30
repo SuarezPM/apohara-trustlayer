@@ -23,17 +23,19 @@ import base64
 import hashlib
 import json
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.bundle_lookup import _record_to_bundle_dict
 from app.api.deps import get_org_id
 from app.db.models import DisclosureRecord
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 # v1.1.0.x+1+2: closed CRÍTICO 2 (66-byte COSE_Sign1 placeholder) by
 # using the real tl-ffi signing function. This path is ONLY for the
@@ -47,11 +49,12 @@ except ImportError:
     # Fall back to a stub that raises — production code never reaches
     # this path; tests that need the synthetic bundle must build the
     # wheel first.
-    def _cose_sign1_synthetic(payload: bytes, aad: bytes) -> bytes:  # type: ignore
+    def _cose_sign1_synthetic(payload: bytes, aad: bytes) -> bytes:  # type: ignore  # noqa: ARG001
         raise RuntimeError(
             "apohara_trustlayer Python wheel not built. Run: "
             "`maturin develop --release` to enable synthetic COSE_Sign1."
         )
+
 
 router = APIRouter()
 
@@ -218,9 +221,7 @@ def _build_scitt_envelope_from_bundle(bundle: dict) -> dict:
     # Deterministic issued_at from the bundle's row_hash (NOT
     # wall-clock). The SCITT property: same bundle → same receipt.
     issued_at = int.from_bytes(
-        hashlib.sha256(
-            (signature.get("row_hash", "default") + "issued").encode()
-        ).digest()[:4],
+        hashlib.sha256((signature.get("row_hash", "default") + "issued").encode()).digest()[:4],
         "big",
     )
 
@@ -240,15 +241,15 @@ def _parse_accept(accept_header: str | None) -> list[str]:
     if not accept_header or accept_header.strip() == "":
         return ["*/*"]
     items: list[tuple[float, str]] = []
-    for raw in accept_header.split(","):
-        raw = raw.strip()
-        if not raw:
+    for raw_chunk in accept_header.split(","):
+        chunk = raw_chunk.strip()
+        if not chunk:
             continue
-        parts = raw.split(";")
+        parts = chunk.split(";")
         media = parts[0].strip()
         q = 1.0
-        for param in parts[1:]:
-            param = param.strip()
+        for param_part in parts[1:]:
+            param = param_part.strip()
             if param.startswith("q="):
                 try:
                     q = float(param[2:])
@@ -291,6 +292,7 @@ def get_async_session_dep():
     tests that want a custom session per app.
     """
     from app.db.session import get_async_session
+
     return get_async_session
 
 
@@ -324,7 +326,7 @@ def get_bundle_lookup(request: Request) -> BundleLookup:
 async def get_stix_bundle(
     bundle_id: str,
     org_id: str = Depends(get_org_id),
-    session: AsyncSession = Depends(get_async_session_dep),
+    session: AsyncSession = Depends(get_async_session_dep),  # noqa: B008
 ) -> Response:
     """Return a STIX 2.1 bundle for an evidence bundle (v1.1.1-US-4).
 
@@ -345,7 +347,9 @@ async def get_stix_bundle(
     Microsoft Sentinel, Elastic Security all have STIX 2.1 ingestion).
     """
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    stmt = select(DisclosureRecord).where(
+        DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 
@@ -439,7 +443,10 @@ async def get_stix_bundle(
                 "id": f"course-of-action--{bundle_id}",
                 "created": now_iso,
                 "modified": now_iso,
-                "name": f"Retain evidence for {bundle_id} per EU AI Act Art. 12 (3y) / DORA Art. 19 (5y)",
+                "name": (
+                    f"Retain evidence for {bundle_id} per EU AI Act Art. 12 (3y) "
+                    "/ DORA Art. 19 (5y)"
+                ),
                 "description": (
                     "Operator action: store the evidence bundle, the SCITT receipt, "
                     "and the COSE_Sign1 envelope for the configured retention window. "
@@ -459,7 +466,8 @@ async def get_stix_bundle(
                     f"This STIX 2.1 bundle is the export envelope for disclosure {bundle_id} "
                     f"({record.compliance_rollup or 'Partial'}). Per EU AI Act Art. 50 and "
                     "DORA Art. 19, the operator retains this bundle for 3-5 years. "
-                    "Verifiable offline via the COSE_Sign1 public key + the SCITT countersignature. "
+                    "Verifiable offline via the COSE_Sign1 public key + the SCITT "
+                    "countersignature. "
                     "See audit_artifacts/spec_facts_audit.md for the v1.1.1 spec reconciliation."
                 ),
             },
@@ -497,7 +505,7 @@ async def get_stix_bundle(
 async def get_scitt_receipt(
     bundle_id: str,
     org_id: str = Depends(get_org_id),
-    session: AsyncSession = Depends(get_async_session_dep),
+    session: AsyncSession = Depends(get_async_session_dep),  # noqa: B008
 ) -> Response:
     """Return the counter-signed SCITT receipt for a bundle.
 
@@ -515,7 +523,9 @@ async def get_scitt_receipt(
     `disclaimers` field makes this honest.
     """
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    stmt = select(DisclosureRecord).where(
+        DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 
@@ -571,7 +581,7 @@ async def get_evidence_bundle(
     bundle_id: str,
     accept: str | None = Header(default=None),
     org_id: str = Depends(get_org_id),
-    session: AsyncSession = Depends(get_async_session_dep),
+    session: AsyncSession = Depends(get_async_session_dep),  # noqa: B008
 ) -> Response:
     """Download a complete evidence bundle with content negotiation.
 
@@ -601,7 +611,9 @@ async def get_evidence_bundle(
         )
 
     # Real lookup via async session. Returns None if not found.
-    stmt = select(DisclosureRecord).where(DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id)
+    stmt = select(DisclosureRecord).where(
+        DisclosureRecord.id == bundle_id, DisclosureRecord.org_id == org_id
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
     if record is None:

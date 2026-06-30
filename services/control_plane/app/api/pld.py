@@ -18,6 +18,7 @@ All endpoints use `Depends(get_org_id)` for multi-tenant org_id resolution
 Emits `X-Disclosure-AI` (Art. 50(2)), `X-TrustLayer-Request-ID`, and
 `X-Response-Time-Ms` headers via `Article50DisclosureMiddleware`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_org_id
+from app.constants import REGULATORY_URGENT_DAYS
 from app.pld_shield import (
     EU_AI_ACT_ART_50_DEADLINE,
     ISO_42001_BS_EN,
@@ -60,7 +62,7 @@ class DisclosureOrderRequest(BaseModel):
     product_id: str
     scope: list[str] = Field(
         description="Evidence categories: training-data, model-weights, "
-                   "decision-logs, audit-trails, security-incidents"
+        "decision-logs, audit-trails, security-incidents"
     )
 
 
@@ -242,7 +244,7 @@ async def generate_rebuttal_pack(
 )
 async def get_regulatory_deadline(
     regulation: str,
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """Return days until a regulatory deadline."""
 
@@ -266,7 +268,7 @@ async def get_regulatory_deadline(
         "regulation": regulation,
         "deadline": deadline_str,
         "days_remaining": days_remaining,
-        "status": "urgent" if days_remaining < 30 else "on_track",
+        "status": "urgent" if days_remaining < REGULATORY_URGENT_DAYS else "on_track",
     }
 
 
@@ -286,7 +288,7 @@ async def get_regulatory_deadline(
     ),
 )
 async def get_iso42001_soa(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> ISO42001StatementOfApplicability:
     """Generate the ISO/IEC 42001 SoA."""
 
@@ -314,7 +316,7 @@ async def get_iso42001_soa(
     summary="List all ISO/IEC 42001 Annex A controls",
 )
 async def list_iso42001_controls(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """List all ISO/IEC 42001 Annex A controls with status."""
 
@@ -334,7 +336,7 @@ async def list_iso42001_controls(
     summary="List NIST AI 600-1 GenAI risks + TrustLayer mitigations",
 )
 async def list_nist_risks(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """List all NIST AI 600-1 GenAI risks with TrustLayer mitigations."""
 
@@ -349,7 +351,7 @@ async def list_nist_risks(
     summary="Overall NIST AI 600-1 GenAI profile compliance score",
 )
 async def get_nist_profile_compliance(
-    org_id: str = Depends(get_org_id),
+    org_id: str = Depends(get_org_id),  # noqa: ARG001 (FastAPI multi-tenant injection)
 ) -> dict:
     """Return overall NIST AI 600-1 GenAI profile compliance score."""
 

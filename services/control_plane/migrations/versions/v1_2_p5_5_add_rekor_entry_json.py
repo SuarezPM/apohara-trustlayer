@@ -22,12 +22,16 @@ Revision ID: v1_2_p5_5_add_rekor_entry_json
 Revises: v1_2_multi_tenant_chain_namespace
 Create Date: 2026-06-30
 """
+
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 # revision identifiers, used by Alembic.
 revision: str = "v1_2_p5_5_add_rekor_entry_json"

@@ -15,8 +15,10 @@ from typing import Any
 import structlog
 
 from app.config import get_settings
+from app.constants import HASH_OUTPUT_BYTES
 from app.domain.chains import (
     GENESIS_HASH,
+    ComputeRowHashArgs,
     compute_row_hash,
     new_chain_id,
     next_row_number,
@@ -49,6 +51,68 @@ def _layer_not_applicable(reason: str) -> ComplianceLayerStatus:
     return ComplianceLayerStatus(status="NotApplicable", reason=reason)
 
 
+def _resolve_watermark_layer(req: DisclosureGenerateRequest) -> ComplianceLayerStatus:
+    """Resolve the watermark-layer compliance status for `assess_4_layers`.
+
+    Extracted from `assess_4_layers` to keep that function under the
+    PLR0912 (too-many-branches) limit. Returns one of three compliance
+    status objects based on the watermark detection result.
+
+    Per EU AI Act Art. 50(3) and Kirchenbauer et al. (2023): the
+    watermark layer is Compliant iff the z-test confirms a watermark
+    in the disclosed text; Partial iff the LLM serving stack did not
+    supply token_ids; NotApplicable iff the disclosure is not text.
+    """
+    # Detection key is derived per-deployment from TL_TEXT_WATERMARK_KEY
+    # (set per-deployment to a 32-byte secret; defaults to a dev key in
+    # the control plane if unset).
+    import os
+
+    from app.watermark_strategy import detect_or_not_applicable
+
+    wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
+    if wm_key_env:
+        wm_key = wm_key_env.encode("utf-8")[:HASH_OUTPUT_BYTES]
+        if len(wm_key) < HASH_OUTPUT_BYTES:
+            wm_key = wm_key + b"\x00" * (HASH_OUTPUT_BYTES - len(wm_key))
+    else:
+        wm_key = b"\x00" * HASH_OUTPUT_BYTES
+
+    # token_ids / vocab_size are optional on the request; honour them when present.
+    wm_token_ids = list(req.options.token_ids) if getattr(req.options, "token_ids", None) else None
+    wm_vocab = (
+        int(req.options.vocab_size)
+        if getattr(req.options, "vocab_size", None)
+        else 50257  # GPT-2/3/4 BPE default
+    )
+
+    wm_result = detect_or_not_applicable(
+        text=None,  # control plane never tokenizes itself
+        token_ids=wm_token_ids,
+        vocab_size=wm_vocab,
+        key=wm_key,
+    )
+    if wm_result["status"] == "Compliant":
+        watermark_layer = _layer_compliant()
+        watermark_layer.reason = wm_result["reason"]
+    elif wm_result["status"] == "Partial":
+        watermark_layer = _layer_partial(
+            missing=wm_result.get("missing", []),
+            reason=wm_result["reason"],
+        )
+    else:
+        # NotImplemented / NotApplicable / unknown → explicit
+        # NotApplicable when no token_ids are supplied or the tokenizer
+        # path is unavailable.
+        watermark_layer = _layer_not_applicable(
+            reason=wm_result.get(
+                "reason",
+                "Watermark layer not in scope for this disclosure.",
+            ),
+        )
+    return watermark_layer
+
+
 def assess_4_layers(req: DisclosureGenerateRequest) -> ComplianceAssessment:
     """Per plan v3.1 ADR-004: 4 independent compliance layers.
 
@@ -71,64 +135,7 @@ def assess_4_layers(req: DisclosureGenerateRequest) -> ComplianceAssessment:
     )
 
     # Layer 3: watermark — EU AI Act Art. 50(3) per Kirchenbauer z-test.
-    # W9.0 wires the pure-Python port of `KirchenbauerTextWatermark::detect_tokens`
-    # from crates/tl-watermark/src/lib.rs into the 4-layer assessment.
-    # Detection key is derived per-deployment from TL_TEXT_WATERMARK_KEY
-    # (set per-deployment to a 32-byte secret; defaults to a dev key in
-    # the control plane if unset). Tokenizers live in the LLM serving
-    # stack — the control plane accepts `token_ids` and runs z-test.
-    import os
-
-    from app.watermark_strategy import detect_or_not_applicable
-
-    wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
-    # In dev (no env set), use a stable per-deployment placeholder key
-    # so tests are deterministic. Production MUST set this to a
-    # 32-byte secret in TL_TEXT_WATERMARK_KEY.
-    if wm_key_env:
-        wm_key = wm_key_env.encode("utf-8")[:32]
-        if len(wm_key) < 32:
-            wm_key = wm_key + b"\x00" * (32 - len(wm_key))
-    else:
-        wm_key = b"\x00" * 32
-
-    # token_ids is optional on the request; honour it when present.
-    wm_token_ids = None
-    if hasattr(req, "options") and getattr(req.options, "token_ids", None):
-        wm_token_ids = list(req.options.token_ids)
-    wm_vocab = 50257  # GPT-2/3/4 BPE default
-    if hasattr(req, "options") and getattr(req.options, "vocab_size", None):
-        wm_vocab = int(req.options.vocab_size)
-
-    wm_result = detect_or_not_applicable(
-        text=None,  # control plane never tokenizes itself
-        token_ids=wm_token_ids,
-        vocab_size=wm_vocab,
-        key=wm_key,
-    )
-    if wm_result["status"] == "Compliant":
-        watermark_layer = _layer_compliant()
-        watermark_layer.reason = wm_result["reason"]
-    elif wm_result["status"] == "Partial":
-        watermark_layer = _layer_partial(
-            missing=wm_result.get("missing", []),
-            reason=wm_result["reason"],
-        )
-    elif wm_result["status"] == "NotImplemented":
-        # Same status as the previous "NotApplicable" but with a
-        # reason that names the tokenizer gap.
-        watermark_layer = _layer_not_applicable(
-            reason=wm_result["reason"],
-        )
-    else:
-        # NotApplicable or unknown → keep the v1 semantics: explicit
-        # NotApplicable when no text/token_ids are supplied.
-        watermark_layer = _layer_not_applicable(
-            reason=wm_result.get(
-                "reason",
-                "Watermark layer not in scope for this disclosure.",
-            ),
-        )
+    watermark_layer = _resolve_watermark_layer(req)
 
     # Layer 4: retention — INSERT-only audit tables + 3-5 year retention.
     # Per AC-22: partial because v1 single-tenant doesn't have multi-tenant
@@ -200,12 +207,14 @@ def generate_disclosure(
     # Compute row_hash deterministically.
     artifact_bytes = req.artifact.content.encode()
     row_hash = compute_row_hash(
-        chain_id=chain_id,
-        row_number=next_row,
-        prev_hash=chain_head_row_hash,
-        payload=artifact_bytes,
-        cose_sign1_b64=cose_sign1_b64,
-        created_at=now,
+        ComputeRowHashArgs(
+            chain_id=chain_id,
+            row_number=next_row,
+            prev_hash=chain_head_row_hash,
+            payload=artifact_bytes,
+            cose_sign1_b64=cose_sign1_b64,
+            created_at=now,
+        )
     )
 
     # Build the signed receipt.
@@ -241,7 +250,7 @@ def generate_disclosure(
     return DisclosureGenerateResponse(
         disclosure_id=disclosure_id,
         disclosure_text=disclosure_text,
-        disclosure_html_widget=f"<div class=\"apohara-disclosure\">{disclosure_text}</div>",
+        disclosure_html_widget=f'<div class="apohara-disclosure">{disclosure_text}</div>',
         json_ld=json_ld,
         c2pa_manifest_ref={"manifest_id": str(uuid.uuid4()), "url": None},
         receipt=receipt,
@@ -277,8 +286,8 @@ def verify_provenance(
         "verification_id": str(uuid.uuid4()),
         "cose_signature": {"valid": sig_valid, "algorithm": "EdDSA"},
         "tsa_verification": {"valid": False, "reason": "TSA not verified in v1 stub"}
-            if tsa_token_b64
-            else None,
+        if tsa_token_b64
+        else None,
         "chain_verification": None,
         "key_verification": None,
         "overall_status": "PASS" if sig_valid else "FAIL",

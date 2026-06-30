@@ -35,14 +35,16 @@ def _hasher():
 
         def _blake3(data: bytes) -> str:
             return blake3_hash_hex(data)
+
         return _blake3
-    except ImportError:
+    except ImportError as err:
         if os.environ.get("TL_ALLOW_HASHLIB_FALLBACK", "true").lower() != "true":
             raise RuntimeError(
                 "tl-ffi not importable + TL_ALLOW_HASHLIB_FALLBACK=false. "
                 "Production requires `uv pip install apohara-trustlayer`."
-            )
+            ) from err
         import warnings
+
         warnings.warn(
             "tl-ffi not importable; falling back to hashlib.sha256 (INSECURE for prod).",
             stacklevel=2,
@@ -50,6 +52,7 @@ def _hasher():
 
         def _sha256(data: bytes) -> str:
             return hashlib.sha256(data).hexdigest()
+
         return _sha256
 
 
@@ -78,15 +81,27 @@ GENESIS_HASH = "0" * 64
 # Adding new fields to the canonical form requires a chain migration
 # strategy (re-hash all existing entries or accept the chain break).
 
-def compute_row_hash(
-    *,
-    chain_id: str,
-    row_number: int,
-    prev_hash: str,
-    payload: bytes,
-    cose_sign1_b64: str,
-    created_at: datetime,
-) -> str:
+
+@dataclass(frozen=True, kw_only=True)
+class ComputeRowHashArgs:
+    """Bundled arguments for `compute_row_hash` (PLR0913 reduction).
+
+    The original signature had 6 keyword-only parameters; per the
+    hash-chain refactor we group them into a frozen kw-only dataclass
+    so callers pass named fields and the call site is self-documenting.
+    The canonical-form construction is unchanged — this is purely a
+    parameter-bundling refactor, not a behaviour change.
+    """
+
+    chain_id: str
+    row_number: int
+    prev_hash: str
+    payload: bytes
+    cose_sign1_b64: str
+    created_at: datetime
+
+
+def compute_row_hash(args: ComputeRowHashArgs) -> str:
     """Compute the deterministic row_hash for a chain entry.
 
     This is the canonical hash function — both signers and verifiers
@@ -94,12 +109,12 @@ def compute_row_hash(
     """
     hasher = _hasher()
     canonical = (
-        f"{chain_id}|{row_number}|{prev_hash}|"
-        f"{cose_sign1_b64}|{created_at.isoformat()}"
+        f"{args.chain_id}|{args.row_number}|{args.prev_hash}"
+        f"|{args.cose_sign1_b64}|{args.created_at.isoformat()}"
     ).encode()
     # Mix payload hash into the canonical form so payload bytes
     # participate in the chain integrity.
-    payload_hash = hasher(payload)
+    payload_hash = hasher(args.payload)
     return hasher(canonical + b"|" + payload_hash.encode())
 
 

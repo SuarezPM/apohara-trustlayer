@@ -1,2 +1,1 @@
-"""Domain layer: business logic, isolated from API + DB.
-"""
+"""Domain layer: business logic, isolated from API + DB."""

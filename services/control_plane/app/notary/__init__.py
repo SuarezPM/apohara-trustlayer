@@ -16,6 +16,7 @@ Backwards-compatible re-exports: callers can do either
 The legacy `app.notary_production` module is a thin compat shim that
 re-exports from `app.notary.*`.
 """
+
 from app.notary.certificate_generator import CertificateArtifactGenerator
 from app.notary.db import NotaryDB
 from app.notary.models import ContentType, NotarizeRequest, NotarizeResponse
@@ -24,14 +25,14 @@ from app.notary.scitt import SCITTClient, SCITTError
 from app.notary.service import NotaryServiceProduction
 
 __all__ = [
+    "CertificateArtifactGenerator",
+    "ContentType",
+    "NotarizeRequest",
+    "NotarizeResponse",
     "NotaryDB",
+    "NotaryServiceProduction",
     "QTSPClient",
     "QTSPError",
     "SCITTClient",
     "SCITTError",
-    "CertificateArtifactGenerator",
-    "NotaryServiceProduction",
-    "ContentType",
-    "NotarizeRequest",
-    "NotarizeResponse",
 ]

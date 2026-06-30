@@ -4,6 +4,7 @@ Single-responsibility module: RFC 3161 request building + POST + decode.
 No DB, no PDF, no orchestrator. Degraded mode: returns (None, None, None)
 on any failure so the NotaryService can still persist the cert.
 """
+
 from __future__ import annotations
 
 import base64
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class QTSPError(Exception):
     """Error from the RFC 3161 QTSP client."""
+
 
 class QTSPClient:
     """RFC 3161 client. Production wire-up (W8.2.1 — rfc3161-client 1.0.6).
@@ -47,14 +49,10 @@ class QTSPClient:
         # 8th auditor report and the EU Trust List. Set TL_TSA_URL to
         # override (e.g. http://timestamp.sectigo.com, https://freetsa.org/tsr
         # for fully unauthenticated dev, or your private HSM-backed TS).
-        self.tsa_url = tsa_url or os.environ.get(
-            "TL_TSA_URL", "http://timestamp.actalis.com"
-        )
+        self.tsa_url = tsa_url or os.environ.get("TL_TSA_URL", "http://timestamp.actalis.com")
         self.timeout = timeout
 
-    def timestamp(
-        self, content_hash_hex: str
-    ) -> tuple[str | None, str | None, str | None]:
+    def timestamp(self, content_hash_hex: str) -> tuple[str | None, str | None, str | None]:
         """Request an RFC 3161 timestamp for the given content hash.
 
         Returns (tsa_token_b64, tsa_url, tsa_fetched_at) or
@@ -64,6 +62,7 @@ class QTSPClient:
             # Build the RFC 3161 TimeStampReq (ASN.1 DER) via rfc3161-client.
             try:
                 from rfc3161_client import HashAlgorithm, TimestampRequestBuilder
+
                 hash_bytes = bytes.fromhex(content_hash_hex)
                 ts_req = TimestampRequestBuilder(
                     data=hash_bytes, hash_algorithm=HashAlgorithm.SHA256
@@ -98,11 +97,11 @@ class QTSPClient:
             # regardless and let downstream verifiers reject.
             try:
                 from rfc3161_client import decode_timestamp_response
+
                 _ts_resp = decode_timestamp_response(resp.content)
             except Exception as decode_err:
                 logger.warning(
-                    f"TSA response decode failed (storing raw bytes anyway): "
-                    f"{decode_err}"
+                    f"TSA response decode failed (storing raw bytes anyway): {decode_err}"
                 )
 
             fetched_at = datetime.now(UTC).isoformat()
@@ -121,7 +120,7 @@ class QTSPClient:
             logger.exception(f"QTSP unexpected error for {self.tsa_url}")
             return None, None, None
 
+
 # ============================================================================
 # 3. SCITT ledger client (scittles for self-host, DataTrails for public)
 # ============================================================================
-

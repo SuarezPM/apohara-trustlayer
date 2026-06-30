@@ -77,6 +77,7 @@ async def lifespan(app: FastAPI):
     # app starts; this is the dev fallback so the binary boots fresh.
     from app.db.models import Base, CertificateRecord
     from app.db.session import _get_engine
+
     engine = _get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(
@@ -88,14 +89,13 @@ async def lifespan(app: FastAPI):
     db = NotaryDB(db_path=settings.notary_db_path)
     qtsp = QTSPClient(timeout=10.0)
     scitt = SCITTClient(timeout=10.0)
-    artifact_gen = CertificateArtifactGenerator(
-        output_dir=settings.notary_output_dir
-    )
+    artifact_gen = CertificateArtifactGenerator(output_dir=settings.notary_output_dir)
     app.state.notary_db = db
     # W8.3.1: HSM-backed signing. get_signer() returns
     # AWSKmsMLDSASigner (production) / ThalesLunaPqcSigner (on-prem HSM)
     # / EphemeralEd25519Signer (dev). main.py logs which one is in use.
     from app.hsm_adapter import get_signer
+
     signer = get_signer()
     app.state.signer = signer  # exposed for /v1/admin/signer endpoint
     app.state.notary_service = NotaryServiceProduction(
@@ -159,6 +159,7 @@ def create_app() -> FastAPI:
     # same dict the FastAPI Request exposes as `request.state`. See
     # app/middleware/__init__.py for the full rationale.
     from app.middleware import OrgResolverASGIMiddleware
+
     app.add_middleware(OrgResolverASGIMiddleware)
 
     # v3.0 W1.4: EU AI Act Article 50(2) disclosure middleware.
@@ -167,6 +168,7 @@ def create_app() -> FastAPI:
     # Per Plan v3.0 W1.4 — closes the EU AI Act Art. 50 marking gap
     # before the 2 August 2026 deadline (37 days from this commit).
     from app.middleware.article50 import Article50DisclosureMiddleware
+
     app.add_middleware(Article50DisclosureMiddleware)
 
     # Routers
@@ -190,17 +192,11 @@ def create_app() -> FastAPI:
         verification_page,
     )
 
-    app.include_router(
-        verification_page.router, tags=["verify-page"]
-    )
+    app.include_router(verification_page.router, tags=["verify-page"])
     if getattr(notary_production, "router", None) is not None:
-        app.include_router(
-            notary_production.router, tags=["notary"]
-        )
+        app.include_router(notary_production.router, tags=["notary"])
     if getattr(catalyst_production, "router", None) is not None:
-        app.include_router(
-            catalyst_production.router, tags=["catalyst"]
-        )
+        app.include_router(catalyst_production.router, tags=["catalyst"])
 
     # W9.0: DORA (Regulation (EU) 2022/2554) evidence pack — replaces the
     # v1.0 "Partial" stub with a real 7-check evidence pack covering
@@ -214,24 +210,18 @@ def create_app() -> FastAPI:
     # The router already declares prefix="/v1/jurisdictions", so we
     # do NOT add an extra "/v1" here (would otherwise produce the
     # double-prefixed "/v1/v1/jurisdictions").
-    app.include_router(
-        cross_jurisdiction.router, tags=["cross-jurisdiction"]
-    )
+    app.include_router(cross_jurisdiction.router, tags=["cross-jurisdiction"])
 
     # W8.9.1: Adversarial scenarios harness (OASB v0.3.2 + AgentDojo
     # v0.1.35 + MITRE ATLAS 2026). Exposes the CordonEnforcer mapping
     # for the auditor-flagged "NotImplemented" adversarial testing.
     # Router already declares prefix="/v1/adversarial".
-    app.include_router(
-        adversarial.router, tags=["adversarial"]
-    )
+    app.include_router(adversarial.router, tags=["adversarial"])
 
     # W12: ISO 23894:2023 risk scoring dashboard (CISO Pro $199/mo
     # tier surface). 5 process stages + NIST AI RMF crosswalk.
     # Router already declares prefix="/v1/risk-scoring".
-    app.include_router(
-        risk_scoring.router, tags=["risk-scoring"]
-    )
+    app.include_router(risk_scoring.router, tags=["risk-scoring"])
 
     return app
 

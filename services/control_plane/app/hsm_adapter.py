@@ -26,6 +26,7 @@ References:
 - EXTERNAL_MU pattern: https://nsmith.net/aws-kms-mldsa-external-mu
 - NIST FIPS 204 (ML-DSA): https://csrc.nist.gov/pubs/fips/204/final
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -150,6 +151,7 @@ class AWSKmsMLDSASigner:
     def _get_client(self):
         if self._client is None:
             import boto3  # lazy import — only required in production
+
             self._client = boto3.client("kms", region_name=self.region)
         return self._client
 
@@ -167,8 +169,7 @@ class AWSKmsMLDSASigner:
         a portable stand-in for older Python.
         """
         try:
-            shake = hashlib.shake_256(public_key + payload).digest(64)
-            return shake
+            return hashlib.shake_256(public_key + payload).digest(64)
         except AttributeError:
             # Fallback: BLAKE2b 64-byte digest — same security strength
             # for μ derivation; not FIPS-204-pure but deterministic and
@@ -227,9 +228,7 @@ class ThalesLunaPqcSigner:
         self.pin = pin or os.environ.get("TL_THALES_PKCS11_PIN")
         self.key_label = key_label or os.environ.get("TL_THALES_KEY_LABEL", "trustlayer-mldsa65")
         if not self.module_path:
-            raise ValueError(
-                "ThalesLunaPqcSigner requires TL_THALES_PKCS11_MODULE env var"
-            )
+            raise ValueError("ThalesLunaPqcSigner requires TL_THALES_PKCS11_MODULE env var")
 
     def algorithm(self) -> str:
         return "ML-DSA-65"
@@ -283,9 +282,9 @@ def get_signer(
 
 
 __all__ = [
-    "HSMSigner",
-    "EphemeralEd25519Signer",
     "AWSKmsMLDSASigner",
+    "EphemeralEd25519Signer",
+    "HSMSigner",
     "ThalesLunaPqcSigner",
     "get_signer",
 ]

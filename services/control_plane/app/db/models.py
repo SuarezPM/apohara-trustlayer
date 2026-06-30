@@ -13,7 +13,7 @@ whichever is longer).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TCH003 (runtime: SQLAlchemy 2.0 Mapped[datetime] resolution)
 from enum import Enum as PyEnum
 from typing import Any
 
@@ -57,7 +57,10 @@ class DisclosureRecord(Base):
     # `0002_reassign_org_id.py` migration to set per-tenant values.
     # See Plan v1.2 Block 4 v1.2-US-1 (multi-tenant schema + JWT middleware).
     org_id: Mapped[str] = mapped_column(
-        String(128), nullable=False, default="apohara", index=True,
+        String(128),
+        nullable=False,
+        default="apohara",
+        index=True,
     )
     chain_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     row_number: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -134,9 +137,7 @@ class ToolExecutionReceipt(Base):
         server_default=RecordStatus.ACTIVE.value,
     )
 
-    __table_args__ = (
-        Index("ix_tool_receipt_chain_row", "chain_id", "row_number", unique=True),
-    )
+    __table_args__ = (Index("ix_tool_receipt_chain_row", "chain_id", "row_number", unique=True),)
 
 
 class PolicyDecision(Base):
@@ -183,7 +184,9 @@ class KeyRotationEvent(Base):
     new_key_id: Mapped[str] = mapped_column(String(128), nullable=False)
     old_public_key_fp: Mapped[str | None] = mapped_column(String(64), nullable=True)
     new_public_key_fp: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    grace_period_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    grace_period_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     cose_sign1_b64: Mapped[str] = mapped_column(String(8192), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(

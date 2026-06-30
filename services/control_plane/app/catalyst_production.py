@@ -14,6 +14,7 @@ The W7.2 stub functions (`agent_step_receipt`, `orchestration_manifest`)
 remain available for direct programmatic use; the router wraps them with
 request validation.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,6 +23,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.catalyst_integration import (
+    AgentStepReceiptArgs,
     agent_step_receipt,
     orchestration_manifest,
 )
@@ -78,9 +80,7 @@ class ManifestRequest(BaseModel):
     """Body for POST /v1/catalyst/manifest."""
 
     run_id: str
-    step_receipts: list[dict] = Field(
-        ..., min_length=1, description="Step receipts in DAG order"
-    )
+    step_receipts: list[dict] = Field(..., min_length=1, description="Step receipts in DAG order")
 
 
 class ManifestResponse(BaseModel):
@@ -115,16 +115,18 @@ def post_step_receipt(req: StepReceiptRequest) -> StepReceiptResponse:
     """
     try:
         receipt = agent_step_receipt(
-            run_id=req.run_id,
-            step_id=req.step_id,
-            agent_id=req.agent_id,
-            tool_calls=[tc.model_dump() for tc in req.tool_calls],
-            input_prompt_hash=req.input_prompt_hash,
-            output_response_hash=req.output_response_hash,
-            decision=req.decision,
-            latency_ms=req.latency_ms,
-            context_root_hash=req.context_root_hash,
-            prev_step_hash=req.prev_step_hash,
+            AgentStepReceiptArgs(
+                run_id=req.run_id,
+                step_id=req.step_id,
+                agent_id=req.agent_id,
+                tool_calls=[tc.model_dump() for tc in req.tool_calls],
+                input_prompt_hash=req.input_prompt_hash,
+                output_response_hash=req.output_response_hash,
+                decision=req.decision,
+                latency_ms=req.latency_ms,
+                context_root_hash=req.context_root_hash,
+                prev_step_hash=req.prev_step_hash,
+            )
         )
     except Exception as exc:
         logger.error(f"agent_step_receipt failed: {exc}")
@@ -182,12 +184,12 @@ def post_manifest(req: ManifestRequest) -> ManifestResponse:
 
 
 __all__ = [
-    "router",
-    "StepReceiptRequest",
-    "StepReceiptResponse",
     "ManifestRequest",
     "ManifestResponse",
+    "StepReceiptRequest",
+    "StepReceiptResponse",
     # Re-exports for programmatic use
     "agent_step_receipt",
     "orchestration_manifest",
+    "router",
 ]

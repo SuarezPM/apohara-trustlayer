@@ -13,9 +13,15 @@ All functions are designed to be:
   stamp helpers avoid any rotation / alpha-channel APIs that differ
   across reportlab versions.
 """
+
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from reportlab.platypus import Paragraph, Table
 
 
 def safe_html(s: str | None) -> str:
@@ -26,12 +32,7 @@ def safe_html(s: str | None) -> str:
     """
     if not s:
         return ""
-    return (
-        str(s)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def kv_table(rows: list[list[str]]) -> Table:
@@ -135,8 +136,8 @@ def write_minimal_pdf(pdf_path: Path, cert_id: str) -> None:
 
 
 __all__ = [
-    "safe_html",
     "kv_table",
+    "safe_html",
     "watermark_stamp",
     "write_minimal_pdf",
 ]

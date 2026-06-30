@@ -55,9 +55,7 @@ class DisclosureOptions(BaseModel):
     vocab_size: int | None = Field(
         default=None,
         gt=0,
-        description=(
-            "Tokenizer vocabulary size. Default 50257 (GPT-2/3/4 BPE) if unset."
-        ),
+        description=("Tokenizer vocabulary size. Default 50257 (GPT-2/3/4 BPE) if unset."),
     )
 
 

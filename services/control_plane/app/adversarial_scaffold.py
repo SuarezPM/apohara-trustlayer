@@ -13,7 +13,7 @@ suites to the apohara-argus CordonEnforcer.
   cases, latest release March 2026.
 - **MITRE ATLAS 2026** (Adversarial Threat Landscape for AI Systems)
   — January 2026 release: 15 tactics, 66 techniques + 14 agentic
-  (AML.T0080–T0100).
+  (AML.T0080-T0100).
 
 ## Mapping to TrustLayer controls
 
@@ -72,12 +72,15 @@ result = run_scenario(OASB_SCENARIOS[0])
 mapping = CordonEnforcerMapping.all()
 ```
 """
+
 from __future__ import annotations
 
 import hashlib
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from app.constants import MIN_DEFENSE_LAYERS_REQUIRED
 
 logger = logging.getLogger(__name__)
 
@@ -340,7 +343,10 @@ class CordonEnforcerMapping:
                 cordon_controls=s.trustlayer_mitigations,
                 verdict_synthesizer_visibility="fingerprints_only",
                 audit_log_evidence=[
-                    f"BLAKE3 hash of scenario fingerprint: {hashlib.blake2b(s.code.encode(), digest_size=32).hexdigest()[:16]}...",
+                    (
+                        f"BLAKE3 hash of scenario fingerprint: "
+                        f"{hashlib.blake2b(s.code.encode(), digest_size=32).hexdigest()[:16]}..."
+                    ),
                     "apohara-argus AuditEvent 16-field log (BLAKE3 chain)",
                 ],
             )
@@ -370,9 +376,7 @@ def run_scenario(scenario: AdversarialScenario) -> dict:
     """
     import os
 
-    logger.info(
-        f"Running {scenario.suite} scenario {scenario.code}: {scenario.name}"
-    )
+    logger.info(f"Running {scenario.suite} scenario {scenario.code}: {scenario.name}")
     check = _CONTROL_CHECKS.get(scenario.code)
     if check is None:
         return {
@@ -388,9 +392,7 @@ def run_scenario(scenario: AdversarialScenario) -> dict:
             ],
         }
 
-    live_mode = os.environ.get("TL_ADVERSARIAL_LIVE", "").lower() in (
-        "1", "true", "yes"
-    )
+    live_mode = os.environ.get("TL_ADVERSARIAL_LIVE", "").lower() in ("1", "true", "yes")
 
     # Static control check (always run — cheap, proves the control exists).
     static_passed, static_audit = check()
@@ -405,9 +407,10 @@ def run_scenario(scenario: AdversarialScenario) -> dict:
             "severity": scenario.severity,
             "verdict": "CONTROL_REGISTERED",
             "trustlayer_mitigations": scenario.trustlayer_mitigations,
-            "audit_log": static_audit + [
+            "audit_log": [
+                *static_audit,
                 "TL_ADVERSARIAL_LIVE not set — real fixture not executed; "
-                "this is a static control presence check, NOT a live run."
+                "this is a static control presence check, NOT a live run.",
             ],
         }
 
@@ -425,9 +428,10 @@ def run_scenario(scenario: AdversarialScenario) -> dict:
             "severity": scenario.severity,
             "verdict": "CONTROL_REGISTERED",
             "trustlayer_mitigations": scenario.trustlayer_mitigations,
-            "audit_log": static_audit + [
+            "audit_log": [
+                *static_audit,
                 f"TL_ADVERSARIAL_LIVE=1 but real fixture execution failed: {e!r}. "
-                "Falling back to CONTROL_REGISTERED (live execution did not succeed)."
+                "Falling back to CONTROL_REGISTERED (live execution did not succeed).",
             ],
         }
 
@@ -461,9 +465,7 @@ def _run_live_fixture(scenario: AdversarialScenario) -> tuple[bool, list[str]]:
     import os
     import subprocess
 
-    audit: list[str] = [
-        f"TL_ADVERSARIAL_LIVE=1: attempting real fixture for {scenario.suite}"
-    ]
+    audit: list[str] = [f"TL_ADVERSARIAL_LIVE=1: attempting real fixture for {scenario.suite}"]
 
     if scenario.suite == "OASB":
         oasb_path = Path(__file__).parent.parent / "oasb_runtime" / "oasb" / "oasb.js"
@@ -477,7 +479,8 @@ def _run_live_fixture(scenario: AdversarialScenario) -> tuple[bool, list[str]]:
             capture_output=True,
             text=True,
             timeout=60,
-            env={**os.environ, "TL_OASB_MOCK": os.environ.get("TL_OASB_MOCK", "0")}, check=False,
+            env={**os.environ, "TL_OASB_MOCK": os.environ.get("TL_OASB_MOCK", "0")},
+            check=False,
         )
         audit.append(f"OASB subprocess exit={result.returncode}")
         audit.append(f"OASB stdout (truncated): {result.stdout[:200]}")
@@ -492,23 +495,23 @@ def _run_live_fixture(scenario: AdversarialScenario) -> tuple[bool, list[str]]:
             from agentdojo.attacks import get_attack
         except ImportError as e:
             raise ImportError(
-                f"agentdojo not installed: {e}. "
-                "Install per docs/ADVERSARIAL.md."
+                f"agentdojo not installed: {e}. Install per docs/ADVERSARIAL.md."
             ) from e
         attack = get_attack(scenario.code)
         # Real execution requires a model under test; we stub here
         # for the scaffold so the path is ready when the operator
         # wires their own model endpoint.
-        audit.append(f"agentdojo attack loaded: {attack.name if hasattr(attack, 'name') else type(attack).__name__}")
+        audit.append(
+            f"agentdojo attack loaded: "
+            f"{attack.name if hasattr(attack, 'name') else type(attack).__name__}"
+        )
         # Default to static control check when no model is configured.
         return True, audit
 
     if scenario.suite == "ATLAS":
         # ATLAS techniques are a knowledge base; "execution" here means
         # verifying the CordonEnforcer control mapping is complete.
-        audit.append(
-            f"ATLAS technique {scenario.code}: control mapping verified by static check"
-        )
+        audit.append(f"ATLAS technique {scenario.code}: control mapping verified by static check")
         return True, audit
 
     raise ValueError(f"Unknown suite: {scenario.suite}")
@@ -558,7 +561,7 @@ def _check_kirchenbauer_watermark() -> tuple[bool, list[str]]:
     if "kirchenbauer_detect" in service_src:
         audit.append("NotaryService (notary/service.py) calls kirchenbauer_detect")
         return True, audit
-    return False, audit + ["NotaryService does not call kirchenbauer_detect"]
+    return False, [*audit, "NotaryService does not call kirchenbauer_detect"]
 
 
 def _check_untrusted_tool_outputs() -> tuple[bool, list[str]]:
@@ -583,13 +586,13 @@ def _check_untrusted_tool_outputs() -> tuple[bool, list[str]]:
         )
         # BOTH sentinel positions must carry the nonce for defense-in-depth
         # (per commit c11ccc9).
-        if src.count("APOHARA_UNTRUSTED") >= 2:
+        if src.count("APOHARA_UNTRUSTED") >= MIN_DEFENSE_LAYERS_REQUIRED:
             audit.append(
                 "Nonce present in BOTH sentinel positions (BEGIN + END) "
                 "— defense-in-depth per commit c11ccc9"
             )
             return True, audit
-        return False, audit + ["APOHARA_UNTRUSTED sentinels missing in one position"]
+        return False, [*audit, "APOHARA_UNTRUSTED sentinels missing in one position"]
     return False, ["envelope.rs does not implement APOHARA_UNTRUSTED + nonce sentinels"]
 
 
@@ -619,7 +622,7 @@ def _check_org_id_filter() -> tuple[bool, list[str]]:
             "(pure ASGI — canonical Starlette pattern)"
         )
         return True, audit
-    return False, audit + ["OrgResolverASGIMiddleware not found in middleware/__init__.py"]
+    return False, [*audit, "OrgResolverASGIMiddleware not found in middleware/__init__.py"]
 
 
 def _check_dependency_fingerprinting() -> tuple[bool, list[str]]:
@@ -639,13 +642,9 @@ def _check_dependency_fingerprinting() -> tuple[bool, list[str]]:
     else:
         return False, ["blake3 not found in Cargo.lock"]
     if "ml-dsa" in content.lower():
-        audit.append(
-            "ml-dsa pinned in Cargo.lock (3 CRITICAL CVEs closed per W8.0)"
-        )
+        audit.append("ml-dsa pinned in Cargo.lock (3 CRITICAL CVEs closed per W8.0)")
     else:
-        audit.append(
-            "ml-dsa not pinned in Cargo.lock (W8.0 mitigation missing — warning)"
-        )
+        audit.append("ml-dsa not pinned in Cargo.lock (W8.0 mitigation missing — warning)")
     deny_toml = Path("deny.toml")
     if deny_toml.exists():
         audit.append("deny.toml present — cargo deny enforces license + advisory hygiene")
@@ -681,7 +680,7 @@ def _check_seccomp_sandbox() -> tuple[bool, list[str]]:
         audit.append("seccomp present but Landlock missing")
     elif landlock_count > 0:
         audit.append("Landlock present but seccomp missing")
-    return False, audit + ["seccomp+Landlock sandbox not fully implemented"]
+    return False, [*audit, "seccomp+Landlock sandbox not fully implemented"]
 
 
 def _check_9_agent_court() -> tuple[bool, list[str]]:
@@ -718,6 +717,7 @@ def _check_multi_agent_isolation() -> tuple[bool, list[str]]:
     audit: list[str] = []
     try:
         from app.notary.service import NotaryServiceProduction  # noqa: F401
+
         audit.append(
             "NotaryServiceProduction supports per-run ephemeral Ed25519 keys "
             "(no cross-run key reuse — prevents multi-agent compromise)"
@@ -727,8 +727,7 @@ def _check_multi_agent_isolation() -> tuple[bool, list[str]]:
     court_path = Path("crates/themis-orchestrator")
     if court_path.exists() or Path("crates/tl-orchestrator").exists():
         audit.append(
-            "9-agent court with honesty auditor "
-            "(themis-orchestrator — cross-agent bias detection)"
+            "9-agent court with honesty auditor (themis-orchestrator — cross-agent bias detection)"
         )
     ctx = Path("crates/tl-context/src/inv15.rs")
     if ctx.exists():
@@ -737,7 +736,7 @@ def _check_multi_agent_isolation() -> tuple[bool, list[str]]:
             "context drift (Z3 UNSAT proof)"
         )
         return True, audit
-    return False, audit + ["tl-context INV-15 verifier missing"]
+    return False, [*audit, "tl-context INV-15 verifier missing"]
 
 
 def _check_tool_chain_supply_chain() -> tuple[bool, list[str]]:
@@ -755,7 +754,7 @@ def _check_tool_chain_supply_chain() -> tuple[bool, list[str]]:
     if "blake3" in content.lower():
         audit.append("BLAKE3 dependency fingerprinting (Cargo.lock pinned)")
     else:
-        return False, audit + ["BLAKE3 not pinned in Cargo.lock"]
+        return False, [*audit, "BLAKE3 not pinned in Cargo.lock"]
     if Path("deny.toml").exists():
         audit.append("deny.toml present — cargo deny enforces license + advisory hygiene")
     sandbox = Path("crates/apohara-agentguard/src/sandbox")
@@ -765,11 +764,10 @@ def _check_tool_chain_supply_chain() -> tuple[bool, list[str]]:
             src += f.read_text().lower()
         if "seccomp" in src and "landlock" in src:
             audit.append(
-                "apohara-agentguard sandbox: seccomp+Landlock deny-by-default "
-                "for tool execution"
+                "apohara-agentguard sandbox: seccomp+Landlock deny-by-default for tool execution"
             )
             return True, audit
-    return False, audit + ["seccomp+Landlock sandbox missing"]
+    return False, [*audit, "seccomp+Landlock sandbox missing"]
 
 
 def _check_input_injection_defense() -> tuple[bool, list[str]]:
@@ -785,9 +783,7 @@ def _check_input_injection_defense() -> tuple[bool, list[str]]:
     firewall = Path("crates/apohara-agentguard/src/firewall")
     audit: list[str] = []
     if mcp.exists():
-        envelope_src = (
-            (mcp / "envelope.rs").read_text() if (mcp / "envelope.rs").exists() else ""
-        )
+        envelope_src = (mcp / "envelope.rs").read_text() if (mcp / "envelope.rs").exists() else ""
         if "APOHARA_UNTRUSTED" in envelope_src:
             audit.append(
                 "tl-mcp-server/src/envelope.rs: prompt injection defense via "
@@ -803,9 +799,9 @@ def _check_input_injection_defense() -> tuple[bool, list[str]]:
                 "(GoalOverride + SystemOverride + RoleImpersonation + "
                 "SecretExtraction + Jailbreak)"
             )
-    if len(audit) >= 2:
+    if len(audit) >= MIN_DEFENSE_LAYERS_REQUIRED:
         return True, audit
-    return False, audit + ["prompt injection defense incomplete"]
+    return False, [*audit, "prompt injection defense incomplete"]
 
 
 def _check_slack_injection_defense() -> tuple[bool, list[str]]:
@@ -858,14 +854,14 @@ def _check_model_versioning() -> tuple[bool, list[str]]:
             "(per-output model identity per AML.T0048)"
         )
     else:
-        return False, audit + ["NotaryService does not capture ai_system_id"]
+        return False, [*audit, "NotaryService does not capture ai_system_id"]
     if "blake3" in service_src.lower() or "_canonical_hash" in service_src:
         audit.append(
             "NotaryService uses BLAKE3 (_canonical_hash) to fingerprint "
             "outputs — drift detection over time"
         )
         return True, audit
-    return False, audit + ["BLAKE3 fingerprinting missing in NotaryService"]
+    return False, [*audit, "BLAKE3 fingerprinting missing in NotaryService"]
 
 
 def _check_prompt_envelope() -> tuple[bool, list[str]]:
@@ -889,7 +885,7 @@ def _check_prompt_envelope() -> tuple[bool, list[str]]:
             "(LLM instructed to treat as data, not instruction)"
         )
         return True, audit
-    return False, audit + ["prompt envelope sentinels missing"]
+    return False, [*audit, "prompt envelope sentinels missing"]
 
 
 def _check_agent_context_isolation() -> tuple[bool, list[str]]:
@@ -904,19 +900,15 @@ def _check_agent_context_isolation() -> tuple[bool, list[str]]:
     audit: list[str] = []
     if (ctx / "inv15.rs").exists():
         audit.append(
-            "tl-context/src/inv15.rs: INV-15 verifier present "
-            "(agent context isolation invariant)"
+            "tl-context/src/inv15.rs: INV-15 verifier present (agent context isolation invariant)"
         )
     if (ctx / "context.rs").exists():
         audit.append("tl-context/src/context.rs: ContextBudget enforcement present")
     if (ctx / "z3_inv15.rs").exists():
-        audit.append(
-            "tl-context/src/z3_inv15.rs: Z3 UNSAT proof wrapper "
-            "(10.08 ms per Z3 4.16.0)"
-        )
-    if len(audit) >= 2:
+        audit.append("tl-context/src/z3_inv15.rs: Z3 UNSAT proof wrapper (10.08 ms per Z3 4.16.0)")
+    if len(audit) >= MIN_DEFENSE_LAYERS_REQUIRED:
         return True, audit
-    return False, audit + ["agent context isolation incomplete"]
+    return False, [*audit, "agent context isolation incomplete"]
 
 
 def _check_context_poisoning_defense() -> tuple[bool, list[str]]:
@@ -946,9 +938,9 @@ def _check_context_poisoning_defense() -> tuple[bool, list[str]]:
                 "apohara-agentguard/src/firewall/: 5-category regex "
                 "(catches context-poisoning payloads)"
             )
-    if len(audit) >= 2:
+    if len(audit) >= MIN_DEFENSE_LAYERS_REQUIRED:
         return True, audit
-    return False, audit + ["context poisoning defense incomplete"]
+    return False, [*audit, "context poisoning defense incomplete"]
 
 
 # Scenario code → control check registry. Adding a new scenario to
@@ -979,11 +971,11 @@ _CONTROL_CHECKS = {
 
 
 __all__ = [
-    "AdversarialScenario",
-    "OASB_SCENARIOS",
     "AGENTDOJO_ATTACKS",
     "ATLAS_TECHNIQUES",
+    "OASB_SCENARIOS",
+    "_CONTROL_CHECKS",
+    "AdversarialScenario",
     "CordonEnforcerMapping",
     "run_scenario",
-    "_CONTROL_CHECKS",
 ]

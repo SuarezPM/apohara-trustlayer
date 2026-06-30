@@ -5,9 +5,10 @@ NotaryService can import them without a circular dependency. These
 models are also re-exported from `app.notary` (the package) and
 `app.notary_production` (the legacy shim) for backwards compat.
 """
+
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TCH003 (runtime: Pydantic field type resolution)
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -56,9 +57,7 @@ class NotarizeRequest(BaseModel):
     vocab_size: int | None = Field(
         default=None,
         gt=0,
-        description=(
-            "Tokenizer vocabulary size. Default 50257 (GPT-2/3/4 BPE) if unset."
-        ),
+        description=("Tokenizer vocabulary size. Default 50257 (GPT-2/3/4 BPE) if unset."),
     )
 
 

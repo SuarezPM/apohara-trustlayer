@@ -35,7 +35,8 @@ Per SQLAlchemy 2.0 async best practices:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import contextlib
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -45,6 +46,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # Global state: the engine + sessionmaker are created lazily on first
 # access. Tests override `get_async_session` via FastAPI's
@@ -65,7 +69,7 @@ def _get_engine() -> AsyncEngine:
       `database_ssl_root_cert_path='/path/to/rds-ca-bundle.pem'`
       is the strictest setting — the production target.
     """
-    global _engine
+    global _engine  # noqa: PLW0603 (lazy-init module-level singleton)
     if _engine is None:
         settings = get_settings()
         connect_args: dict = {}
@@ -89,7 +93,7 @@ def _get_engine() -> AsyncEngine:
         # (so None propagates) and `.immutabledict(...).union(None)`
         # then raises `TypeError: 'NoneType' object is not iterable`.
         is_sqlite = settings.database_url.startswith("sqlite")
-        engine_kwargs: dict = dict(echo=False)
+        engine_kwargs: dict = {"echo": False}
         if not is_sqlite:
             engine_kwargs.update(
                 pool_size=settings.database_pool_size,
@@ -105,7 +109,7 @@ def _get_engine() -> AsyncEngine:
 
 def _get_sessionmaker() -> async_sessionmaker[AsyncSession]:
     """Return the global async sessionmaker, creating it on first access."""
-    global _sessionmaker
+    global _sessionmaker  # noqa: PLW0603 (lazy-init module-level singleton)
     if _sessionmaker is None:
         _sessionmaker = async_sessionmaker(
             _get_engine(),
@@ -122,17 +126,15 @@ def reset_engine_for_tests() -> None:
     engine is disposed (best-effort — we don't await since this is a
     sync function called from test setup).
     """
-    global _engine, _sessionmaker
+    global _engine, _sessionmaker  # noqa: PLW0603 (lazy-init module-level singleton)
     if _engine is not None:
         # Best-effort dispose. In production, this is never called.
-        try:
+        # W8.9.1+narrowed: catch is documented in the function docstring.
+        # Best-effort dispose for test cleanup. Disposal errors are not actionable here
+        # (the test is over and we are about to drop the reference anyway). Swallow
+        # so the test teardown is never blocked by a transient dispose failure.
+        with contextlib.suppress(Exception):
             _engine.sync_engine.dispose()
-        except Exception:
-            # W8.9.1+narrowed: catch is documented in the function docstring.
-            # Best-effort dispose for test cleanup. Disposal errors are not actionable here
-            # (the test is over and we are about to drop the reference anyway). Swallow
-            # so the test teardown is never blocked by a transient dispose failure.
-            pass
     _engine = None
     _sessionmaker = None
 

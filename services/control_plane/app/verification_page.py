@@ -11,17 +11,22 @@ The third party clicks the URL and sees the full three-tier disclosure:
 
 This is the driver of viral adoption for the Notary Layer.
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from app.notary_production import NotaryDB
+from app.constants import ASN1_SEQUENCE_TAG, COSE_SIGN1_MIN_BYTES
+
+if TYPE_CHECKING:
+    from app.notary_production import NotaryDB
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +38,7 @@ _db: NotaryDB | None = None
 
 def init_verification_routes(db: NotaryDB) -> None:
     """Wire the verification routes to a database. Called at startup."""
-    global _db
+    global _db  # noqa: PLW0603 (module-level singleton initialised at app startup)
     _db = db
     logger.info("Verification routes initialized")
 
@@ -67,14 +72,18 @@ HTML_L1_TEMPLATE = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrustLayer Verify - {cert_id}</title>
 <style>
-body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; color: #222; }}
+body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 800px;
+       margin: 2em auto; padding: 0 1em; color: #222; }}
 h1 {{ color: #0a4; }}
-.status-valid {{ color: #0a4; font-weight: bold; padding: 0.5em; background: #e0f5e0; border-radius: 4px; }}
-.status-invalid {{ color: #a00; font-weight: bold; padding: 0.5em; background: #fee; border-radius: 4px; }}
+.status-valid {{ color: #0a4; font-weight: bold; padding: 0.5em;
+                 background: #e0f5e0; border-radius: 4px; }}
+.status-invalid {{ color: #a00; font-weight: bold; padding: 0.5em;
+                   background: #fee; border-radius: 4px; }}
 table {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}
 th, td {{ text-align: left; padding: 0.5em; border: 1px solid #ccc; }}
 th {{ background: #f0f0f0; }}
-code {{ font-family: 'SF Mono', Menlo, monospace; font-size: 0.9em; background: #f5f5f5; padding: 0.1em 0.3em; border-radius: 3px; }}
+code {{ font-family: 'SF Mono', Menlo, monospace; font-size: 0.9em;
+        background: #f5f5f5; padding: 0.1em 0.3em; border-radius: 3px; }}
 .details {{ margin-top: 1em; padding: 1em; background: #f9f9f9; border-radius: 4px; }}
 </style>
 </head>
@@ -108,6 +117,115 @@ TrustLayer open-source AI compliance substrate.
 """
 
 
+def _step_content_hash(cert: dict) -> str:
+    """Verification step 2: content-hash format check (PLR0912 split)."""
+    content_hash = cert.get("content_hash") or ""
+    hash_hex_len = 7 + 64  # "sha256:" / "blake3:" + 64 hex chars
+    if (content_hash.startswith("sha256:") and len(content_hash) == hash_hex_len) or (
+        content_hash.startswith("blake3:") and len(content_hash) == hash_hex_len
+    ):
+        return f"[STRUCTURE_OK] Content hash present and well-formed: {content_hash}"
+    return f"[ABSENT] Content hash missing or malformed: {content_hash!r}"
+
+
+def _step_cose_sign1(cert: dict) -> str:
+    """Verification step 3: COSE_Sign1 structural parse (PLR0912 split)."""
+    import base64
+
+    cose_b64 = cert.get("cose_sign1_b64")
+    if not cose_b64:
+        return "[ABSENT] COSE_Sign1 envelope not stored"
+    try:
+        raw = base64.b64decode(cose_b64, validate=True)
+    except (ValueError, base64.binascii.Error) as e:
+        return f"[ABSENT] COSE_Sign1 base64 decode failed: {e}"
+    if len(raw) < COSE_SIGN1_MIN_BYTES:
+        return "[ABSENT] COSE_Sign1 envelope too short to parse"
+    return (
+        f"[STRUCTURE_OK] COSE_Sign1 envelope parsed ({len(raw)} bytes); "
+        "protected header + signature present"
+    )
+
+
+def _step_tsa_token(cert: dict) -> str:
+    """Verification step 4: TSA token structural parse (PLR0912 split)."""
+    import base64
+
+    tsa_token_b64 = cert.get("tsa_token_b64")
+    if not tsa_token_b64:
+        return "[ABSENT] TSA token not stored (degraded mode)"
+    try:
+        raw = base64.b64decode(tsa_token_b64, validate=True)
+    except (ValueError, base64.binascii.Error) as e:
+        return f"[ABSENT] TSA token base64 decode failed: {e}"
+    if raw and raw[0] == ASN1_SEQUENCE_TAG:
+        return f"[STRUCTURE_OK] TSA token parsed ({len(raw)} bytes CMS ContentInfo)"
+    return f"[ABSENT] TSA token decoded ({len(raw)} bytes) but missing CMS envelope tag"
+
+
+def _step_scitt_rekor(cert: dict) -> str:
+    """Verification step 5: SCITT/Rekor inclusion proof (PLR0912 split).
+
+    When the SCITT client persisted the full inclusion-proof payload
+    (leaf_hash + log_index + tree_size + audit_path + root_hash),
+    verify it LOCALLY via `rfc9162_verifier` — no fetch from the SCITT
+    log at verify time. Falls back to [PRESENT] (just the ID) when
+    the proof isn't persisted (mock SCITT + dev).
+    """
+    import json as _json
+
+    rekor_id = cert.get("rekor_entry_id")
+    if not rekor_id:
+        return "[ABSENT] SCITT/Rekor entry not stored"
+    rekor_entry_json = cert.get("rekor_entry_json")
+    if not rekor_entry_json:
+        return (
+            f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
+            "(inclusion proof not persisted — verification deferred)"
+        )
+    try:
+        entry = _json.loads(rekor_entry_json)
+        leaf_hash = entry.get("leaf_hash") or entry.get("uuid")
+        log_index = int(entry.get("log_index", 0))
+        tree_size = int(entry.get("tree_size", 0))
+        root_hash = entry.get("root_hash")
+        audit_path = entry.get("audit_path", [])
+    except (ValueError, TypeError, KeyError) as e:
+        return f"[FAILED] SCITT/Rekor inclusion proof parse error: {e}"
+    if not (leaf_hash and log_index and tree_size and root_hash):
+        return (
+            f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
+            "(proof fields incomplete — verification deferred)"
+        )
+    from app.rfc9162_verifier import verify_inclusion_proof
+
+    ok = verify_inclusion_proof(
+        leaf_hex=leaf_hash,
+        leaf_index=log_index,
+        tree_size=tree_size,
+        audit_path=audit_path,
+        expected_root_hex=root_hash,
+    )
+    if ok:
+        return (
+            f"[VERIFIED] SCITT/Rekor inclusion proof verified "
+            f"locally (entry={rekor_id}, log_index={log_index}, "
+            f"tree_size={tree_size})"
+        )
+    return (
+        f"[FAILED] SCITT/Rekor inclusion proof failed for "
+        f"entry={rekor_id} (reconstructed root != expected)"
+    )
+
+
+def _step_issuer_fingerprint(cert: dict) -> str:
+    """Verification step 6: issuer key fingerprint check (PLR0912 split)."""
+    fp = cert.get("primary_key_fingerprint", "")
+    if fp:
+        return f"[STRUCTURE_OK] Issuer key fingerprint: {fp}"
+    return "[ABSENT] Issuer key fingerprint not stored"
+
+
 def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
     """Build the L3 verification step list with REAL structural checks.
 
@@ -117,132 +235,25 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
       [PRESENT]        — artifact stored, full crypto deferred (see note)
       [ABSENT]         — artifact not stored (degraded mode)
       [DEFERRED]       — requires external infrastructure (see note)
+      [FAILED]         — stored artifact failed a structural parse
+
+    Each step lives in a private helper (PLR0912/PLR0915 split) so the
+    orchestrator below stays simple and reviewable.
     """
-    import base64
-    steps: list[str] = []
-
-    # Step 1: retrieval (always succeeds if we got here)
-    steps.append(f"[VERIFIED] Retrieved certificate {cert_id} from NotaryDB")
-
-    # Step 2: content hash format check
-    content_hash = cert.get("content_hash") or ""
-    if content_hash.startswith("sha256:") and len(content_hash) == 7 + 64 or content_hash.startswith("blake3:") and len(content_hash) == 7 + 64:
-        steps.append(
-            f"[STRUCTURE_OK] Content hash present and well-formed: {content_hash}"
-        )
-    else:
-        steps.append(
-            f"[ABSENT] Content hash missing or malformed: {content_hash!r}"
-        )
-
-    # Step 3: COSE_Sign1 structure parse
-    cose_b64 = cert.get("cose_sign1_b64")
-    if cose_b64:
-        try:
-            raw = base64.b64decode(cose_b64, validate=True)
-            # COSE_Sign1 array: [protected, unprotected, payload, signature]
-            # (RFC 9052 §4.4). Minimal structural check: non-empty + protected header present.
-            if len(raw) >= 2:
-                steps.append(
-                    f"[STRUCTURE_OK] COSE_Sign1 envelope parsed ({len(raw)} bytes); "
-                    f"protected header + signature present"
-                )
-            else:
-                steps.append("[ABSENT] COSE_Sign1 envelope too short to parse")
-        except (ValueError, base64.binascii.Error) as e:
-            steps.append(f"[ABSENT] COSE_Sign1 base64 decode failed: {e}")
-    else:
-        steps.append("[ABSENT] COSE_Sign1 envelope not stored")
-
-    # Step 4: TSA token structure parse
-    tsa_token_b64 = cert.get("tsa_token_b64")
-    if tsa_token_b64:
-        try:
-            raw = base64.b64decode(tsa_token_b64, validate=True)
-            # CMS ContentInfo starts with SEQUENCE tag (0x30) — minimal structural check.
-            if raw and raw[0] == 0x30:
-                steps.append(
-                    f"[STRUCTURE_OK] TSA token parsed ({len(raw)} bytes CMS ContentInfo)"
-                )
-            else:
-                steps.append(
-                    f"[ABSENT] TSA token decoded ({len(raw)} bytes) but missing CMS envelope tag"
-                )
-        except (ValueError, base64.binascii.Error) as e:
-            steps.append(f"[ABSENT] TSA token base64 decode failed: {e}")
-    else:
-        steps.append("[ABSENT] TSA token not stored (degraded mode)")
-
-    # Step 5: SCITT / Rekor entry + inclusion proof (P5.5).
-    # When the SCITT client returned the full inclusion-proof payload
-    # (leaf_hash + log_index + tree_size + audit_path + root_hash),
-    # verify it LOCALLY via rfc9162_verifier — no fetch from the SCITT
-    # log at verify time. Falls back to [PRESENT] (just the ID) when
-    # the proof isn't persisted (mock SCITT + dev).
-    rekor_id = cert.get("rekor_entry_id")
-    rekor_entry_json = cert.get("rekor_entry_json")
-    if rekor_id:
-        if rekor_entry_json:
-            try:
-                import json as _json
-                entry = _json.loads(rekor_entry_json)
-                leaf_hash = entry.get("leaf_hash") or entry.get("uuid")
-                log_index = int(entry.get("log_index", 0))
-                tree_size = int(entry.get("tree_size", 0))
-                root_hash = entry.get("root_hash")
-                audit_path = entry.get("audit_path", [])
-                if leaf_hash and log_index and tree_size and root_hash:
-                    from app.rfc9162_verifier import verify_inclusion_proof
-                    ok = verify_inclusion_proof(
-                        leaf_hex=leaf_hash,
-                        leaf_index=log_index,
-                        tree_size=tree_size,
-                        audit_path=audit_path,
-                        expected_root_hex=root_hash,
-                    )
-                    if ok:
-                        steps.append(
-                            f"[VERIFIED] SCITT/Rekor inclusion proof verified "
-                            f"locally (entry={rekor_id}, log_index={log_index}, "
-                            f"tree_size={tree_size})"
-                        )
-                    else:
-                        steps.append(
-                            f"[FAILED] SCITT/Rekor inclusion proof failed for "
-                            f"entry={rekor_id} (reconstructed root != expected)"
-                        )
-                else:
-                    steps.append(
-                        f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
-                        f"(proof fields incomplete — verification deferred)"
-                    )
-            except (ValueError, TypeError, KeyError) as e:
-                steps.append(
-                    f"[FAILED] SCITT/Rekor inclusion proof parse error: {e}"
-                )
-        else:
-            steps.append(
-                f"[PRESENT] SCITT/Rekor entry recorded: {rekor_id} "
-                f"(inclusion proof not persisted — verification deferred)"
-            )
-    else:
-        steps.append("[ABSENT] SCITT/Rekor entry not stored")
-
-    # Step 6: issuer key fingerprint
-    fp = cert.get("primary_key_fingerprint", "")
-    if fp:
-        steps.append(f"[STRUCTURE_OK] Issuer key fingerprint: {fp}")
-    else:
-        steps.append("[ABSENT] Issuer key fingerprint not stored")
-
-    # Step 7: verifier recommendation
-    steps.append(
-        "[DEFERRED] Full cryptographic verification (Ed25519 sig over canonical JSON, "
-        "TSA chain validation, Rekor inclusion proof) deferred — requires the issuer "
-        "public key store and external endpoints. Structural checks above confirm the "
-        "stored artifacts are well-formed; cross-check hash with content owner (L1)."
-    )
-
+    steps: list[str] = [
+        f"[VERIFIED] Retrieved certificate {cert_id} from NotaryDB",
+        _step_content_hash(cert),
+        _step_cose_sign1(cert),
+        _step_tsa_token(cert),
+        _step_scitt_rekor(cert),
+        _step_issuer_fingerprint(cert),
+        (
+            "[DEFERRED] Full cryptographic verification (Ed25519 sig over canonical JSON, "
+            "TSA chain validation, Rekor inclusion proof) deferred — requires the issuer "
+            "public key store and external endpoints. Structural checks above confirm the "
+            "stored artifacts are well-formed; cross-check hash with content owner (L1)."
+        ),
+    ]
     return steps
 
 
@@ -268,6 +279,7 @@ def _sanitize_for_html(value: str) -> str:
 def render_html_l1(cert: dict, verification_steps: list[str]) -> str:
     """Render the L1 HTML summary page."""
     import html as html_lib
+
     return HTML_L1_TEMPLATE.format(
         status_class="status-valid" if cert.get("status") == "valid" else "status-invalid",
         status=html_lib.escape(_sanitize_for_html(str(cert.get("status", "unknown")))),
@@ -280,9 +292,7 @@ def render_html_l1(cert: dict, verification_steps: list[str]) -> str:
         primary_key_fingerprint=html_lib.escape(
             _sanitize_for_html(str(cert.get("primary_key_fingerprint", "")))
         ),
-        cwt_claims_json=html_lib.escape(
-            _sanitize_for_html(str(cert.get("cwt_claims_json", "{}")))
-        ),
+        cwt_claims_json=html_lib.escape(_sanitize_for_html(str(cert.get("cwt_claims_json", "{}")))),
         verification_steps_html="".join(
             f"<li>{html_lib.escape(_sanitize_for_html(s))}</li>" for s in verification_steps
         ),
