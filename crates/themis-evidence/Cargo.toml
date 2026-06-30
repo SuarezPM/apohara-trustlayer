@@ -33,7 +33,7 @@ serde_json_canonicalizer = "0.3"
 # Used by sealchain_wrap mock-fallback (SHA-256 fingerprint of the
 # payload bytes for the mock preimage hex). sha2 is already a
 # workspace-level dep, so this just references it directly.
-sha2 = "0.10"
+sha2 = "0.11"
 # RFC 3161 strict verification (FIX-2 → FIX-2b): full chain
 # check. The stack is layered:
 #

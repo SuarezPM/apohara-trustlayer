@@ -4301,7 +4301,7 @@ dependencies = [
  "serde_json",
  "serde_json_canonicalizer",
  "sha1",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "signature 2.2.0",
  "sigstore-trust-root",
  "sigstore-types",
@@ -4349,7 +4349,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "themis-agents",
  "themis-band-client",
  "themis-compliance",
@@ -4564,7 +4564,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "themis-evidence",
  "thiserror 1.0.69",
  "tokio",
@@ -4718,7 +4718,7 @@ dependencies = [
  "serde",
  "serde_cbor_2",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "thiserror 1.0.69",
 ]
 
@@ -4776,7 +4776,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "thiserror 1.0.69",
 ]
 
