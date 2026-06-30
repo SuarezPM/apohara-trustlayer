@@ -28,10 +28,7 @@ pub struct Ed25519Keypair {
 impl Ed25519Keypair {
     /// Generate a fresh random keypair for a tenant.
     pub fn generate(tenant_id: impl Into<String>) -> Self {
-        use rand::RngCore;
-        let mut csprng = rand::rng();
-        let mut bytes = [0u8; 32];
-        csprng.fill_bytes(&mut bytes);
+        let bytes: [u8; 32] = rand::random();
         let signing_key = SigningKey::from_bytes(&bytes);
         let key_id = format!("{}-{}", tenant_id.into(), hex::encode(&bytes[..4]));
         Self {
