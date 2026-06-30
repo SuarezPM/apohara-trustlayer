@@ -37,7 +37,7 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 tracing = "0.1"
 # v1.2-US-3: prompt envelope (nonce-tagged sentinels via OS RNG).
-rand = "0.9"
+rand = "0.10"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 anyhow = "1"
 blake3 = { workspace = true }
