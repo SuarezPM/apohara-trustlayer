@@ -53,9 +53,8 @@ use tl_types::OrgId;
 /// Format: `${org_id}/v1`. Example: `OrgId::new("acme")?.issuer_v1() == "acme/v1"`.
 #[pyfunction]
 fn issuer_v1(org_id: &str) -> PyResult<String> {
-    let id = OrgId::new(org_id).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("invalid org_id: {e}"))
-    })?;
+    let id = OrgId::new(org_id)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid org_id: {e}")))?;
     Ok(id.issuer_v1())
 }
 
@@ -91,14 +90,13 @@ fn verify_provenance_manifest(
     let public_key = ed25519_dalek::VerifyingKey::from_bytes(&key_bytes).map_err(|e| {
         pyo3::exceptions::PyValueError::new_err(format!("invalid Ed25519 public key: {e}"))
     })?;
-    let cose = CoseSignature::from_cbor(cose_sign1_cbor).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("invalid COSE_Sign1: {e}"))
-    })?;
+    let cose = CoseSignature::from_cbor(cose_sign1_cbor)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid COSE_Sign1: {e}")))?;
     let verified = cose
         .verify(external_aad, |sig, tbs| {
-            let sig_arr: [u8; 64] = sig.try_into().map_err(|_| {
-                coset::CoseError::UnregisteredIanaValue
-            })?;
+            let sig_arr: [u8; 64] = sig
+                .try_into()
+                .map_err(|_| coset::CoseError::UnregisteredIanaValue)?;
             public_key
                 .verify_strict(tbs, &ed25519_dalek::Signature::from_bytes(&sig_arr))
                 .map_err(|_| coset::CoseError::UnregisteredIanaValue)
@@ -158,9 +156,8 @@ fn cose_sign1_synthetic_for_tests(payload: &[u8], external_aad: &[u8]) -> PyResu
         signing_key.sign(tbs).to_bytes().to_vec()
     })
     .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("COSE_Sign1 build: {e}")))?;
-    cose.to_cbor().map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("COSE_Sign1 to_cbor: {e}"))
-    })
+    cose.to_cbor()
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("COSE_Sign1 to_cbor: {e}")))
 }
 
 /// Return the apohara-trustlayer package version (sanity check).

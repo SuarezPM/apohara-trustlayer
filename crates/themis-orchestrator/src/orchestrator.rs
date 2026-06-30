@@ -327,8 +327,7 @@ impl Orchestrator {
         if let Some(bus) = self.event_bus.as_ref() {
             let next_name = next.iter().next().cloned().unwrap_or_default();
             if !next_name.is_empty() {
-                let context_summary =
-                    decision.reasoning.chars().take(200).collect::<String>();
+                let context_summary = decision.reasoning.chars().take(200).collect::<String>();
                 bus.publish(crate::events::Event::AgentHandoff {
                     run_id: uuid::Uuid::new_v4(),
                     from: agent_name.to_string(),
@@ -685,9 +684,13 @@ impl Orchestrator {
         let packet = self.assemble(tenant_id, invoice_id, &decisions, bbaaar_outcome);
         let signed = if {
             #[cfg(feature = "defense")]
-            { !destructive_blocked }
+            {
+                !destructive_blocked
+            }
             #[cfg(not(feature = "defense"))]
-            { true }
+            {
+                true
+            }
         } {
             self.sign(packet, tenant_id)?
         } else {
@@ -703,9 +706,13 @@ impl Orchestrator {
         // Closes the demo data → evidence → Rekor chain end-to-end.
         let signed = if {
             #[cfg(feature = "defense")]
-            { !destructive_blocked }
+            {
+                !destructive_blocked
+            }
             #[cfg(not(feature = "defense"))]
-            { true }
+            {
+                true
+            }
         } {
             self.anchor_in_rekor(signed, tenant_id).await
         } else {
@@ -772,9 +779,9 @@ impl Orchestrator {
                 });
             }
         };
-        let canonical_payload = packet
-            .to_canonical_json()
-            .map_err(|e| OrchestratorError::Evidence(format!("canonical JSON serialization: {e}")))?;
+        let canonical_payload = packet.to_canonical_json().map_err(|e| {
+            OrchestratorError::Evidence(format!("canonical JSON serialization: {e}"))
+        })?;
         let signature_hex = signer.sign_hex(&canonical_payload);
         Ok(SignedPacket::wrap(packet, signature_hex, public_key_hex))
     }

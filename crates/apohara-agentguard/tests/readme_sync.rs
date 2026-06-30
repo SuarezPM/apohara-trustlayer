@@ -14,9 +14,9 @@
 //! Each out-of-scope item is verified TWO ways: named in the "Still out of
 //! scope" section, and NOT present in the "Now caught" section.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::gate::evaluate;
 use apohara_agentguard::verdict::Tier;
+use apohara_agentguard::Config;
 
 const README: &str = include_str!("../README.md");
 const GATE_EVASIONS: &str = include_str!("gate_evasions.rs");

@@ -411,7 +411,8 @@ fn render_receipt(
 fn render_qr(ctx: &Ctx, packet: &SignedPacket, page: &Page) {
     let verify_url = format!(
         "https://vouch.apohara.dev/verify?packet={}&tenant={}",
-        packet.packet().packet_id(), packet.packet().tenant_id()
+        packet.packet().packet_id(),
+        packet.packet().tenant_id()
     );
     let qr = match qrcode::QrCode::new(verify_url.as_bytes()) {
         Ok(qr) => qr,

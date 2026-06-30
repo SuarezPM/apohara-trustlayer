@@ -237,16 +237,19 @@ pub fn verify_offline(
     // ed25519-dalek 2.x `verify_strict` expects a `&Signature` (which
     // parses a 64-byte array); raw `&[u8]` doesn't satisfy the type.
     use ed25519_dalek::Signature;
-    let sig_result: Result<(), SCITTError> = sign1.verify_signature(b"", |signature_bytes, tbs_data| {
-        // Ed25519 signatures are exactly 64 bytes. If the COSE_Sign1
-        // carries something else, it's malformed and we reject it
-        // (which surfaces as InvalidSignature).
-        let sig_arr: [u8; 64] = signature_bytes.try_into().map_err(|_| SCITTError::InvalidSignature)?;
-        let sig = Signature::from_bytes(&sig_arr);
-        issuer_pubkey
-            .verify_strict(tbs_data, &sig)
-            .map_err(|_| SCITTError::InvalidSignature)
-    });
+    let sig_result: Result<(), SCITTError> =
+        sign1.verify_signature(b"", |signature_bytes, tbs_data| {
+            // Ed25519 signatures are exactly 64 bytes. If the COSE_Sign1
+            // carries something else, it's malformed and we reject it
+            // (which surfaces as InvalidSignature).
+            let sig_arr: [u8; 64] = signature_bytes
+                .try_into()
+                .map_err(|_| SCITTError::InvalidSignature)?;
+            let sig = Signature::from_bytes(&sig_arr);
+            issuer_pubkey
+                .verify_strict(tbs_data, &sig)
+                .map_err(|_| SCITTError::InvalidSignature)
+        });
     sig_result?;
 
     // Check 5: inclusion proof (v1.0.5: only None supported).
@@ -262,9 +265,7 @@ pub fn verify_offline(
 // API surface, with the convenience re-export below for shorter call
 // sites.
 pub mod countersign;
-pub use countersign::{
-    blake3_pubkey_fingerprint, CounterSignError, CounterSignedReceipt,
-};
+pub use countersign::{blake3_pubkey_fingerprint, CounterSignError, CounterSignedReceipt};
 
 #[cfg(test)]
 mod tests {
@@ -276,11 +277,7 @@ mod tests {
     /// key derived from `seed` (BLAKE3 of the seed). Pure: no I/O, no
     /// env, no clock. The same seed always produces the same key, so
     /// tests are reproducible.
-    fn make_signed_receipt(
-        payload: &[u8],
-        kid: &str,
-        seed: &[u8],
-    ) -> (SCITTReceipt, SigningKey) {
+    fn make_signed_receipt(payload: &[u8], kid: &str, seed: &[u8]) -> (SCITTReceipt, SigningKey) {
         // Derive a 32-byte Ed25519 secret key from the seed.
         let sk_bytes: [u8; 32] = blake3::hash(seed).into();
         let sk = SigningKey::from_bytes(&sk_bytes);
@@ -298,9 +295,12 @@ mod tests {
             )
             .payload(payload.to_vec());
         let sign1 = builder
-            .try_create_signature(b"", |sig_structure_bytes| -> Result<Vec<u8>, coset::CoseError> {
-                Ok(sk.sign(sig_structure_bytes).to_bytes().to_vec())
-            })
+            .try_create_signature(
+                b"",
+                |sig_structure_bytes| -> Result<Vec<u8>, coset::CoseError> {
+                    Ok(sk.sign(sig_structure_bytes).to_bytes().to_vec())
+                },
+            )
             .expect("COSE_Sign1 build must succeed in tests")
             .build();
         use coset::CborSerializable;
@@ -356,12 +356,20 @@ mod tests {
         let payload = b"hello, SCITT world";
         let (receipt, _sk_issuer) = make_signed_receipt(payload, "test-kid-3", b"seed-3");
         // Use a DIFFERENT deterministic seed — fingerprint won't match.
-        let (other_receipt, other_sk) = make_signed_receipt(payload, "test-kid-3-other", b"seed-3-OTHER");
+        let (other_receipt, other_sk) =
+            make_signed_receipt(payload, "test-kid-3-other", b"seed-3-OTHER");
         let other_pk = other_sk.verifying_key();
         // Sanity: the receipts differ.
-        assert_ne!(receipt.issuer_pubkey_fingerprint, other_receipt.issuer_pubkey_fingerprint);
+        assert_ne!(
+            receipt.issuer_pubkey_fingerprint,
+            other_receipt.issuer_pubkey_fingerprint
+        );
         let result = verify_offline(&receipt, &other_pk);
-        assert!(matches!(result, Err(SCITTError::KeyIdMismatch)), "got {:?}", result);
+        assert!(
+            matches!(result, Err(SCITTError::KeyIdMismatch)),
+            "got {:?}",
+            result
+        );
     }
 
     #[test]
@@ -373,7 +381,11 @@ mod tests {
         receipt.cose_sign1 = vec![0xFF; 32]; // not valid CBOR
         let pk = sk.verifying_key();
         let result = verify_offline(&receipt, &pk);
-        assert!(matches!(result, Err(SCITTError::CborDecodeFailed(_))), "got {:?}", result);
+        assert!(
+            matches!(result, Err(SCITTError::CborDecodeFailed(_))),
+            "got {:?}",
+            result
+        );
     }
 
     #[test]

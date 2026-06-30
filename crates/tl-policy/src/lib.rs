@@ -219,7 +219,10 @@ impl DORAEvidenceStrategy {
         match &ctx.retention_until_iso {
             Some(iso) => CheckResult::pass_with_evidence(
                 format!("OK — retention set to {iso} (5y DORA minimum)"),
-                vec![format!("disclosure_records:{}.retention_until", ctx.disclosure_id)],
+                vec![format!(
+                    "disclosure_records:{}.retention_until",
+                    ctx.disclosure_id
+                )],
             ),
             None => CheckResult::fail("retention_until not set (DORA Art. 19 requires 5y)"),
         }
@@ -282,9 +285,7 @@ impl DORAEvidenceStrategy {
                 vec!["postgres_role:trustwriter (INSERT only)".to_string()],
             )
         } else {
-            CheckResult::fail(
-                "cannot verify append-only audit: no chain to check against",
-            )
+            CheckResult::fail("cannot verify append-only audit: no chain to check against")
         }
     }
 }
@@ -536,11 +537,15 @@ impl ComplianceStrategy {
             strategies: BTreeMap::new(),
         };
         // Production wiring:
-        s.strategies.insert(Framework::Dora, Box::new(DORAEvidenceStrategy::new()));
-        s.strategies.insert(Framework::EuAiAct, Box::new(EuAiActStrategy));
+        s.strategies
+            .insert(Framework::Dora, Box::new(DORAEvidenceStrategy::new()));
+        s.strategies
+            .insert(Framework::EuAiAct, Box::new(EuAiActStrategy));
         // v1.1.1 / v1.2 stubs (real impls land in v1.2).
-        s.strategies.insert(Framework::Iso42001, Box::new(Iso42001Strategy));
-        s.strategies.insert(Framework::NistAiRmf, Box::new(NistAiRmfStrategy));
+        s.strategies
+            .insert(Framework::Iso42001, Box::new(Iso42001Strategy));
+        s.strategies
+            .insert(Framework::NistAiRmf, Box::new(NistAiRmfStrategy));
         // v1.2 / beyond stubs.
         for framework in [
             Framework::NistSp80053,
@@ -656,7 +661,8 @@ impl Strategy for NotImplementedStrategy {
                 "ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2)",
             ),
             Framework::NistAiRmf => (
-                "NIST AI RMF Govern/Map/Measure/Manage mapper not yet implemented in v1.1.x".to_string(),
+                "NIST AI RMF Govern/Map/Measure/Manage mapper not yet implemented in v1.1.x"
+                    .to_string(),
                 "ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2)",
             ),
             Framework::NistSp80053 => (
@@ -719,7 +725,8 @@ impl Strategy for Iso42001Strategy {
              mapper is in crates/tl-policy/src/iso_42001.rs and is \
              the v1.2 value-prop: ISO 42001 is the only AI governance \
              standard that is independently certifiable by an external \
-             auditor.".to_string(),
+             auditor."
+                .to_string(),
             vec![
                 "crates/tl-policy/src/iso_42001.rs (real mapper)".to_string(),
                 "ISO/IEC 42001:2023 §4-§10".to_string(),
@@ -752,7 +759,8 @@ impl Strategy for NistAiRmfStrategy {
              (Govern/Map/Measure/Manage) with 19 categories of \
              NIST AI 100-1 (January 2023). The real mapper is in \
              crates/tl-policy/src/nist_ai_rmf.rs and integrates with \
-             the TrustLayer evidence pipeline.".to_string(),
+             the TrustLayer evidence pipeline."
+                .to_string(),
             vec![
                 "crates/tl-policy/src/nist_ai_rmf.rs (real mapper)".to_string(),
                 "NIST AI 100-1 (January 2023)".to_string(),

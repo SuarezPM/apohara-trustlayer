@@ -55,7 +55,9 @@ pub fn handle_bundle_get(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"bundle_id": b.bundle_id, "bundle": b, "disclaimers": ["v3.0 W7.0: real backend wire-up"]}))
+    Ok(
+        json!({"bundle_id": b.bundle_id, "bundle": b, "disclaimers": ["v3.0 W7.0: real backend wire-up"]}),
+    )
 }
 
 /// Input for `bundle.list`.
@@ -76,11 +78,16 @@ fn default_bundle_limit() -> u32 {
 pub fn handle_bundle_list(input: Value) -> Result<Value, String> {
     let p: BundleListInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let b = match crate::backends_global::get().bundle.list(&p.org_id, p.limit as usize) {
+    let b = match crate::backends_global::get()
+        .bundle
+        .list(&p.org_id, p.limit as usize)
+    {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"org_id": p.org_id, "count": b.len(), "bundles": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"org_id": p.org_id, "count": b.len(), "bundles": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `bundle.search`.
@@ -101,11 +108,16 @@ fn default_search_limit() -> u32 {
 pub fn handle_bundle_search(input: Value) -> Result<Value, String> {
     let p: BundleSearchInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let b = match crate::backends_global::get().bundle.search(&p.query, p.limit as usize) {
+    let b = match crate::backends_global::get()
+        .bundle
+        .search(&p.query, p.limit as usize)
+    {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"query": p.query, "matches": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"query": p.query, "matches": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `bundle.metadata`.
@@ -122,7 +134,9 @@ pub fn handle_bundle_metadata(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"bundle_id": b.bundle_id, "size_bytes": serde_json::to_string(&b).unwrap().len(), "disclosure_count": b.disclosure_ids.len(), "compliance_rollup": "Compliant", "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"bundle_id": b.bundle_id, "size_bytes": serde_json::to_string(&b).unwrap().len(), "disclosure_count": b.disclosure_ids.len(), "compliance_rollup": "Compliant", "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `bundle.export`.
@@ -137,11 +151,16 @@ pub struct BundleExportInput {
 pub fn handle_bundle_export(input: Value) -> Result<Value, String> {
     let p: BundleExportInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let b = match crate::backends_global::get().bundle.export(&p.bundle_id, &p.format) {
+    let b = match crate::backends_global::get()
+        .bundle
+        .export(&p.bundle_id, &p.format)
+    {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"bundle_id": b.bundle_id, "format": b.format, "content": b.content, "output_path": format!("/tmp/bundle-{}.{}", b.bundle_id, b.format), "bytes": 0, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"bundle_id": b.bundle_id, "format": b.format, "content": b.content, "output_path": format!("/tmp/bundle-{}.{}", b.bundle_id, b.format), "bytes": 0, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 // =============================================================================
@@ -163,7 +182,9 @@ pub fn handle_scitt_verify(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"verified": b.verified, "issuer_kid": b.issuer_kid, "registry_id": b.registry_id, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"verified": b.verified, "issuer_kid": b.issuer_kid, "registry_id": b.registry_id, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `scitt.get`.
@@ -250,7 +271,9 @@ pub fn handle_watermark_detect(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"detected": b.detected, "z_score": b.z_score, "confidence": b.confidence, "algorithm": "kirchenbauer_et_al_2023", "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"detected": b.detected, "z_score": b.z_score, "confidence": b.confidence, "algorithm": "kirchenbauer_et_al_2023", "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `watermark.generate`.
@@ -289,7 +312,11 @@ pub fn handle_watermark_confidence(input: Value) -> Result<Value, String> {
     let p: WatermarkConfidenceInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     let n = p.text.split_whitespace().count();
-    let z = if n == 0 { 0.0 } else { (n as f64).log2().min(8.0) };
+    let z = if n == 0 {
+        0.0
+    } else {
+        (n as f64).log2().min(8.0)
+    };
     Ok(json!({
         "z_score": z,
         "confidence": if z > 4.0 { 0.99997 } else { 0.5 },
@@ -417,7 +444,13 @@ pub struct KeyRotateInput {
 pub fn handle_key_rotate(input: Value) -> Result<Value, String> {
     let p: KeyRotateInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let valid = ["Scheduled", "Compromised", "AlgorithmMigration", "Operational", "Initial"];
+    let valid = [
+        "Scheduled",
+        "Compromised",
+        "AlgorithmMigration",
+        "Operational",
+        "Initial",
+    ];
     if !valid.contains(&p.reason.as_str()) {
         return Err(format!(
             "invalid reason: {} (must be one of {:?})",
@@ -783,43 +816,151 @@ pub fn register_dispatch(map: &mut HashMap<&'static str, ToolHandler>) {
 pub fn tools_list() -> Vec<Value> {
     vec![
         // 1. Bundle query (5)
-        tool_spec::<BundleGetInput>("bundle.get", "Get bundle", "Retrieve a full evidence bundle by ID."),
-        tool_spec::<BundleListInput>("bundle.list", "List bundles", "List evidence bundles for a tenant."),
-        tool_spec::<BundleSearchInput>("bundle.search", "Search bundles", "Search bundles by content / metadata."),
-        tool_spec::<BundleMetadataInput>("bundle.metadata", "Bundle metadata", "Lightweight metadata fetch."),
-        tool_spec::<BundleExportInput>("bundle.export", "Export bundle", "Export to PDF / JSON / CSV."),
+        tool_spec::<BundleGetInput>(
+            "bundle.get",
+            "Get bundle",
+            "Retrieve a full evidence bundle by ID.",
+        ),
+        tool_spec::<BundleListInput>(
+            "bundle.list",
+            "List bundles",
+            "List evidence bundles for a tenant.",
+        ),
+        tool_spec::<BundleSearchInput>(
+            "bundle.search",
+            "Search bundles",
+            "Search bundles by content / metadata.",
+        ),
+        tool_spec::<BundleMetadataInput>(
+            "bundle.metadata",
+            "Bundle metadata",
+            "Lightweight metadata fetch.",
+        ),
+        tool_spec::<BundleExportInput>(
+            "bundle.export",
+            "Export bundle",
+            "Export to PDF / JSON / CSV.",
+        ),
         // 2. SCITT (4)
-        tool_spec::<ScittVerifyInput>("scitt.verify", "Verify SCITT receipt", "Offline-verify a SCITT receipt."),
-        tool_spec::<ScittGetInput>("scitt.get", "Get SCITT entry", "Retrieve from transparency log."),
-        tool_spec::<ScittSubmitInput>("scitt.submit", "Submit to TS", "Submit a statement to the Transparency Service."),
-        tool_spec::<ScittStatusInput>("scitt.status", "SCITT status", "Check inclusion status of an entry."),
+        tool_spec::<ScittVerifyInput>(
+            "scitt.verify",
+            "Verify SCITT receipt",
+            "Offline-verify a SCITT receipt.",
+        ),
+        tool_spec::<ScittGetInput>(
+            "scitt.get",
+            "Get SCITT entry",
+            "Retrieve from transparency log.",
+        ),
+        tool_spec::<ScittSubmitInput>(
+            "scitt.submit",
+            "Submit to TS",
+            "Submit a statement to the Transparency Service.",
+        ),
+        tool_spec::<ScittStatusInput>(
+            "scitt.status",
+            "SCITT status",
+            "Check inclusion status of an entry.",
+        ),
         // 3. Watermark (3)
-        tool_spec::<WatermarkDetectInput>("watermark.detect", "Detect watermark", "Kirchenbauer z-test on text."),
-        tool_spec::<WatermarkGenerateInput>("watermark.generate", "Embed watermark", "Embed a Kirchenbauer watermark."),
-        tool_spec::<WatermarkConfidenceInput>("watermark.confidence", "Watermark confidence", "Return z-score for a text."),
+        tool_spec::<WatermarkDetectInput>(
+            "watermark.detect",
+            "Detect watermark",
+            "Kirchenbauer z-test on text.",
+        ),
+        tool_spec::<WatermarkGenerateInput>(
+            "watermark.generate",
+            "Embed watermark",
+            "Embed a Kirchenbauer watermark.",
+        ),
+        tool_spec::<WatermarkConfidenceInput>(
+            "watermark.confidence",
+            "Watermark confidence",
+            "Return z-score for a text.",
+        ),
         // 4. EU Trust List (3)
-        tool_spec::<TrustlistCheckInput>("trustlist.check", "Check EU TL", "Verify TSP root on EU Trust List."),
-        tool_spec::<TrustlistListProvidersInput>("trustlist.list_providers", "List QTSPs", "List qualified TSPs by country."),
-        tool_spec::<TrustlistPolicyOidInput>("trustlist.policy_oid", "Extract policy OID", "Extract QTSP policy OID from cert."),
+        tool_spec::<TrustlistCheckInput>(
+            "trustlist.check",
+            "Check EU TL",
+            "Verify TSP root on EU Trust List.",
+        ),
+        tool_spec::<TrustlistListProvidersInput>(
+            "trustlist.list_providers",
+            "List QTSPs",
+            "List qualified TSPs by country.",
+        ),
+        tool_spec::<TrustlistPolicyOidInput>(
+            "trustlist.policy_oid",
+            "Extract policy OID",
+            "Extract QTSP policy OID from cert.",
+        ),
         // 5. Key rotation (3)
         tool_spec::<KeyStatusInput>("key.status", "Key status", "Rotation state for a tenant."),
-        tool_spec::<KeyRotateInput>("key.rotate", "Rotate key", "Manually rotate a tenant's signing key."),
-        tool_spec::<KeyHistoryInput>("key.history", "Key history", "Audit log of rotation events."),
+        tool_spec::<KeyRotateInput>(
+            "key.rotate",
+            "Rotate key",
+            "Manually rotate a tenant's signing key.",
+        ),
+        tool_spec::<KeyHistoryInput>(
+            "key.history",
+            "Key history",
+            "Audit log of rotation events.",
+        ),
         // 6. ISO 42001 (3)
-        tool_spec::<SoaGenerateInput>("soa.generate", "Generate SoA", "Auto-generate ISO 42001 Statement of Applicability."),
-        tool_spec::<SoaControlsInput>("soa.controls", "List Annex A controls", "All ISO 42001 Annex A controls."),
-        tool_spec::<SoaComplianceStatusInput>("soa.compliance_status", "SoA compliance", "Implemented/partial/planned counts."),
+        tool_spec::<SoaGenerateInput>(
+            "soa.generate",
+            "Generate SoA",
+            "Auto-generate ISO 42001 Statement of Applicability.",
+        ),
+        tool_spec::<SoaControlsInput>(
+            "soa.controls",
+            "List Annex A controls",
+            "All ISO 42001 Annex A controls.",
+        ),
+        tool_spec::<SoaComplianceStatusInput>(
+            "soa.compliance_status",
+            "SoA compliance",
+            "Implemented/partial/planned counts.",
+        ),
         // 7. NIST AI 600-1 (3)
         tool_spec::<NistRisksInput>("nist.risks", "NIST 600-1 risks", "Catalog of 12 GAI risks."),
-        tool_spec::<NistMitigationsInput>("nist.mitigations", "NIST mitigations", "TrustLayer mitigations for a risk."),
-        tool_spec::<NistProfileComplianceInput>("nist.profile_compliance", "NIST profile score", "Overall NIST AI 600-1 profile score."),
+        tool_spec::<NistMitigationsInput>(
+            "nist.mitigations",
+            "NIST mitigations",
+            "TrustLayer mitigations for a risk.",
+        ),
+        tool_spec::<NistProfileComplianceInput>(
+            "nist.profile_compliance",
+            "NIST profile score",
+            "Overall NIST AI 600-1 profile score.",
+        ),
         // 8. PLD (3)
-        tool_spec::<PldDisclosureResponseInput>("pld.disclosure_response", "PLD disclosure", "Generate PLD Art. 11 disclosure response."),
-        tool_spec::<PldRebuttalPackInput>("pld.rebuttal_pack", "PLD rebuttal", "PLD Art. 11 rebuttal pack (defeats presumption)."),
-        tool_spec::<PldDeadlineInput>("pld.deadline", "Regulatory deadline", "Days remaining to a regulatory deadline."),
+        tool_spec::<PldDisclosureResponseInput>(
+            "pld.disclosure_response",
+            "PLD disclosure",
+            "Generate PLD Art. 11 disclosure response.",
+        ),
+        tool_spec::<PldRebuttalPackInput>(
+            "pld.rebuttal_pack",
+            "PLD rebuttal",
+            "PLD Art. 11 rebuttal pack (defeats presumption).",
+        ),
+        tool_spec::<PldDeadlineInput>(
+            "pld.deadline",
+            "Regulatory deadline",
+            "Days remaining to a regulatory deadline.",
+        ),
         // 9. Design partner (2)
-        tool_spec::<PartnerApplyInput>("partner.apply", "Apply to program", "Submit a design partner application."),
-        tool_spec::<PartnerStatusInput>("partner.status", "Application status", "Design partner application status."),
+        tool_spec::<PartnerApplyInput>(
+            "partner.apply",
+            "Apply to program",
+            "Submit a design partner application.",
+        ),
+        tool_spec::<PartnerStatusInput>(
+            "partner.status",
+            "Application status",
+            "Design partner application status.",
+        ),
     ]
 }
 
@@ -839,7 +980,6 @@ mod tests {
             crate::backends_global::init(crate::backends::Backends::new());
         });
     }
-
 
     use super::*;
 
@@ -888,7 +1028,8 @@ mod tests {
         // (we test that the format validation is correct via rejection)
         for fmt in ["pdf", "json", "csv"] {
             // Use unknown id - should return not_found (format is valid)
-            let r = handle_bundle_export(json!({"bundle_id": "unknown", "format": fmt})).expect("ok");
+            let r =
+                handle_bundle_export(json!({"bundle_id": "unknown", "format": fmt})).expect("ok");
             assert_eq!(r["error"], "not_found");
         }
     }
@@ -946,8 +1087,12 @@ mod tests {
 
     #[test]
     fn test_watermark_generate_appends_marker() {
-        let r = handle_watermark_generate(json!({"text": "hello", "key": "abcdef0123456789"})).expect("ok");
-        assert!(r["watermarked_text"].as_str().unwrap().contains("kirchenbauer_text watermark v3.0"));
+        let r = handle_watermark_generate(json!({"text": "hello", "key": "abcdef0123456789"}))
+            .expect("ok");
+        assert!(r["watermarked_text"]
+            .as_str()
+            .unwrap()
+            .contains("kirchenbauer_text watermark v3.0"));
         assert_eq!(r["key_id"].as_str().unwrap().len(), 64); // blake3 hex = 64 chars
     }
 
@@ -993,7 +1138,8 @@ mod tests {
 
     #[test]
     fn test_key_rotate_valid_reason() {
-        let r = handle_key_rotate(json!({"tenant": "apohara", "reason": "Compromised"})).expect("ok");
+        let r =
+            handle_key_rotate(json!({"tenant": "apohara", "reason": "Compromised"})).expect("ok");
         assert_eq!(r["reason"], "Compromised");
         assert_eq!(r["new_key_id"], "key_apohara_v2");
     }
@@ -1007,7 +1153,8 @@ mod tests {
 
     #[test]
     fn test_key_history_returns_empty_events() {
-        let r = handle_key_history(json!({"tenant": "apohara", "since": "2026-01-01"})).expect("ok");
+        let r =
+            handle_key_history(json!({"tenant": "apohara", "since": "2026-01-01"})).expect("ok");
         assert_eq!(r["tenant"], "apohara");
         assert_eq!(r["since"], "2026-01-01");
         assert!(r["events"].as_array().unwrap().is_empty());
@@ -1049,8 +1196,12 @@ mod tests {
     fn test_nist_risks_returns_twelve() {
         let r = handle_nist_risks(json!({})).expect("ok");
         assert_eq!(r["total"], 12);
-        let ids: Vec<&str> = r["risks"].as_array().unwrap()
-            .iter().map(|x| x["id"].as_str().unwrap()).collect();
+        let ids: Vec<&str> = r["risks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["id"].as_str().unwrap())
+            .collect();
         assert!(ids.contains(&"GV-01"));
         assert!(ids.contains(&"MG-04"));
     }
@@ -1059,8 +1210,12 @@ mod tests {
     fn test_nist_mitigations_returns_tl_modules() {
         let r = handle_nist_mitigations(json!({"risk_id": "GV-01"})).expect("ok");
         assert_eq!(r["risk_id"], "GV-01");
-        let mods: Vec<&str> = r["tl_modules"].as_array().unwrap()
-            .iter().map(|x| x.as_str().unwrap()).collect();
+        let mods: Vec<&str> = r["tl_modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
         assert!(mods.contains(&"tl-evidence"));
     }
 
@@ -1106,11 +1261,16 @@ mod tests {
     fn test_partner_apply_submits_application() {
         let r = handle_partner_apply(json!({
             "org_info": {"name": "Acme", "country": "DE"}
-        })).expect("ok");
+        }))
+        .expect("ok");
         assert!(r["application_id"].as_str().unwrap().len() == 36);
         assert_eq!(r["status"], "Received");
-        let keys: Vec<&str> = r["received_org_info_keys"].as_array().unwrap()
-            .iter().map(|x| x.as_str().unwrap()).collect();
+        let keys: Vec<&str> = r["received_org_info_keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
         assert!(keys.contains(&"name"));
         assert!(keys.contains(&"country"));
     }
@@ -1136,19 +1296,37 @@ mod tests {
         let specs = tools_list();
         assert_eq!(specs.len(), 29);
         // Spot-check key names
-        let names: Vec<&str> = specs.iter()
-            .map(|s| s["name"].as_str().unwrap())
-            .collect();
+        let names: Vec<&str> = specs.iter().map(|s| s["name"].as_str().unwrap()).collect();
         for expected in [
-            "bundle.get", "bundle.list", "bundle.search", "bundle.metadata", "bundle.export",
-            "scitt.verify", "scitt.get", "scitt.submit", "scitt.status",
-            "watermark.detect", "watermark.generate", "watermark.confidence",
-            "trustlist.check", "trustlist.list_providers", "trustlist.policy_oid",
-            "key.status", "key.rotate", "key.history",
-            "soa.generate", "soa.controls", "soa.compliance_status",
-            "nist.risks", "nist.mitigations", "nist.profile_compliance",
-            "pld.disclosure_response", "pld.rebuttal_pack", "pld.deadline",
-            "partner.apply", "partner.status",
+            "bundle.get",
+            "bundle.list",
+            "bundle.search",
+            "bundle.metadata",
+            "bundle.export",
+            "scitt.verify",
+            "scitt.get",
+            "scitt.submit",
+            "scitt.status",
+            "watermark.detect",
+            "watermark.generate",
+            "watermark.confidence",
+            "trustlist.check",
+            "trustlist.list_providers",
+            "trustlist.policy_oid",
+            "key.status",
+            "key.rotate",
+            "key.history",
+            "soa.generate",
+            "soa.controls",
+            "soa.compliance_status",
+            "nist.risks",
+            "nist.mitigations",
+            "nist.profile_compliance",
+            "pld.disclosure_response",
+            "pld.rebuttal_pack",
+            "pld.deadline",
+            "partner.apply",
+            "partner.status",
         ] {
             assert!(names.contains(&expected), "missing tool name: {expected}");
         }

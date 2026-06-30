@@ -169,11 +169,19 @@ pub fn build_routed_dispatch_with(
     // a `'static` lifetime. The compile-time constants remain
     // static, so no leak in the default case.
     let fraud_model: &'static str = match cfg {
-        Some(c) => Box::leak(c.fraud_auditor_featherless_model().to_string().into_boxed_str()),
+        Some(c) => Box::leak(
+            c.fraud_auditor_featherless_model()
+                .to_string()
+                .into_boxed_str(),
+        ),
         None => FRAUD_AUDITOR_FEATHERLESS_MODEL,
     };
     let gaap_model: &'static str = match cfg {
-        Some(c) => Box::leak(c.gaap_classifier_featherless_model().to_string().into_boxed_str()),
+        Some(c) => Box::leak(
+            c.gaap_classifier_featherless_model()
+                .to_string()
+                .into_boxed_str(),
+        ),
         None => GAAP_CLASSIFIER_FEATHERLESS_MODEL,
     };
     let aiml_model: &'static str = match cfg {
@@ -182,31 +190,29 @@ pub fn build_routed_dispatch_with(
     };
 
     // --- fraud_auditor: Featherless (Qwen3-Coder-30B) ---
-    let fraud_auditor_llm: Arc<dyn LlmBackend> =
-        match FeatherlessBackend::from_env(fraud_model) {
-            Some(b) => {
-                let b = b.with_metrics(featherless_metrics.clone());
-                shared(b)
-            }
-            None => match AIMLAPIBackend::from_env(aiml_model) {
-                Some(b) => shared(b),
-                None => shared(MockLlmProvider::new("mock-fraud-auditor-fallback")),
-            },
-        };
+    let fraud_auditor_llm: Arc<dyn LlmBackend> = match FeatherlessBackend::from_env(fraud_model) {
+        Some(b) => {
+            let b = b.with_metrics(featherless_metrics.clone());
+            shared(b)
+        }
+        None => match AIMLAPIBackend::from_env(aiml_model) {
+            Some(b) => shared(b),
+            None => shared(MockLlmProvider::new("mock-fraud-auditor-fallback")),
+        },
+    };
     m.insert("fraud_auditor".to_string(), fraud_auditor_llm);
 
     // --- gaap_classifier: Featherless (Llama-3.3-70B) — 3rd lineage ---
-    let gaap_classifier_llm: Arc<dyn LlmBackend> =
-        match FeatherlessBackend::from_env(gaap_model) {
-            Some(b) => {
-                let b = b.with_metrics(featherless_metrics.clone());
-                shared(b)
-            }
-            None => match AIMLAPIBackend::from_env(aiml_model) {
-                Some(b) => shared(b),
-                None => shared(MockLlmProvider::new("mock-gaap-classifier-fallback")),
-            },
-        };
+    let gaap_classifier_llm: Arc<dyn LlmBackend> = match FeatherlessBackend::from_env(gaap_model) {
+        Some(b) => {
+            let b = b.with_metrics(featherless_metrics.clone());
+            shared(b)
+        }
+        None => match AIMLAPIBackend::from_env(aiml_model) {
+            Some(b) => shared(b),
+            None => shared(MockLlmProvider::new("mock-gaap-classifier-fallback")),
+        },
+    };
     m.insert("gaap_classifier".to_string(), gaap_classifier_llm);
 
     // --- 4 AIML API agents ---

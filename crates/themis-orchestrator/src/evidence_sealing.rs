@@ -61,9 +61,8 @@ impl EvidenceSealing {
                 "no evidence service configured; use with_evidence() at construction".to_string(),
             )
         })?;
-        let payload = serde_json::to_string(signed.packet()).map_err(|e| {
-            OrchestratorError::Evidence(format!("serialize packet for seal: {e}"))
-        })?;
+        let payload = serde_json::to_string(signed.packet())
+            .map_err(|e| OrchestratorError::Evidence(format!("serialize packet for seal: {e}")))?;
         let mut map = evidence_lock.lock().await;
         let svc = map.get_mut(tenant_id).ok_or_else(|| {
             OrchestratorError::Evidence(format!("no evidence service for tenant {tenant_id}"))

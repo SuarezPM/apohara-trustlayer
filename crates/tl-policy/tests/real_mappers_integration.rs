@@ -33,10 +33,7 @@ fn test_dispatcher_reports_iso_42001_as_covered_with_real_mapper() {
     // v1.1.x stub). The Status::Covered assertion is the auditable
     // proof.
     let dispatcher = ComplianceStrategy::new();
-    let reports = dispatcher.evaluate_all(
-        &tl_policy::DORAEvidenceStrategy::new(),
-        &sample_ctx(),
-    );
+    let reports = dispatcher.evaluate_all(&tl_policy::DORAEvidenceStrategy::new(), &sample_ctx());
     let iso = reports
         .get(&Framework::Iso42001)
         .expect("ISO 42001 must be in dispatcher");
@@ -61,10 +58,7 @@ fn test_dispatcher_reports_iso_42001_as_covered_with_real_mapper() {
 #[test]
 fn test_dispatcher_reports_nist_ai_rmf_as_covered_with_real_mapper() {
     let dispatcher = ComplianceStrategy::new();
-    let reports = dispatcher.evaluate_all(
-        &tl_policy::DORAEvidenceStrategy::new(),
-        &sample_ctx(),
-    );
+    let reports = dispatcher.evaluate_all(&tl_policy::DORAEvidenceStrategy::new(), &sample_ctx());
     let nist = reports
         .get(&Framework::NistAiRmf)
         .expect("NIST AI RMF must be in dispatcher");
@@ -119,10 +113,7 @@ fn test_v1_2_status_matrix_has_iso_and_nist_as_covered() {
     // v1.2 ships the real mappers, so both are now Covered
     // (not the v1.1.x "NotImplemented" stubs).
     let dispatcher = ComplianceStrategy::new();
-    let reports = dispatcher.evaluate_all(
-        &tl_policy::DORAEvidenceStrategy::new(),
-        &sample_ctx(),
-    );
+    let reports = dispatcher.evaluate_all(&tl_policy::DORAEvidenceStrategy::new(), &sample_ctx());
     assert_eq!(reports[&Framework::Iso42001].status, Status::Covered);
     assert_eq!(reports[&Framework::NistAiRmf].status, Status::Covered);
 }

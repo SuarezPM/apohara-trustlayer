@@ -18,8 +18,8 @@
 
 use std::time::{Duration, Instant};
 
-use apohara_agentguard::Config;
 use apohara_agentguard::hook;
+use apohara_agentguard::Config;
 
 /// Iterations timed per scenario. 10k is enough for a stable p99 while keeping
 /// the whole bench well under a second in release.

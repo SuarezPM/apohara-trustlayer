@@ -106,16 +106,18 @@ mod serde_bytes_32 {
 impl CounterSignedReceipt {
     /// Borrow the cosc_signature as a fixed-size array.
     pub fn cosc_signature_bytes(&self) -> &[u8; 64] {
-        self.cosc_signature.as_slice().try_into().expect(
-            "cosc_signature is always 64 bytes (verified at deserialize time)",
-        )
+        self.cosc_signature
+            .as_slice()
+            .try_into()
+            .expect("cosc_signature is always 64 bytes (verified at deserialize time)")
     }
 
     /// Borrow the cosc_pubkey_fingerprint as a fixed-size array.
     pub fn cosc_pubkey_fingerprint_bytes(&self) -> &[u8; 32] {
-        self.cosc_pubkey_fingerprint.as_slice().try_into().expect(
-            "cosc_pubkey_fingerprint is always 32 bytes (verified at deserialize time)",
-        )
+        self.cosc_pubkey_fingerprint
+            .as_slice()
+            .try_into()
+            .expect("cosc_pubkey_fingerprint is always 32 bytes (verified at deserialize time)")
     }
 }
 
@@ -189,9 +191,7 @@ impl CounterSignedReceipt {
 ///
 /// Used as the `cosc_pubkey_fingerprint` in `CounterSignedReceipt`
 /// (parallel to `issuer_pubkey_fingerprint` in `SCITTReceipt`).
-pub fn blake3_pubkey_fingerprint(
-    pubkey: &ed25519_dalek::VerifyingKey,
-) -> [u8; 32] {
+pub fn blake3_pubkey_fingerprint(pubkey: &ed25519_dalek::VerifyingKey) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(pubkey.as_bytes());
     let hash = hasher.finalize();
@@ -227,7 +227,7 @@ mod tests {
         let cosc_key = SigningKey::from_bytes(&[2u8; 32]);
 
         // Build an issuer-signed SCITTReceipt by hand (no helper yet).
-        
+
         // Issuer signs payload directly (simplified for tests).
         let signature = issuer_key.sign(payload);
         let mut cose_sign1 = Vec::new();

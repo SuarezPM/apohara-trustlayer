@@ -117,7 +117,8 @@ fn orchestrator_for(f: &DemoInvoice, counter: Arc<AtomicU32>) -> (Orchestrator, 
     }
     let agents = build_stub_agents(dispatch, Some(counter.clone()));
     let rooms: Arc<dyn themis_orchestrator::room::BandRoom> = MockBandRoom::new().into_arc();
-    let tenants = Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
+    let tenants =
+        Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
     (Orchestrator::new(rooms, agents, tenants), counter)
 }
 
@@ -231,7 +232,8 @@ async fn run() {
     }
     let determinism_10_of_10 = halts_10 == 10;
 
-    let stark_tenant = TenantRegistry::with_default_tenants().expect("startup: tenant keys missing");
+    let stark_tenant =
+        TenantRegistry::with_default_tenants().expect("startup: tenant keys missing");
     let stark = stark_tenant.get("stark").unwrap();
     let wayne = stark_tenant.get("wayne").unwrap();
     let distinct_pubkeys = stark.ed25519_public_key_hex() != wayne.ed25519_public_key_hex();

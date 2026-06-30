@@ -64,20 +64,45 @@ pub struct Counterexample {
 }
 
 /// The antecedent for INV-15 (when does the invariant apply?).
-pub fn inv15_antecedent(agent_role_judge: bool, candidate_count: i64, reuse_rate: f64, layout_shuffled: bool) -> bool {
-    agent_role_judge && candidate_count >= 9 && (reuse_rate - 0.0).abs() < f64::EPSILON && layout_shuffled
+pub fn inv15_antecedent(
+    agent_role_judge: bool,
+    candidate_count: i64,
+    reuse_rate: f64,
+    layout_shuffled: bool,
+) -> bool {
+    agent_role_judge
+        && candidate_count >= 9
+        && (reuse_rate - 0.0).abs() < f64::EPSILON
+        && layout_shuffled
 }
 
 /// Compute the risk score (mirrors jcr_gate.compute_jcr_risk).
-pub fn compute_risk_score(agent_role_judge: bool, candidate_count: i64, reuse_rate: f64, layout_shuffled: bool) -> f64 {
-    let base = if agent_role_judge { BASE_RISK_JUDGE } else { BASE_RISK_OTHER };
+pub fn compute_risk_score(
+    agent_role_judge: bool,
+    candidate_count: i64,
+    reuse_rate: f64,
+    layout_shuffled: bool,
+) -> f64 {
+    let base = if agent_role_judge {
+        BASE_RISK_JUDGE
+    } else {
+        BASE_RISK_OTHER
+    };
     let extra = if candidate_count > 2 {
         (candidate_count - 2) as f64 * RISK_PER_EXTRA_CANDIDATE
     } else {
         0.0
     };
-    let shuffled = if layout_shuffled { RISK_LAYOUT_SHUFFLED } else { 0.0 };
-    let reuse = if reuse_rate > HIGH_REUSE_THRESHOLD { RISK_HIGH_REUSE } else { 0.0 };
+    let shuffled = if layout_shuffled {
+        RISK_LAYOUT_SHUFFLED
+    } else {
+        0.0
+    };
+    let reuse = if reuse_rate > HIGH_REUSE_THRESHOLD {
+        RISK_HIGH_REUSE
+    } else {
+        0.0
+    };
     let raw = base + extra + shuffled + reuse;
     raw.clamp(0.0, 1.0)
 }
@@ -156,7 +181,11 @@ mod tests {
     #[test]
     fn inv15_proof_completes_quickly() {
         let result = prove_inv15();
-        assert!(result.elapsed_ms < 1000, "Proof too slow: {}ms", result.elapsed_ms);
+        assert!(
+            result.elapsed_ms < 1000,
+            "Proof too slow: {}ms",
+            result.elapsed_ms
+        );
     }
 
     #[test]

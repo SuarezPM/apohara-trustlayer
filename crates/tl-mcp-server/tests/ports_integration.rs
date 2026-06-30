@@ -3,17 +3,13 @@
 
 use tl_mcp_server::envelope::{build_envelope, TaintedString};
 use tl_mcp_server::rule_of_two::{
-    check_rule_of_two, enforce,
-    CI_ENV_VARS, EXTENDED_CI_ENV_VARS, HUMAN_OVERRIDE_ENV,
+    check_rule_of_two, enforce, CI_ENV_VARS, EXTENDED_CI_ENV_VARS, HUMAN_OVERRIDE_ENV,
 };
 
 #[test]
 fn test_envelope_wraps_untrusted_block_with_nonce() {
     let mut blocks = std::collections::HashMap::new();
-    blocks.insert(
-        "user".to_string(),
-        TaintedString::new("hello", "user_task"),
-    );
+    blocks.insert("user".to_string(), TaintedString::new("hello", "user_task"));
     let env = build_envelope("SYSTEM: do X", &blocks);
     assert!(env.contains("APOHARA_UNTRUSTED:user:"));
     assert!(env.contains("BEGIN>"));

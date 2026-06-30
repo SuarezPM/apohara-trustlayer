@@ -45,10 +45,7 @@ fn test_clause_4_context_present_with_subclauses() {
         .get("4_1_organization_context")
         .and_then(|x| x.as_object())
         .unwrap();
-    assert_eq!(
-        sub.get("tenant_id").and_then(|x| x.as_str()),
-        Some("acme")
-    );
+    assert_eq!(sub.get("tenant_id").and_then(|x| x.as_str()), Some("acme"));
 }
 
 #[test]
@@ -64,10 +61,7 @@ fn test_clause_6_1_baaar_mechanism() {
         .get("6_1_risk_assessment")
         .and_then(|x| x.as_object())
         .expect("6_1 must be present");
-    let mech = sub_6_1
-        .get("mechanism")
-        .and_then(|x| x.as_str())
-        .unwrap();
+    let mech = sub_6_1.get("mechanism").and_then(|x| x.as_str()).unwrap();
     assert!(
         mech.contains("BAAAR"),
         "mechanism must reference BAAAR, got: {mech}"
@@ -87,10 +81,7 @@ fn test_clause_8_4_third_party_lists_sectigo() {
         .get("8_4_third_party_relationships")
         .and_then(|x| x.as_object())
         .expect("8_4 must be present");
-    let tsps = sub_8_4
-        .get("tsps")
-        .and_then(|x| x.as_array())
-        .unwrap();
+    let tsps = sub_8_4.get("tsps").and_then(|x| x.as_array()).unwrap();
     let tsps_strs: Vec<&str> = tsps.iter().filter_map(|x| x.as_str()).collect();
     assert!(
         tsps_strs.contains(&"Sectigo (primary)"),
@@ -106,7 +97,10 @@ fn test_clause_8_4_third_party_lists_sectigo() {
 fn test_notes_reference_tenant() {
     let m = Iso42001Mapper.map(&sample_packet());
     let joined = m.notes.join(" | ");
-    assert!(joined.contains("acme"), "notes must reference tenant: {joined}");
+    assert!(
+        joined.contains("acme"),
+        "notes must reference tenant: {joined}"
+    );
 }
 
 #[test]

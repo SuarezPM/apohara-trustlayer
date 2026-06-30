@@ -81,8 +81,8 @@ pub mod mcp_proxy;
 pub mod orchestrator;
 pub mod packet;
 pub mod pdf;
-pub mod rekor_backend;
 pub(crate) mod rekor_anchoring;
+pub mod rekor_backend;
 /// Exponential backoff retry helper (Story C-05 / G21 / AC5).
 /// Pairs with `circuit_breaker` for defense-in-depth on the agent
 /// call loop.

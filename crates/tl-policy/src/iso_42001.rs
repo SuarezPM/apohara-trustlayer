@@ -70,10 +70,7 @@ impl Iso42001Mapper {
     /// of the 10 normative AIMS clauses (§4 through §10). Each field
     /// may contain sub-clauses and measurable content. The mapper is
     /// **pure** — no I/O, no clock, no env.
-    pub fn map(
-        &self,
-        packet: &AimsEvidence,
-    ) -> Iso42001Map {
+    pub fn map(&self, packet: &AimsEvidence) -> Iso42001Map {
         let mut fields: Vec<(String, serde_json::Value)> = Vec::new();
         let mut notes: Vec<String> = Vec::new();
 
@@ -262,12 +259,15 @@ impl Iso42001Mapper {
         notes.push(format!(
             "ISO/IEC 42001:2023 AIMS clauses mapped: {populated}/{} populated for \
              tenant={}, disclosure={}",
-            Iso42001Map::TOTAL_CLAUSES, packet.tenant_id, packet.disclosure_id
+            Iso42001Map::TOTAL_CLAUSES,
+            packet.tenant_id,
+            packet.disclosure_id
         ));
         if all_covered {
             notes.push(
                 "AIMS ready for external auditor (this is the v1.2 value-prop: \
-                 ISO 42001 is the only certifiable AI governance standard).".to_string(),
+                 ISO 42001 is the only certifiable AI governance standard)."
+                    .to_string(),
             );
         }
 
@@ -347,10 +347,7 @@ mod tests {
             .get("4_1_organization_context")
             .and_then(|x| x.as_object())
             .expect("4_1 must be present");
-        assert_eq!(
-            sub.get("tenant_id").and_then(|x| x.as_str()),
-            Some("acme")
-        );
+        assert_eq!(sub.get("tenant_id").and_then(|x| x.as_str()), Some("acme"));
     }
 
     #[test]

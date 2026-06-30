@@ -30,9 +30,9 @@ pub mod z3_inv15;
 pub use z3_inv15::{
     compute_risk_score as compute_inv15_risk_score,
     compute_use_dense_prefill as compute_inv15_use_dense_prefill,
-    find_counterexample_relaxed as find_inv15_counterexample_relaxed,
-    inv15_antecedent, prove_inv15 as prove_inv15_z3,
-    Counterexample as Inv15Counterexample, Z3Inv15Result as Inv15Z3Result,
+    find_counterexample_relaxed as find_inv15_counterexample_relaxed, inv15_antecedent,
+    prove_inv15 as prove_inv15_z3, Counterexample as Inv15Counterexample,
+    Z3Inv15Result as Inv15Z3Result,
 };
 
 #[cfg(test)]

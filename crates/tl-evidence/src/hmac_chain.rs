@@ -82,22 +82,20 @@ pub struct HmacChainRoot {
 ///
 /// **Pure function** (no I/O, no clock, no env). Same input → same
 /// output forever.
-pub fn chain_root(
-    entries: &[ChainEntry],
-    tenant_id: &str,
-    hmac_key: &[u8],
-) -> HmacChainRoot {
+pub fn chain_root(entries: &[ChainEntry], tenant_id: &str, hmac_key: &[u8]) -> HmacChainRoot {
     // Build the canonical payload: sorted-keys JSON of {entries, tenant_id}.
     let mut payload = serde_json::Map::new();
-    payload.insert("entries".to_string(), serde_json::to_value(entries).expect(
-        "ChainEntry serialization must succeed (no float / non-string keys)",
-    ));
+    payload.insert(
+        "entries".to_string(),
+        serde_json::to_value(entries)
+            .expect("ChainEntry serialization must succeed (no float / non-string keys)"),
+    );
     payload.insert(
         "tenant_id".to_string(),
         serde_json::Value::String(tenant_id.to_string()),
     );
-    let canonical = serde_json::to_vec(&payload)
-        .expect("canonical payload serialization must succeed");
+    let canonical =
+        serde_json::to_vec(&payload).expect("canonical payload serialization must succeed");
 
     // Prefix the HMAC key with tenant_id to namespace it. This is a
     // cheap defense against key reuse across tenants: an attacker

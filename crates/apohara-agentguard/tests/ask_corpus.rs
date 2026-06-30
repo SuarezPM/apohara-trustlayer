@@ -46,10 +46,10 @@
 
 use std::path::PathBuf;
 
-use apohara_agentguard::Config;
 use apohara_agentguard::hook::contract::HookInput;
-use apohara_agentguard::PolicySet;
 use apohara_agentguard::verdict::{Tier, Verdict};
+use apohara_agentguard::Config;
+use apohara_agentguard::PolicySet;
 use serde_json::json;
 
 /// The policy used by the benchmark. A single `PolicySet` instance

@@ -11,9 +11,9 @@
 //! Packs are OFF by default, so these corpora never touch `tests/benchmark.rs`
 //! (which runs `Config::default()`); a separate test asserts that invariant.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::gate::evaluate;
 use apohara_agentguard::verdict::Tier;
+use apohara_agentguard::Config;
 
 /// Parse a corpus file into logical commands: `#`-prefixed and blank lines are
 /// ignored (the pack corpora use no line-continuations, so a single-line parse

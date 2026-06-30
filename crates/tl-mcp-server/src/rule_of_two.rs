@@ -30,18 +30,43 @@ use std::env;
 
 /// Canonical CI env var names (per RAPTOR + popular CI providers).
 pub const CI_ENV_VARS: &[&str] = &[
-    "CI", "GITHUB_ACTIONS", "JENKINS_URL", "TF_BUILD", "BUILDKITE",
-    "DRONE", "CIRRUS_CI", "WOODPECKER", "GITLAB_CI", "BAMBOO_BUILDKEY",
-    "TRAVIS", "APPVEYOR", "CIRCLECI", "TEAMCITY_VERSION",
-    "AZURE_HTTP_USER_AGENT", "NETLIFY",
+    "CI",
+    "GITHUB_ACTIONS",
+    "JENKINS_URL",
+    "TF_BUILD",
+    "BUILDKITE",
+    "DRONE",
+    "CIRRUS_CI",
+    "WOODPECKER",
+    "GITLAB_CI",
+    "BAMBOO_BUILDKEY",
+    "TRAVIS",
+    "APPVEYOR",
+    "CIRCLECI",
+    "TEAMCITY_VERSION",
+    "AZURE_HTTP_USER_AGENT",
+    "NETLIFY",
 ];
 
 /// Extended CI env (includes Vercel which uses VERCEL, distinct from local dev).
 pub const EXTENDED_CI_ENV_VARS: &[&str] = &[
-    "CI", "GITHUB_ACTIONS", "JENKINS_URL", "TF_BUILD", "BUILDKITE",
-    "DRONE", "CIRRUS_CI", "WOODPECKER", "GITLAB_CI", "BAMBOO_BUILDKEY",
-    "TRAVIS", "APPVEYOR", "CIRCLECI", "TEAMCITY_VERSION",
-    "AZURE_HTTP_USER_AGENT", "NETLIFY", "VERCEL",
+    "CI",
+    "GITHUB_ACTIONS",
+    "JENKINS_URL",
+    "TF_BUILD",
+    "BUILDKITE",
+    "DRONE",
+    "CIRRUS_CI",
+    "WOODPECKER",
+    "GITLAB_CI",
+    "BAMBOO_BUILDKEY",
+    "TRAVIS",
+    "APPVEYOR",
+    "CIRCLECI",
+    "TEAMCITY_VERSION",
+    "AZURE_HTTP_USER_AGENT",
+    "NETLIFY",
+    "VERCEL",
 ];
 
 /// Explicit human authorization override (must be set INTENTIONALLY).
@@ -62,9 +87,7 @@ pub enum Reason {
 }
 
 /// Detect CI environment by env var.
-pub fn detect_ci_environment(
-    env_vars: &[&str],
-) -> Option<String> {
+pub fn detect_ci_environment(env_vars: &[&str]) -> Option<String> {
     env_vars
         .iter()
         .find(|name| env::var(name).is_ok())
@@ -195,6 +218,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         // First missing signal reported (CI env first, then TTY, then human)
-        assert!(matches!(err.0, Reason::NoCiEnv | Reason::NoTty | Reason::NoHumanOverride));
+        assert!(matches!(
+            err.0,
+            Reason::NoCiEnv | Reason::NoTty | Reason::NoHumanOverride
+        ));
     }
 }

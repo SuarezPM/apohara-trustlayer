@@ -142,10 +142,7 @@ mod tests {
     fn test_envelope_nonce_differs_per_call() {
         // Per-request nonce: a sentinel-guessing attacker can't reuse.
         let mut blocks = HashMap::new();
-        blocks.insert(
-            "x".to_string(),
-            TaintedString::new("payload", "user"),
-        );
+        blocks.insert("x".to_string(), TaintedString::new("payload", "user"));
         let e1 = build_envelope("INS", &blocks);
         let e2 = build_envelope("INS", &blocks);
         assert_ne!(e1, e2, "nonces must differ per call");
@@ -154,10 +151,7 @@ mod tests {
     #[test]
     fn test_envelope_includes_nonce_in_header_and_sentinels() {
         let mut blocks = HashMap::new();
-        blocks.insert(
-            "label".to_string(),
-            TaintedString::new("data", "user"),
-        );
+        blocks.insert("label".to_string(), TaintedString::new("data", "user"));
         let envelope = build_envelope("INS", &blocks);
         // Extract nonce from header
         let header_nonce = envelope

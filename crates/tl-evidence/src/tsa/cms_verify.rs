@@ -42,8 +42,9 @@ use crate::tsa::{TsaError, TsaTokenBytes};
 /// OID for id-signedData (RFC 5652 §5.1).
 const ID_SIGNED_DATA_OCTETS: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02];
 /// OID for id-ct-TSTInfo (RFC 3161 §2.4.2).
-const ID_CT_TST_INFO_OCTETS: &[u8] =
-    &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x10, 0x01, 0x04];
+const ID_CT_TST_INFO_OCTETS: &[u8] = &[
+    0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x10, 0x01, 0x04,
+];
 
 /// Errors emitted by `verify_strict_with_certs`. Wraps both
 /// `CmsError` from `cryptographic-message-syntax` and our own
@@ -216,11 +217,8 @@ fn extract_signed_data(token_der: &[u8]) -> Result<SignedData, CmsVerifyError> {
     }
 
     // Fallback: maybe it's a bare ContentInfo (what `openssl ts -verify -token_in` consumes).
-    let ci_result: Result<Option<Asn1ContentInfo>, _> = Constructed::decode(
-        token_der,
-        Mode::Ber,
-        Asn1ContentInfo::take_opt_from,
-    );
+    let ci_result: Result<Option<Asn1ContentInfo>, _> =
+        Constructed::decode(token_der, Mode::Ber, Asn1ContentInfo::take_opt_from);
     if let Ok(Some(ci)) = ci_result {
         if ci.content_type.as_ref() != ID_SIGNED_DATA_OCTETS {
             return Err(CmsVerifyError::ContentInfoType(format!(
@@ -337,7 +335,8 @@ mod tests {
             .parent()
             .unwrap()
             .join("audit_artifacts/test_fixtures/digicert/chain.pem");
-        std::fs::read(&path).expect("chain.pem must exist (run scripts/generate_digicert_sample_response.py)")
+        std::fs::read(&path)
+            .expect("chain.pem must exist (run scripts/generate_digicert_sample_response.py)")
     }
 
     fn read_test_token() -> Vec<u8> {
@@ -347,7 +346,8 @@ mod tests {
             .parent()
             .unwrap()
             .join("audit_artifacts/test_fixtures/digicert/token.der");
-        std::fs::read(&path).expect("token.der must exist (run scripts/generate_digicert_sample_response.py)")
+        std::fs::read(&path)
+            .expect("token.der must exist (run scripts/generate_digicert_sample_response.py)")
     }
 
     fn read_test_response() -> Vec<u8> {
@@ -442,4 +442,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

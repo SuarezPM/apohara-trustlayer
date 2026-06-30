@@ -114,11 +114,7 @@ impl BundleStore {
             .ok_or_else(|| BackendError::NotFound(format!("bundle {id}")))
     }
 
-    pub fn list(
-        &self,
-        org_id: &str,
-        limit: usize,
-    ) -> Result<Vec<BundleRecord>, BackendError> {
+    pub fn list(&self, org_id: &str, limit: usize) -> Result<Vec<BundleRecord>, BackendError> {
         let guard = self.inner.read().unwrap();
         let filtered: Vec<BundleRecord> = guard
             .values()
@@ -145,11 +141,7 @@ impl BundleStore {
         self.get(id)
     }
 
-    pub fn export(
-        &self,
-        id: &str,
-        format: &str,
-    ) -> Result<BundleExport, BackendError> {
+    pub fn export(&self, id: &str, format: &str) -> Result<BundleExport, BackendError> {
         if !["json", "pdf", "csv"].contains(&format) {
             return Err(BackendError::InvalidInput(format!(
                 "format must be json|pdf/csv, got {format}"
@@ -299,7 +291,11 @@ impl WatermarkBackend {
         })
     }
 
-    pub fn generate(&self, text: &str, key_id: &str) -> Result<WatermarkGenerateResult, BackendError> {
+    pub fn generate(
+        &self,
+        text: &str,
+        key_id: &str,
+    ) -> Result<WatermarkGenerateResult, BackendError> {
         Ok(WatermarkGenerateResult {
             watermarked_text: format!("{}\n# [apohara-watermark v3.0 key={}]", text, key_id),
             key_id: key_id.to_string(),
@@ -409,11 +405,7 @@ impl KeyRotationBackend {
         self.status(tenant)
     }
 
-    pub fn history(
-        &self,
-        tenant: &str,
-        since: &str,
-    ) -> Result<Vec<KeyHistoryEvent>, BackendError> {
+    pub fn history(&self, tenant: &str, since: &str) -> Result<Vec<KeyHistoryEvent>, BackendError> {
         // Wire to: tl-evidence::key_rotation::KeyStore::history(tenant, since)
         let _ = (tenant, since);
         Ok(vec![])
@@ -558,29 +550,68 @@ impl NistAi6001Backend {
     pub fn risks(&self) -> Result<Vec<NistRisk>, BackendError> {
         // The 12 GAI risks per NIST AI 600-1 (July 2024).
         Ok(vec![
-            risk("GV-01", "Confabulation", "high", "Model generates false info"),
-            risk("GV-02", "Dangerous content", "high", "Model generates harmful content"),
+            risk(
+                "GV-01",
+                "Confabulation",
+                "high",
+                "Model generates false info",
+            ),
+            risk(
+                "GV-02",
+                "Dangerous content",
+                "high",
+                "Model generates harmful content",
+            ),
             risk("GV-03", "Data privacy", "critical", "PII leak"),
             risk("GV-04", "Harmful bias", "high", "Systematic bias"),
-            risk("GV-05", "Information security", "critical", "Prompt injection"),
+            risk(
+                "GV-05",
+                "Information security",
+                "critical",
+                "Prompt injection",
+            ),
             risk("GV-06", "Information loss", "medium", "Context truncation"),
-            risk("GV-07", "Confabulation amplification", "medium", "Compounding errors"),
-            risk("GV-08", "Cross-model contamination", "medium", "KV-cache poisoning"),
+            risk(
+                "GV-07",
+                "Confabulation amplification",
+                "medium",
+                "Compounding errors",
+            ),
+            risk(
+                "GV-08",
+                "Cross-model contamination",
+                "medium",
+                "KV-cache poisoning",
+            ),
             risk("GV-09", "IP infringement", "medium", "Copyright concerns"),
             risk("GV-10", "IP infringement", "low", "Trade secrets"),
             risk("GV-11", "Toxic content", "medium", "Hate speech"),
-            risk("GV-12", "Confabulation persistence", "high", "Memory effects"),
+            risk(
+                "GV-12",
+                "Confabulation persistence",
+                "high",
+                "Memory effects",
+            ),
         ])
     }
 
     pub fn mitigations(&self, risk_id: &str) -> Result<Vec<String>, BackendError> {
         // Per TrustLayer 4-layer compliance + CordonEnforcer + Z3 proofs.
         let m = match risk_id {
-            "GV-01" => vec!["Kirchenbauer z-test watermark".into(), "4-layer compliance".into()],
+            "GV-01" => vec![
+                "Kirchenbauer z-test watermark".into(),
+                "4-layer compliance".into(),
+            ],
             "GV-02" => vec!["MCP envelope Spotlighting".into(), "CordonEnforcer".into()],
-            "GV-03" => vec!["apohara-aegis credential scrub".into(), "org_id isolation".into()],
+            "GV-03" => vec![
+                "apohara-aegis credential scrub".into(),
+                "org_id isolation".into(),
+            ],
             "GV-04" => vec!["INV-15 Z3 proof".into(), "BLAKE3 hash chain".into()],
-            "GV-05" => vec!["MCP envelope nonce sentinels".into(), "prompt injection firewall".into()],
+            "GV-05" => vec![
+                "MCP envelope nonce sentinels".into(),
+                "prompt injection firewall".into(),
+            ],
             "GV-06" => vec!["Context budget provenance".into()],
             "GV-07" => vec!["Verdict synthesizer isolation".into()],
             "GV-08" => vec!["Attestix ML-DSA-65 cross-validation".into()],
@@ -595,8 +626,10 @@ impl NistAi6001Backend {
 
     pub fn profile_compliance(&self) -> Result<NistProfile, BackendError> {
         let risks = self.risks()?;
-        let applicable: Vec<&NistRisk> =
-            risks.iter().filter(|r| r.applicable_to_trustlayer).collect();
+        let applicable: Vec<&NistRisk> = risks
+            .iter()
+            .filter(|r| r.applicable_to_trustlayer)
+            .collect();
         let mitigated: usize = applicable.len(); // all applicable are mitigated
         let total_applicable = applicable.len();
         let mut by_sev: HashMap<String, usize> = HashMap::new();
@@ -715,23 +748,23 @@ impl PldBackend {
     pub fn deadline(&self, regulation: &str) -> Result<PldDeadlineResult, BackendError> {
         // Wire to: GET /v1/pld/deadline/{regulation}
         let (reg, date, days) = match regulation {
-            "eu-ai-act-art-50" => (
-                "EU AI Act Art. 50",
-                "2026-08-02",
-                days_until("2026-08-02"),
-            ),
-            "pld-transposition" => (
-                "PLD transposition",
-                "2026-12-09",
-                days_until("2026-12-09"),
-            ),
-            _ => return Err(BackendError::InvalidInput(format!("unknown regulation {regulation}"))),
+            "eu-ai-act-art-50" => ("EU AI Act Art. 50", "2026-08-02", days_until("2026-08-02")),
+            "pld-transposition" => ("PLD transposition", "2026-12-09", days_until("2026-12-09")),
+            _ => {
+                return Err(BackendError::InvalidInput(format!(
+                    "unknown regulation {regulation}"
+                )))
+            }
         };
         Ok(PldDeadlineResult {
             regulation: reg.to_string(),
             deadline: date.to_string(),
             days_remaining: days,
-            status: if days < 30 { "urgent".into() } else { "on_track".into() },
+            status: if days < 30 {
+                "urgent".into()
+            } else {
+                "on_track".into()
+            },
         })
     }
 }
@@ -774,7 +807,11 @@ impl PartnerBackend {
         Self
     }
 
-    pub fn apply(&self, org_id: &str, _org_info: &Value) -> Result<PartnerApplication, BackendError> {
+    pub fn apply(
+        &self,
+        org_id: &str,
+        _org_info: &Value,
+    ) -> Result<PartnerApplication, BackendError> {
         Ok(PartnerApplication {
             application_id: format!("app_{:x}", rand_u64()),
             org_id: org_id.to_string(),

@@ -191,12 +191,15 @@ impl NistAiRmfMapper {
         notes.push(format!(
             "NIST AI RMF (1.0) functions mapped: {populated}/{} populated for \
              tenant={}, disclosure={}",
-            NistAiRmfMap::TOTAL_FUNCTIONS, packet.tenant_id, packet.disclosure_id
+            NistAiRmfMap::TOTAL_FUNCTIONS,
+            packet.tenant_id,
+            packet.disclosure_id
         ));
         if all_covered {
             notes.push(
                 "NIST AI RMF all 4 functions + 19 categories populated; \
-                 aligned with NIST AI 100-1 (January 2023).".to_string(),
+                 aligned with NIST AI 100-1 (January 2023)."
+                    .to_string(),
             );
         }
 
@@ -318,7 +321,13 @@ mod tests {
     fn test_notes_reference_tenant_and_nist() {
         let m = NistAiRmfMapper.map(&sample_packet());
         let joined = m.notes.join(" | ");
-        assert!(joined.contains("acme"), "notes must reference tenant: {joined}");
-        assert!(joined.contains("NIST AI RMF"), "notes must mention NIST AI RMF");
+        assert!(
+            joined.contains("acme"),
+            "notes must reference tenant: {joined}"
+        );
+        assert!(
+            joined.contains("NIST AI RMF"),
+            "notes must mention NIST AI RMF"
+        );
     }
 }

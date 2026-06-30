@@ -33,27 +33,21 @@
 
 use ml_dsa::signature::Verifier;
 
-use tl_evidence::pqc::{
-    hybrid_sign, mldsa65_sign, MlDsa65KeyPair, MlDsa65Signature,
-    SUITE_HYBRID, TRUSTLAYER_HYBRID_CONTEXT, HYBRID_SEP,
-};
-use ed25519_dalek::{
-    Signature,
-    Signer,
-    Verifier as Ed25519Verifier,
-};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use ed25519_dalek::{Signature, Signer, Verifier as Ed25519Verifier};
+use tl_evidence::pqc::{
+    hybrid_sign, mldsa65_sign, MlDsa65KeyPair, MlDsa65Signature, HYBRID_SEP, SUITE_HYBRID,
+    TRUSTLAYER_HYBRID_CONTEXT,
+};
 
 /// Attestix-compatible test vector: deterministic seed produces
 /// a known public key (FIPS 204 from_seed is deterministic for a
 /// given 32-byte seed; any FIPS 204 implementation produces the same
 /// output for the same input).
 const ATTESTIX_TEST_SEED: [u8; 32] = [
-    0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18,
-    0x29, 0x3a, 0x4b, 0x5c, 0x6d, 0x7e, 0x8f, 0x90,
-    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-    0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
+    0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18, 0x29, 0x3a, 0x4b, 0x5c, 0x6d, 0x7e, 0x8f, 0x90,
+    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
 ];
 
 /// Attestix-compatible Ed25519 test key (deterministic seed).
@@ -79,12 +73,19 @@ fn attestix_hybrid_wire_format_matches() {
     let proof = hybrid_sign(&ed_sk, &ml_kp, jcs_payload);
 
     let sep_count = proof.matches(HYBRID_SEP).count();
-    assert_eq!(sep_count, 1, "Attestix wire format requires exactly 1 separator");
+    assert_eq!(
+        sep_count, 1,
+        "Attestix wire format requires exactly 1 separator"
+    );
 
     let parts: Vec<&str> = proof.splitn(2, HYBRID_SEP).collect();
     assert_eq!(parts.len(), 2);
     assert_eq!(parts[0].len(), 86, "Ed25519 sig must be 64 bytes base64url");
-    assert_eq!(parts[1].len(), 4412, "ML-DSA-65 sig must be 3309 bytes base64url");
+    assert_eq!(
+        parts[1].len(),
+        4412,
+        "ML-DSA-65 sig must be 3309 bytes base64url"
+    );
     assert_eq!(SUITE_HYBRID, "hybrid-ed25519-mldsa65-jcs-2026");
 }
 
@@ -98,8 +99,7 @@ fn attestix_mldsa_signature_verifies_with_context() {
     let context = b"hybrid-ed25519-mldsa65-jcs-2026";
     let sig = ml_kp.sign(message, context).expect("sign");
 
-    let pk = MlDsa65KeyPair::public_only(&ml_kp.public_key_bytes())
-        .expect("public_only");
+    let pk = MlDsa65KeyPair::public_only(&ml_kp.public_key_bytes()).expect("public_only");
     pk.verify(message, context, &sig)
         .expect("Attestix-format ML-DSA-65 signature must verify");
 }
@@ -113,8 +113,7 @@ fn attestix_mldsa_standalone_works() {
     let sig = mldsa65_sign(&ml_kp, jcs);
 
     let context = b"trustlayer-v3.0-mldsa65-jcs-2026";
-    let pk = MlDsa65KeyPair::public_only(&ml_kp.public_key_bytes())
-        .expect("public_only");
+    let pk = MlDsa65KeyPair::public_only(&ml_kp.public_key_bytes()).expect("public_only");
     pk.verify(jcs, context, &sig)
         .expect("Attestix-format standalone ML-DSA-65 signature must verify");
 }
@@ -144,12 +143,13 @@ fn cross_implementation_structural_compatibility() {
     assert_eq!(ml_bytes.len(), 3309, "ML-DSA-65 sig must be 3309 bytes");
 
     // Invariant 4 + 5: both halves verify
-    let ml_sig = MlDsa65Signature::from_bytes(&ml_bytes)
-        .expect("decode ML-DSA-65 sig");
+    let ml_sig = MlDsa65Signature::from_bytes(&ml_bytes).expect("decode ML-DSA-65 sig");
     let ed_sig_array: [u8; 64] = ed_bytes.as_slice().try_into().unwrap();
     let ed_sig = Signature::from_bytes(&ed_sig_array);
 
-    ed_vk.verify(jcs, &ed_sig).expect("Ed25519 half must verify");
+    ed_vk
+        .verify(jcs, &ed_sig)
+        .expect("Ed25519 half must verify");
     let pk = MlDsa65KeyPair::public_only(&ml_kp.public_key_bytes()).unwrap();
     pk.verify(jcs, TRUSTLAYER_HYBRID_CONTEXT, &ml_sig)
         .expect("ML-DSA-65 half must verify");

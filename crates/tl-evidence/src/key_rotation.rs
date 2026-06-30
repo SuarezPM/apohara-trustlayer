@@ -92,11 +92,7 @@ pub struct KeyRotationEvent {
 }
 
 impl KeyRotationEvent {
-    pub fn new(
-        old_key_id: Option<String>,
-        new_key_id: String,
-        reason: RotationReason,
-    ) -> Self {
+    pub fn new(old_key_id: Option<String>, new_key_id: String, reason: RotationReason) -> Self {
         Self {
             event_id: Uuid::new_v4(),
             old_key_id,
@@ -198,10 +194,7 @@ impl KeyStore {
     }
 
     pub fn grace_key_ids(&self) -> Vec<String> {
-        self.grace_keys
-            .iter()
-            .map(|(id, _)| id.clone())
-            .collect()
+        self.grace_keys.iter().map(|(id, _)| id.clone()).collect()
     }
 
     /// Initial key activation. Records a rotation event with reason=Initial.
@@ -247,10 +240,7 @@ impl KeyStore {
 
     /// Verify a key id is acceptable for verification right now.
     /// Returns Ok(()) iff the key is either active or in grace.
-    pub fn verify_key_acceptable(
-        &mut self,
-        key_id: &str,
-    ) -> Result<(), KeyRotationError> {
+    pub fn verify_key_acceptable(&mut self, key_id: &str) -> Result<(), KeyRotationError> {
         self.evict_retired_keys();
         if self.active_key_id.as_deref() == Some(key_id) {
             return Ok(());
@@ -346,7 +336,8 @@ mod tests {
     fn rotate_moves_old_to_grace() {
         let mut s = KeyStore::new(KeyRotationPolicy::default_nist());
         s.activate_initial("key-v1").unwrap();
-        s.rotate("key-v2", RotationReason::Scheduled, Some("ops@acme".into())).unwrap();
+        s.rotate("key-v2", RotationReason::Scheduled, Some("ops@acme".into()))
+            .unwrap();
         assert_eq!(s.active_key_id(), Some("key-v2"));
         assert!(s.grace_key_ids().contains(&"key-v1".to_string()));
         assert_eq!(s.rotation_log().len(), 2);
@@ -392,7 +383,12 @@ mod tests {
     fn compromised_rotation_records_emergency_reason() {
         let mut s = KeyStore::new(KeyRotationPolicy::default_nist());
         s.activate_initial("key-v1").unwrap();
-        s.rotate("key-v2", RotationReason::Compromised, Some("secops@acme".into())).unwrap();
+        s.rotate(
+            "key-v2",
+            RotationReason::Compromised,
+            Some("secops@acme".into()),
+        )
+        .unwrap();
         assert_eq!(s.rotation_log()[1].reason, RotationReason::Compromised);
         assert_eq!(s.rotation_log()[1].operator.as_deref(), Some("secops@acme"));
     }
@@ -403,9 +399,13 @@ mod tests {
         s.activate_initial("key-v1").unwrap();
         s.rotate("key-v2", RotationReason::Scheduled, None).unwrap();
         s.rotate("key-v3", RotationReason::Scheduled, None).unwrap();
-        s.rotate("key-v4", RotationReason::AlgorithmMigration, None).unwrap();
+        s.rotate("key-v4", RotationReason::AlgorithmMigration, None)
+            .unwrap();
         assert_eq!(s.rotation_log().len(), 4);
-        assert_eq!(s.rotation_log()[3].reason, RotationReason::AlgorithmMigration);
+        assert_eq!(
+            s.rotation_log()[3].reason,
+            RotationReason::AlgorithmMigration
+        );
         // Active is v4, v1+v2+v3 are in grace (within 30 days).
         assert_eq!(s.active_key_id(), Some("key-v4"));
         let grace = s.grace_key_ids();

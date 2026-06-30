@@ -15,11 +15,11 @@
 //! Plus: SSRF refusals on the pure predicate, fetch timeout -> fail-closed WARN,
 //! and the MAX_FETCH_BYTES size cap (scan still works on the truncated prefix).
 
-use apohara_agentguard::Config;
 use apohara_agentguard::firewall::refetch::{
     ssrf_check, ssrf_check_ip, ContentSource, FetchError, FetchTarget, MAX_FETCH_BYTES,
 };
 use apohara_agentguard::hook::run_with_source;
+use apohara_agentguard::Config;
 use serde_json::Value;
 
 /// The canonical high-severity prompt-injection string used across surfaces.

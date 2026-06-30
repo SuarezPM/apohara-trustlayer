@@ -89,10 +89,7 @@ impl CordonEnforcer {
 
     /// Scan a JSON value for raw code (heuristic: lines starting with
     /// `+ ` or `- `) and for `raw_code` / `raw_diff` field names.
-    pub fn verify_no_raw_code_in_json(
-        &self,
-        value: &serde_json::Value,
-    ) -> Result<(), CordonError> {
+    pub fn verify_no_raw_code_in_json(&self, value: &serde_json::Value) -> Result<(), CordonError> {
         Self::scan_for_raw_code(value)
     }
 
@@ -102,7 +99,8 @@ impl CordonEnforcer {
                 // Diff lines: "+ foo" / "- foo". We require both the
                 // marker AND a newline so we don't false-positive on
                 // a sentence like "use + for concatenation".
-                if s.lines().any(|l| l.starts_with("+ ") || l.starts_with("- "))
+                if s.lines()
+                    .any(|l| l.starts_with("+ ") || l.starts_with("- "))
                     && s.contains('\n')
                 {
                     return Err(CordonError::RawCodeLeak);

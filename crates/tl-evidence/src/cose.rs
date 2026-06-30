@@ -58,16 +58,16 @@ impl CoseSignature {
     /// `signing_fn` takes the serialized `Sig_structure` (per RFC 9052
     /// §4.4) and returns the signature bytes (Ed25519: 64 bytes).
     /// `external_aad` is additional authenticated data (typically empty).
-/// THREAT: Signing key material is constructed in this function.
-/// The closure receives the to-be-signed data and returns raw signature
-/// bytes. (1) If the closure leaks the signature bytes to non-TLS
-/// transport, the signature is forgeable by anyone. (2) The closure
-/// MUST NOT call any network/IO — signing must be deterministic and
-/// pure-functional. (3) Constant-time signing via ed25519-dalek's
-/// `sign` API; this function passes through to it. (4) This function
-/// is NEVER exposed to the Python SDK (Architect IC-2 strict:
-/// signing is server-side only per plan v3.1 §Risks R10). It is only
-/// called by the Rust-side control plane.
+    /// THREAT: Signing key material is constructed in this function.
+    /// The closure receives the to-be-signed data and returns raw signature
+    /// bytes. (1) If the closure leaks the signature bytes to non-TLS
+    /// transport, the signature is forgeable by anyone. (2) The closure
+    /// MUST NOT call any network/IO — signing must be deterministic and
+    /// pure-functional. (3) Constant-time signing via ed25519-dalek's
+    /// `sign` API; this function passes through to it. (4) This function
+    /// is NEVER exposed to the Python SDK (Architect IC-2 strict:
+    /// signing is server-side only per plan v3.1 §Risks R10). It is only
+    /// called by the Rust-side control plane.
     pub fn ed25519<F>(
         payload: Vec<u8>,
         external_aad: &[u8],
@@ -158,10 +158,8 @@ mod tests {
         let key = SigningKey::from_bytes(&[7u8; 32]);
         let payload = b"hello world".to_vec();
 
-        let cose = CoseSignature::ed25519(payload, b"", |tbs| {
-            key.sign(tbs).to_bytes().to_vec()
-        })
-        .unwrap();
+        let cose =
+            CoseSignature::ed25519(payload, b"", |tbs| key.sign(tbs).to_bytes().to_vec()).unwrap();
 
         let verified = cose
             .verify(b"", |sig, tbs| {
@@ -178,7 +176,8 @@ mod tests {
         let key = SigningKey::from_bytes(&[9u8; 32]);
         let payload = b"another payload".to_vec();
 
-        let cose = CoseSignature::ed25519(payload, b"", |tbs| key.sign(tbs).to_bytes().to_vec()).unwrap();
+        let cose =
+            CoseSignature::ed25519(payload, b"", |tbs| key.sign(tbs).to_bytes().to_vec()).unwrap();
         let bytes = cose.to_cbor().unwrap();
         let restored = CoseSignature::from_cbor(&bytes).unwrap();
         let verified = restored

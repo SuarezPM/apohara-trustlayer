@@ -5,9 +5,7 @@
 //! existing strategies (open-closed). The v1.1.x state is documented:
 //! EU AI Act=Covered, DORA=Partial, the other 6=NotImplemented.
 
-use tl_policy::{
-    ComplianceStrategy, DORAContext, DORAEvidenceStrategy, Framework, Status,
-};
+use tl_policy::{ComplianceStrategy, DORAContext, DORAEvidenceStrategy, Framework, Status};
 
 fn ctx_ok() -> DORAContext {
     DORAContext {
@@ -63,10 +61,7 @@ fn test_v1_2_x_status_matrix_is_honest() {
         "EU AI Act must report Covered in v1.2.x (v1.0.5 truthfulness)"
     );
     // v1.2: ISO 42001 + NIST AI RMF are now Covered (real mappers).
-    for framework in [
-        Framework::Iso42001,
-        Framework::NistAiRmf,
-    ] {
+    for framework in [Framework::Iso42001, Framework::NistAiRmf] {
         assert_eq!(
             reports[&framework].status,
             Status::Covered,
@@ -118,8 +113,8 @@ fn test_strategy_registry_is_open_principle() {
     // Open-closed: the dispatcher accepts a new framework without
     // changes to existing strategies. We add a custom strategy for a
     // hypothetical 9th framework; the dispatcher should call it.
-    use tl_policy::Strategy;
     use std::collections::BTreeMap;
+    use tl_policy::Strategy;
 
     struct CustomStrategy;
     impl Strategy for CustomStrategy {
@@ -127,7 +122,11 @@ fn test_strategy_registry_is_open_principle() {
             "custom-test"
         }
         fn evaluate(&self, _ctx: &DORAContext) -> (Status, String, Vec<String>) {
-            (Status::Covered, "custom test".to_string(), vec!["test://custom".to_string()])
+            (
+                Status::Covered,
+                "custom test".to_string(),
+                vec!["test://custom".to_string()],
+            )
         }
     }
 

@@ -110,13 +110,13 @@ impl Chain {
     }
 
     /// Append with `now_ms = 0` (deterministic, for tests).
-/// THREAT: This function appends to an in-memory chain. If called
-/// concurrently without external locking (SELECT FOR UPDATE at the
-/// control plane), two callers can race and produce inconsistent
-/// prev_hash chains. The control plane MUST serialize appends via
-/// PostgreSQL `SELECT ... FOR UPDATE` on the chain's head row
-/// (per plan v3.1 §Implementation Blocks Block 3.5). This function
-/// itself is single-threaded; concurrency safety is at the DB layer.
+    /// THREAT: This function appends to an in-memory chain. If called
+    /// concurrently without external locking (SELECT FOR UPDATE at the
+    /// control plane), two callers can race and produce inconsistent
+    /// prev_hash chains. The control plane MUST serialize appends via
+    /// PostgreSQL `SELECT ... FOR UPDATE` on the chain's head row
+    /// (per plan v3.1 §Implementation Blocks Block 3.5). This function
+    /// itself is single-threaded; concurrency safety is at the DB layer.
     pub fn append(&mut self, payload: &str) -> Result<&ChainEntry, ChainError> {
         self.append_with_timestamp(payload, 0)
     }

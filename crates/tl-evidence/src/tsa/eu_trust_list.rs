@@ -181,9 +181,7 @@ pub fn validate_eu_trust_list(
     let policy = policy_oid
         .filter(|o| is_qualified_policy_oid(o))
         .ok_or_else(|| {
-            EuTrustListError::InvalidPolicyOid(
-                policy_oid.unwrap_or("(none)").to_string(),
-            )
+            EuTrustListError::InvalidPolicyOid(policy_oid.unwrap_or("(none)").to_string())
         })?;
     let root_on_eu_tl = KNOWN_EU_TL_ROOTS
         .iter()
@@ -197,9 +195,7 @@ pub fn validate_eu_trust_list(
     notes.push(format!(
         "Chain has {chain_length} cert(s): leaf + intermediates + root"
     ));
-    notes.push(format!(
-        "Leaf cert asserts qualified policy OID: {policy}"
-    ));
+    notes.push(format!("Leaf cert asserts qualified policy OID: {policy}"));
     notes.push(format!(
         "Root fingerprint {root_fingerprint} is registered on the EU Trust List"
     ));
@@ -231,9 +227,7 @@ pub fn validate_eu_trust_list_lenient(
     let policy = policy_oid
         .filter(|o| is_qualified_policy_oid(o))
         .ok_or_else(|| {
-            EuTrustListError::InvalidPolicyOid(
-                policy_oid.unwrap_or("(none)").to_string(),
-            )
+            EuTrustListError::InvalidPolicyOid(policy_oid.unwrap_or("(none)").to_string())
         })?;
     let root_on_eu_tl = KNOWN_EU_TL_ROOTS
         .iter()
@@ -242,9 +236,7 @@ pub fn validate_eu_trust_list_lenient(
     notes.push(format!("Chain has {chain_length} cert(s)"));
     notes.push(format!("Policy OID: {policy}"));
     if root_on_eu_tl {
-        notes.push(format!(
-            "Root {root_fingerprint} is on EU Trust List"
-        ));
+        notes.push(format!("Root {root_fingerprint} is on EU Trust List"));
     } else {
         notes.push(format!(
             "Root {root_fingerprint} is NOT in hardcoded EU Trust List (operator must verify against live EU TL)"
@@ -284,19 +276,13 @@ mod tests {
     fn invalid_policy_oid_rejected() {
         // "1.2.3.4.5" is not a QTSP OID.
         let result = validate_eu_trust_list(Some("1.2.3.4.5"), SECTIGO_ROOT_FINGERPRINTS[0], 3);
-        assert!(matches!(
-            result,
-            Err(EuTrustListError::InvalidPolicyOid(_))
-        ));
+        assert!(matches!(result, Err(EuTrustListError::InvalidPolicyOid(_))));
     }
 
     #[test]
     fn missing_policy_oid_rejected() {
         let result = validate_eu_trust_list(None, SECTIGO_ROOT_FINGERPRINTS[0], 3);
-        assert!(matches!(
-            result,
-            Err(EuTrustListError::InvalidPolicyOid(_))
-        ));
+        assert!(matches!(result, Err(EuTrustListError::InvalidPolicyOid(_))));
     }
 
     #[test]
@@ -310,11 +296,8 @@ mod tests {
 
     #[test]
     fn sectigo_root_validates() {
-        let result = validate_eu_trust_list(
-            Some(OID_QTSP_POLICY_1),
-            SECTIGO_ROOT_FINGERPRINTS[0],
-            3,
-        );
+        let result =
+            validate_eu_trust_list(Some(OID_QTSP_POLICY_1), SECTIGO_ROOT_FINGERPRINTS[0], 3);
         assert!(result.is_ok());
         let v = result.unwrap();
         assert!(v.is_qualified);
@@ -326,11 +309,8 @@ mod tests {
 
     #[test]
     fn digicert_root_validates() {
-        let result = validate_eu_trust_list(
-            Some(OID_QTSP_POLICY_2),
-            DIGICERT_ROOT_FINGERPRINTS[0],
-            3,
-        );
+        let result =
+            validate_eu_trust_list(Some(OID_QTSP_POLICY_2), DIGICERT_ROOT_FINGERPRINTS[0], 3);
         assert!(result.is_ok());
         assert!(result.unwrap().is_valid_for_eu_regulation());
     }
@@ -340,16 +320,15 @@ mod tests {
         // Lowercase fingerprint should match the uppercase constant.
         let lowercase = SECTIGO_ROOT_FINGERPRINTS[0].to_lowercase();
         let result = validate_eu_trust_list(Some(OID_QTSP_POLICY_1), &lowercase, 3);
-        assert!(result.is_ok(), "lowercase fingerprint should match (case-insensitive)");
+        assert!(
+            result.is_ok(),
+            "lowercase fingerprint should match (case-insensitive)"
+        );
     }
 
     #[test]
     fn lenient_returns_root_on_eu_tl_false_when_unknown() {
-        let result = validate_eu_trust_list_lenient(
-            Some(OID_QTSP_POLICY_1),
-            "AA:BB:CC",
-            3,
-        );
+        let result = validate_eu_trust_list_lenient(Some(OID_QTSP_POLICY_1), "AA:BB:CC", 3);
         assert!(result.is_ok());
         let v = result.unwrap();
         assert!(!v.root_on_eu_tl, "unknown root should be flagged");
@@ -380,7 +359,10 @@ mod tests {
             chain_length: 1,
             notes: vec![],
         };
-        assert!(!v.is_valid_for_eu_regulation(), "chain_length < 2 is invalid");
+        assert!(
+            !v.is_valid_for_eu_regulation(),
+            "chain_length < 2 is invalid"
+        );
     }
 
     #[test]

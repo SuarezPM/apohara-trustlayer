@@ -15,8 +15,8 @@ mod common;
 use std::path::PathBuf;
 
 use apohara_agentguard::audit::AuditConfig;
-use apohara_agentguard::Config;
 use apohara_agentguard::hook;
+use apohara_agentguard::Config;
 use common::TempDir;
 
 /// A PreToolUse + Bash hook input wrapping `cmd`.
