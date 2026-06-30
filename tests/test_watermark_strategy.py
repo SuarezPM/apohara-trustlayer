@@ -255,7 +255,8 @@ def test_bias_logits_different_positions_differ() -> None:
 def test_embed_tokens_all_in_green_list() -> None:
     """Every output token from embed_tokens must be in the green list."""
     from app.watermark_strategy import kirchenbauer_embed_tokens, kirchenbauer_detect
-    import os, random
+    import os
+    import random
     random.seed(42)
     key = os.urandom(32)
     vocab = 1000
@@ -296,7 +297,8 @@ def test_embed_tokens_invalid_gamma() -> None:
 def test_embed_tokens_vs_detect_roundtrip() -> None:
     """embed_tokens produces a sequence that kirchenbauer_detect detects as watermarked."""
     from app.watermark_strategy import kirchenbauer_embed_tokens, kirchenbauer_detect
-    import os, random
+    import os
+    import random
     random.seed(123)
     key = os.urandom(32)
     vocab = 5000

@@ -7,18 +7,27 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
-    Column, Computed, DateTime, Float, Integer, String,
+    Column,
+    Computed,
+    DateTime,
+    Float,
+    Integer,
+    String,
     create_engine,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.risk_scoring.iso_23894 import (
-    ISO23894Stage, NISTAIRMFFunction, Risk, RiskRegister,
-    RiskScoreSummary, RiskTreatment,
+    ISO23894Stage,
+    NISTAIRMFFunction,
+    Risk,
+    RiskRegister,
+    RiskScoreSummary,
+    RiskTreatment,
 )
 
 Base = declarative_base()
@@ -55,9 +64,9 @@ class RiskRecord(Base):
     treatment = Column(String, nullable=False)
     owner = Column(String)
     review_cadence_days = Column(Integer, nullable=False, default=90)
-    last_reviewed = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_reviewed = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     def to_risk(self) -> Risk:
         return Risk(
@@ -108,7 +117,7 @@ class DBRiskRegister(RiskRegister):
                 treatment=risk.treatment.value,
                 owner=risk.owner,
                 review_cadence_days=risk.review_cadence_days,
-                last_reviewed=datetime.now(timezone.utc),
+                last_reviewed=datetime.now(UTC),
             )
             session.add(record)
             session.commit()
@@ -138,7 +147,7 @@ class DBRiskRegister(RiskRegister):
                 by_nist_rmf=dict(rmfs),
                 by_treatment=dict(treatments),
                 highest_residual_risks=top,
-                generated_at=datetime.now(timezone.utc).isoformat(),
+                generated_at=datetime.now(UTC).isoformat(),
             )
 
 

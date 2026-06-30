@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
@@ -89,7 +89,7 @@ def get_dora_evidence_pack(
         applicable_checks=pack["applicable_checks"],
         total_checks=pack["total_checks"],
         rollup=pack["rollup"],
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         checks=[
             DORAEvidenceCheck(
                 check_id=c["check_id"],

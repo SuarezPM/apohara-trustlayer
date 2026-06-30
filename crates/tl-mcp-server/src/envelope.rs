@@ -34,12 +34,14 @@ use rand::RngCore;
 /// itself can track flow. The `source` is metadata for the audit
 /// linter; it is NOT rendered into the envelope output.
 #[derive(Debug, Clone)]
+#[allow(missing_docs)]
 pub struct TaintedString {
     pub value: String,
     pub source: String, // e.g. "user_task", "gemini_output", "dpi_metadata"
 }
 
 impl TaintedString {
+    #[allow(missing_docs)]
     pub fn new(value: impl Into<String>, source: impl Into<String>) -> Self {
         Self {
             value: value.into(),
@@ -56,14 +58,16 @@ impl fmt::Display for TaintedString {
 
 /// Build a prompt with trusted instructions + nonce-tagged untrusted
 /// blocks. See module docstring for the threat model.
+#[allow(missing_docs)]
 pub fn build_envelope(
     instructions: &str,
     untrusted_blocks: &HashMap<String, TaintedString>,
 ) -> String {
     // Per-request 16-byte hex nonce (32 chars). Cryptographic
-    // randomness via the OS RNG (defeats sentinel guessing).
+    // randomness via the thread RNG (defeats sentinel guessing;
+    // thread RNG is reseeded from the OS RNG by `rand`).
     let mut nonce_bytes = [0u8; 16];
-    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
     let nonce = hex_lower(&nonce_bytes);
 
     let mut parts: Vec<String> = Vec::new();

@@ -48,6 +48,7 @@ pub fn extract_json(raw: &str) -> String {
 
 /// Errors emitted by any specialist.
 #[derive(Error, Debug)]
+#[allow(missing_docs)]
 pub enum SlopError {
     /// LLM call failed.
     #[error("LLM error: {0}")]
@@ -66,6 +67,7 @@ pub enum SlopError {
 
 /// The structured output of the slop specialist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct SlopReport {
     /// Probability the diff is AI-generated, in [0.0, 1.0].
     pub slop_score: f32,
@@ -81,6 +83,7 @@ pub struct SlopReport {
 
 /// A concrete slop signal with file:line attribution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct SlopExample {
     pub file: String,
     pub line: Option<u32>,
@@ -90,6 +93,7 @@ pub struct SlopExample {
 
 /// The slop specialist.
 #[derive(Default)]
+#[allow(missing_docs)]
 pub struct SlopDetector;
 
 impl SlopDetector {
@@ -132,6 +136,7 @@ impl Specialist for SlopDetector {
 /// `Critical`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
+#[allow(missing_docs)]
 pub enum SecuritySeverity {
     None,
     Info,
@@ -143,6 +148,7 @@ pub enum SecuritySeverity {
 
 /// A single security finding with file:line attribution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct SecurityFinding {
     pub severity: SecuritySeverity,
     pub file: String,
@@ -155,6 +161,7 @@ pub struct SecurityFinding {
 
 /// The structured output of the security specialist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct SecurityReport {
     pub highest_severity: SecuritySeverity,
     pub findings: Vec<SecurityFinding>,
@@ -163,6 +170,7 @@ pub struct SecurityReport {
 
 /// The security specialist.
 #[derive(Default)]
+#[allow(missing_docs)]
 pub struct SecurityReview;
 
 impl SecurityReview {
@@ -202,6 +210,7 @@ impl Specialist for SecurityReview {
 
 /// A single concern raised by the architecture specialist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ArchConcern {
     pub file: String,
     pub line: Option<u32>,
@@ -212,6 +221,7 @@ pub struct ArchConcern {
 
 /// The structured output of the architecture specialist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ArchReport {
     pub fit_score: f32,
     pub verdict: String,
@@ -222,6 +232,7 @@ pub struct ArchReport {
 
 /// The architecture-fit specialist.
 #[derive(Default)]
+#[allow(missing_docs)]
 pub struct ArchitectureFit;
 
 impl ArchitectureFit {
@@ -264,6 +275,7 @@ impl Specialist for ArchitectureFit {
 
 /// Risk score clamped to [0.0, 1.0]. Higher = more risk.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct RiskScore(f32);
 
 impl RiskScore {
@@ -287,6 +299,7 @@ impl RiskScore {
 
 /// The final verdict emitted by `aegis-verdict`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Verdict {
     pub status: VerdictStatus,
     pub risk_score: RiskScore,
@@ -299,6 +312,7 @@ pub struct Verdict {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[allow(missing_docs)]
 pub enum VerdictStatus {
     Approved,
     ReviewRequired,
@@ -309,6 +323,7 @@ pub enum VerdictStatus {
 /// `pr_diff` is included only as a redacted sentinel (e.g. `"<redacted>"`).
 /// The real diff MUST never appear here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct SynthesizerInput {
     pub pr_ref: String,
     pub pr_diff: String,
@@ -321,6 +336,7 @@ pub struct SynthesizerInput {
 /// [`crate::cordon::CordonEnforcer`] guarantees it only ever sees
 /// `SynthesizerInput`, never raw diff text.
 #[derive(Default)]
+#[allow(missing_docs)]
 pub struct VerdictSynthesizer;
 
 impl VerdictSynthesizer {

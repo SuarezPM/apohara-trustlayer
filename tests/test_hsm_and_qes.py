@@ -23,7 +23,6 @@ from app.qes_adapter import (
     EU_TRUST_LIST_FINGERPRINTS,
     OID_ES_I4_QTST_STATEMENT_1,
     OID_ETSI_TSTS,
-    QESValidationResult,
     qtsp_qualified_for_jurisdiction,
     validate_qtsp_certificate,
 )

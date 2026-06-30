@@ -193,7 +193,7 @@ mod tests {
 
     fn fresh_key() -> SigningKey {
         let mut bytes = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         SigningKey::from_bytes(&bytes)
     }
 

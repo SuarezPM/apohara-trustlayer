@@ -23,12 +23,13 @@ from app.notary import (
     SCITTClient,
     SCITTError,
 )
+
 # Re-export the FastAPI router instance so `main.py` can do
 # `app.include_router(notary_production.router, tags=["notary"])`.
 # Without this, the 404 fires (the /v1/notarize endpoint is never
 # registered because the legacy module path no longer builds the
 # router at import time).
-from app.notary.service import router  # noqa: F401, E402
+from app.notary.service import router
 
 __all__ = [
     "NotaryDB",

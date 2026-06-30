@@ -77,9 +77,11 @@ pub const HUMAN_OVERRIDE_ENV: &str = "APOHARA_WRITE_AGENT_TRUST";
 /// human-in-the-loop pause.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("Rule of Two violation: at least 2 of (CI env, TTY, human override) required")]
+#[allow(missing_docs)]
 pub struct RuleOfTwoViolation(pub Reason);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum Reason {
     NoCiEnv,
     NoTty,
@@ -87,6 +89,7 @@ pub enum Reason {
 }
 
 /// Detect CI environment by env var.
+#[allow(missing_docs)]
 pub fn detect_ci_environment(env_vars: &[&str]) -> Option<String> {
     env_vars
         .iter()
@@ -97,18 +100,21 @@ pub fn detect_ci_environment(env_vars: &[&str]) -> Option<String> {
 /// True if stdin AND stdout are both TTYs (interactive shell).
 /// Best-effort: returns false in any non-interactive environment
 /// (CI, background process, piped I/O).
+#[allow(missing_docs)]
 pub fn has_interactive_tty() -> bool {
     use std::io::IsTerminal;
     std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
 }
 
 /// True if the explicit human override env var is set.
+#[allow(missing_docs)]
 pub fn has_human_override() -> bool {
     env::var(HUMAN_OVERRIDE_ENV).is_ok()
 }
 
 /// Outcome of a Rule of Two check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct TrustQuorum {
     pub ci: bool,
     pub tty: bool,
@@ -118,6 +124,7 @@ pub struct TrustQuorum {
 
 /// Evaluate the Rule of Two. Returns the trust signals + the
 /// pass/fail decision (≥ 2 of 3 signals = pass).
+#[allow(missing_docs)]
 pub fn check_rule_of_two() -> TrustQuorum {
     let ci = detect_ci_environment(EXTENDED_CI_ENV_VARS).is_some();
     let tty = has_interactive_tty();
@@ -133,6 +140,7 @@ pub fn check_rule_of_two() -> TrustQuorum {
 
 /// Assert the Rule of Two. Returns `Ok(TrustQuorum)` if ≥ 2 signals
 /// present, `Err(RuleOfTwoViolation)` otherwise.
+#[allow(missing_docs)]
 pub fn enforce() -> Result<TrustQuorum, RuleOfTwoViolation> {
     let q = check_rule_of_two();
     if q.passes {

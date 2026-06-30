@@ -21,22 +21,21 @@ Emits `X-Disclosure-AI` (Art. 50(2)), `X-TrustLayer-Request-ID`, and
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_org_id
 from app.pld_shield import (
-    PLDDisclosureResponse,
-    PLDDefectRebuttalPack,
-    ISO42001StatementOfApplicability,
+    EU_AI_ACT_ART_50_DEADLINE,
+    ISO_42001_BS_EN,
     ISO_42001_CONTROLS,
     NIST_AI_600_1_RISKS,
-    EU_AI_ACT_ART_50_DEADLINE,
     PLD_TRANSPOSITION_DEADLINE,
-    ISO_42001_BS_EN,
+    ISO42001StatementOfApplicability,
+    PLDDefectRebuttalPack,
+    PLDDisclosureResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ class DisclosureOrderRequest(BaseModel):
     court: str = Field(description="Issuing court")
     issued_at: datetime
     deadline: datetime
-    plaintiff: Optional[str] = None
+    plaintiff: str | None = None
     defendant: str
     product_id: str
     scope: list[str] = Field(
@@ -100,7 +99,7 @@ async def generate_disclosure_response(
 
     return PLDDisclosureResponse(
         order_id=request.order_id,
-        produced_at=datetime.now(timezone.utc),
+        produced_at=datetime.now(UTC),
         evidence_packs=[
             {
                 "scope": s,
@@ -131,7 +130,7 @@ class RebuttalPackRequest(BaseModel):
     """Request body for PLD Art. 10 rebuttal pack generation."""
 
     product_id: str
-    incident_date: Optional[datetime] = Field(
+    incident_date: datetime | None = Field(
         default=None,
         description="Date of the alleged incident (for context). Defaults to now.",
     )
@@ -173,7 +172,7 @@ async def generate_rebuttal_pack(
 
     return PLDDefectRebuttalPack(
         product_id=request.product_id,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         rebuttals=[
             {
                 "presumption": "Art. 10(1) — defendant fails to disclose evidence",
@@ -260,7 +259,7 @@ async def get_regulatory_deadline(
         )
 
     deadline = datetime.fromisoformat(deadline_str)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     days_remaining = (deadline - now).days
 
     return {
@@ -302,7 +301,7 @@ async def get_iso42001_soa(
     return ISO42001StatementOfApplicability(
         organization="Apohara TrustLayer",
         version="3.0.0-w2",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         controls=controls,
         summary=summary,
         exclusions=[],

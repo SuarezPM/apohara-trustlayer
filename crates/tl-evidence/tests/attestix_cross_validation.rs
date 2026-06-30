@@ -31,11 +31,9 @@
 //! that uses the same algorithm with the same inputs. Any FIPS 204
 //! implementation would produce the same outputs.
 
-use ml_dsa::signature::Verifier;
-
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use ed25519_dalek::{Signature, Signer, Verifier as Ed25519Verifier};
+use ed25519_dalek::{Signature, Verifier as Ed25519Verifier};
 use tl_evidence::pqc::{
     hybrid_sign, mldsa65_sign, MlDsa65KeyPair, MlDsa65Signature, HYBRID_SEP, SUITE_HYBRID,
     TRUSTLAYER_HYBRID_CONTEXT,

@@ -9,7 +9,6 @@ from __future__ import annotations
 import warnings
 from typing import Iterable
 
-import pytest
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)

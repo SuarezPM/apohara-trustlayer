@@ -265,7 +265,6 @@ def build_time_stamp_resp(
         'certificates': cms.CertificateSet([cert_obj]),  # CertificateSet, not Certificates
         'signer_infos': cms.SignerInfos([signer_info]),
     })
-    sd_der = sd.dump()
 
     ci = cms.ContentInfo({
         'content_type': ID_SIGNED_DATA,

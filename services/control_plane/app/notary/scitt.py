@@ -10,8 +10,6 @@ import base64
 import json
 import logging
 import os
-from typing import Optional
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +34,8 @@ class SCITTClient:
 
     def __init__(
         self,
-        ts_url: Optional[str] = None,
-        public_ledger_url: Optional[str] = None,
+        ts_url: str | None = None,
+        public_ledger_url: str | None = None,
         timeout: float = 10.0,
         issuer: str = "did:web:apohara.org",
     ):
@@ -50,7 +48,7 @@ class SCITTClient:
 
     def submit(
         self, statement_b64: str
-    ) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None, str | None]:
         """Submit a COSE_Sign1 statement to the SCITT TS.
 
         Args:
@@ -65,8 +63,8 @@ class SCITTClient:
         try:
             try:
                 import scitt_cose
-                from cryptography.hazmat.primitives.asymmetric import ed25519
                 from cryptography.hazmat.primitives import serialization
+                from cryptography.hazmat.primitives.asymmetric import ed25519
             except ImportError as imp_err:
                 logger.error(
                     f"scitt-cose / cryptography import failed; SCITT disabled: "
@@ -80,7 +78,7 @@ class SCITTClient:
                 # uses '+' and '/'. Be permissive on the decode.
                 padded = statement_b64 + "=" * (-len(statement_b64) % 4)
                 cose_bytes = base64.urlsafe_b64decode(padded)
-            except Exception:  # noqa: BLE001 — base64url decode failure; fall back to standard base64 (SCITT clients may use either)
+            except Exception:
                 # W8.9.1+narrowed: catch is documented in the function docstring.
                 # If base64url decode fails (binascii.Error, ValueError), fall back
                 # to standard base64. SCITT clients are spec-permitted to use either
@@ -145,7 +143,7 @@ class SCITTClient:
             # debugging, return None (degraded mode per README).
             logger.error(f"SCITT HTTP error for {self.ts_url}: {e!r}")
             return None, None, None
-        except Exception:  # noqa: BLE001 — SCITT unexpected error safety net; returns (None, None, None) degraded mode
+        except Exception:
             # Unknown — keep broad catch as degraded-mode safety net.
             logger.exception(f"SCITT unexpected error for {self.ts_url}")
             return None, None, None

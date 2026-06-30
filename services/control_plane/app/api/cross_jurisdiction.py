@@ -26,13 +26,12 @@ UK?" without reading 200 lines of policy text.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.deps import get_org_id
 from app.compliance import assess_cross_jurisdiction
-from fastapi import Depends
 
 router = APIRouter(prefix="/v1/jurisdictions", tags=["cross-jurisdiction"])
 
@@ -51,7 +50,7 @@ def list_jurisdictions(
 ) -> dict:
     """Return the full cross-jurisdiction profile dict (all 4 profiles)."""
     result = assess_cross_jurisdiction(jurisdiction=None)
-    result["generated_at"] = datetime.now(timezone.utc).isoformat()
+    result["generated_at"] = datetime.now(UTC).isoformat()
     result["org_id"] = org_id
     return result
 
@@ -72,7 +71,8 @@ def get_jurisdiction(
 
     Returns 404 (via HTTPException) if the jurisdiction is unknown.
     """
-    from fastapi import HTTPException, status as _status
+    from fastapi import HTTPException
+    from fastapi import status as _status
 
     valid = {"EU_AI_ACT", "UK_AI_BILL", "US_EO_14110", "CHINA_GENAI_MEASURES"}
     if jurisdiction not in valid:
@@ -81,7 +81,7 @@ def get_jurisdiction(
             detail=f"unknown jurisdiction: {jurisdiction}. Valid: {sorted(valid)}",
         )
     result = assess_cross_jurisdiction(jurisdiction=jurisdiction)
-    result["generated_at"] = datetime.now(timezone.utc).isoformat()
+    result["generated_at"] = datetime.now(UTC).isoformat()
     result["org_id"] = org_id
     return result
 

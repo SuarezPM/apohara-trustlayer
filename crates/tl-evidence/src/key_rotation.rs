@@ -227,9 +227,7 @@ impl KeyStore {
         }
         self.active_key_id = Some(new_key_id.clone());
         let mut event = KeyRotationEvent::new(
-            self.rotation_log
-                .last()
-                .and_then(|e| Some(e.new_key_id.clone())),
+            self.rotation_log.last().map(|e| e.new_key_id.clone()),
             new_key_id,
             reason,
         );

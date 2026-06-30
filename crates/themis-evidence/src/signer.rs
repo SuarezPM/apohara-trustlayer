@@ -65,7 +65,7 @@ pub struct KeyPair {
 impl KeyPair {
     /// Generate a fresh random keypair using the OS RNG.
     pub fn generate() -> Self {
-        let mut csprng = rand::thread_rng();
+        let mut csprng = rand::rng();
         let mut bytes = [0u8; 32];
         csprng.fill_bytes(&mut bytes);
         let signing = SigningKey::from_bytes(&bytes);

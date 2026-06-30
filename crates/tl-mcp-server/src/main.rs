@@ -66,6 +66,7 @@ use tl_types::OrgId;
 // =============================================================================
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct GenerateDisclosureInput {
     pub ai_system_id: String,
     pub content: String,
@@ -76,32 +77,38 @@ pub struct GenerateDisclosureInput {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct VerifyProvenanceInput {
     pub cose_sign1_b64: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct SignArtifactInput {
     pub content_hash: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct CreateEvidenceBundleInput {
     pub disclosure_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct EvaluatePolicyInput {
     pub disclosure_id: String,
     pub regulation: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct InspectReceiptInput {
     pub receipt_id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct CheckComplianceInput {
     pub bundle_id: String,
 }
@@ -330,7 +337,7 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
         })),
         "tools/list" => Ok(build_tools_list()),
         "tools/call" => {
-            let params = req.params.ok_or_else(|| ERR_INVALID_PARAMS);
+            let params = req.params.ok_or(ERR_INVALID_PARAMS);
             let params = match params {
                 Ok(p) => p,
                 Err(code) => {

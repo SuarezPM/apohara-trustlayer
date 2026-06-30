@@ -23,7 +23,6 @@ import re
 import sys
 from pathlib import Path
 
-import pytest
 
 # Make the control_plane package importable. The control_plane
 # service is a sub-project, not part of the root python package.

@@ -1,9 +1,9 @@
 //! HMAC chain from chain root + `tenant_id` binding.
 //!
 //! Per Plan v1.2 Block 4 v1.1.0.x+1+8 (auditor-4 prior art port):
-//! HMAC-SHA256 over a canonical serialization of the chain entries
-//! + the `tenant_id`. The `verify_chain` function is **independent
-//! of the COSE signer key** — it only requires the HMAC key (from
+//! HMAC-SHA256 over a canonical serialization of the chain entries +
+//! the `tenant_id`. The `verify_chain` function is **independent of
+//! the COSE signer key** — it only requires the HMAC key (from
 //! `APOHARA_LEDGER_HMAC_KEY` env var) and the `tenant_id`. This means
 //! an auditor can verify the chain root without knowing the issuer
 //! key, decoupling chain integrity from issuer rotation.
@@ -180,7 +180,7 @@ mod tests {
         // Tamper with one entry → root mismatch.
         let mut entries = vec![
             make_entry(0, &"0".repeat(64), "hello"),
-            make_entry(1, &"hash_0", "world"),
+            make_entry(1, "hash_0", "world"),
         ];
         let key = b"hmac-key-1";
         let original = chain_root(&entries, "tenant-a", key);

@@ -63,9 +63,9 @@ impl DigiCertTsaClient {
     /// (e.g. `https://timestamp.digicert.com` for production or
     /// the wiremock server URL for tests).
     ///
-    /// `chain_pem` is the PEM-encoded certificate chain (intermediate
-    /// + root) used to verify the TSA signing cert. The chain is
-    /// held in memory; pass the contents of `chain.pem` from
+    /// `chain_pem` is the PEM-encoded certificate chain (intermediate + root)
+    /// used to verify the TSA signing cert. The chain is held in memory;
+    /// pass the contents of `chain.pem` from
     /// `audit_artifacts/test_fixtures/digicert/`.
     pub fn new(endpoint: impl Into<String>, chain_pem: Vec<u8>) -> Self {
         let http = reqwest::Client::builder()

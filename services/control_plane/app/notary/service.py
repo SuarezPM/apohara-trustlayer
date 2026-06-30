@@ -17,16 +17,16 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field  # noqa: F401  (kept for legacy callers)
+
+from app.notary.certificate_generator import CertificateArtifactGenerator
 from app.notary.db import NotaryDB
+from app.notary.models import NotarizeRequest, NotarizeResponse
 from app.notary.qtsp import QTSPClient
 from app.notary.scitt import SCITTClient
-from app.notary.certificate_generator import CertificateArtifactGenerator
-from app.notary.models import NotarizeRequest, NotarizeResponse
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class NotaryServiceProduction:
         qtsp: QTSPClient,
         scitt: SCITTClient,
         artifact_gen: CertificateArtifactGenerator,
-        signer: "object | None" = None,  # HSMSigner (Protocol); lazy-typed
+        signer: object | None = None,  # HSMSigner (Protocol); lazy-typed
         issuer: str = "did:web:apohara.org",
         key_id: str = "notary-key-1",
     ):
@@ -161,9 +161,9 @@ class NotaryServiceProduction:
         ai_system_id: str,
         submitted_by: str,
         submitted_at: datetime,
-        metadata: Optional[dict] = None,
-        token_ids: Optional[list[int]] = None,
-        vocab_size: Optional[int] = None,
+        metadata: dict | None = None,
+        token_ids: list[int] | None = None,
+        vocab_size: int | None = None,
     ) -> dict:
         """Notarize content. Production W8.5. Idempotent on content_hash + submitted_by.
 
@@ -180,7 +180,7 @@ class NotaryServiceProduction:
                 return await self.db.get_certificate(cert["cert_id"]) or cert
 
         cert_id = self._generate_cert_id(content_hash, submitted_by)
-        notarized_at = datetime.now(timezone.utc)
+        notarized_at = datetime.now(UTC)
 
         cose_sign1_b64, cwt_claims, key_fp = self._cose_sign1(
             cert_id=cert_id,
@@ -201,11 +201,12 @@ class NotaryServiceProduction:
         # W9.0: EU AI Act Art. 50(3) watermark detection (Kirchenbauer z-test).
         # LLM serving stacks pre-detect and pass token_ids; control plane
         # verifies via the same algorithm and embeds the result on the PDF.
-        watermark_result: Optional[dict] = None
+        watermark_result: dict | None = None
         if token_ids:
             try:
-                from app.watermark_strategy import kirchenbauer_detect
                 import os
+
+                from app.watermark_strategy import kirchenbauer_detect
 
                 # Detection key: TL_TEXT_WATERMARK_KEY env or all-zero dev
                 wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
@@ -221,7 +222,7 @@ class NotaryServiceProduction:
                     key=wm_key,
                 )
                 watermark_result = detected_result.model_dump()
-            except Exception as wm_err:  # noqa: BLE001 — Kirchenbauer watermark detection; degraded watermark status must not block notarize
+            except Exception as wm_err:
                 logger.warning(
                     f"Kirchenbauer detection failed (degraded watermark status): {wm_err}"
                 )
@@ -252,7 +253,7 @@ class NotaryServiceProduction:
         try:
             pdf_path = self.artifact_gen.generate(cert_record)
             cert_record["pdf_path"] = pdf_path
-        except Exception as e:  # noqa: BLE001 — PDF generation (reportlab); cert still saved without PDF path
+        except Exception as e:
             logger.error(f"PDF generation failed: {e}")
 
         # P5.1: NotaryDB.save_certificate is now async + takes a single
@@ -279,7 +280,7 @@ def _make_router(service_getter):
     (set in main.py lifespan); the getter reads it from
     `request.app.state`.
     """
-    from app.notary import NotarizeResponse  # noqa: F811
+    from app.notary import NotarizeResponse
 
     router = APIRouter(prefix="/v1", tags=["notary"])
 
@@ -332,7 +333,7 @@ def _make_router(service_getter):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="notarization failed; check server logs for details",
             ) from exc
-        except Exception as exc:  # noqa: BLE001 — safety net for unknown notarize errors; prevents 500 info leak per auditor-9
+        except Exception as exc:
             # Unknown — safety net. Per the 9th-auditor review, route
             # handlers must NOT leak str(exc) to clients (info disclosure).
             logger.exception("notarize: unexpected error")

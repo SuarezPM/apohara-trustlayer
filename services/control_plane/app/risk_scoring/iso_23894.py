@@ -41,9 +41,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +117,7 @@ class Risk:
     treatment: RiskTreatment = RiskTreatment.ACCEPT
     owner: str = ""
     review_cadence_days: int = 90
-    last_reviewed: Optional[str] = None
+    last_reviewed: str | None = None
     persistent_id: str = ""
     """Per Clause 6.7: stable ID for audit traceability."""
 
@@ -184,7 +183,7 @@ class RiskRegister:
             risk.persistent_id = f"risk-{_uuid.uuid4().hex[:8]}"
         self.risks[risk.risk_id] = risk
 
-    def get(self, risk_id: str) -> Optional[Risk]:
+    def get(self, risk_id: str) -> Risk | None:
         return self.risks.get(risk_id)
 
     def by_nist_rmf(self, fn: NISTAIRMFFunction) -> list[Risk]:
@@ -216,7 +215,7 @@ class RiskRegister:
             by_nist_rmf=dict(rmfs),
             by_treatment=dict(treatments),
             highest_residual_risks=top,
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(UTC).isoformat(),
         )
 
 

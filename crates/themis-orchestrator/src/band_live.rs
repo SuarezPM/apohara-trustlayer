@@ -1,13 +1,11 @@
 //! HTTP handlers for the live Band room integration (Story Ola-A).
 //!
-//! * `GET /band-live`        — Server-Sent Events stream of
-//!                             `BandSocketEvent`s from the 6-agent
-//!                             fleet (echoed to the frontend).
-//! * `GET /metrics/band`     — JSON `{ ws_events_total,
-//!                             agents_connected, room_id }`.
-//! * `POST /band/start-room` — spawns 6 agent WebSocket
-//!                             subprocesses on `app.band.ai`,
-//!                             returns the public room URL.
+//! * `GET /band-live` — Server-Sent Events stream of `BandSocketEvent`s
+//!   from the 6-agent fleet (echoed to the frontend).
+//! * `GET /metrics/band` — JSON `{ ws_events_total, agents_connected,
+//!   room_id }`.
+//! * `POST /band/start-room` — spawns 6 agent WebSocket subprocesses on
+//!   `app.band.ai`, returns the public room URL.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;

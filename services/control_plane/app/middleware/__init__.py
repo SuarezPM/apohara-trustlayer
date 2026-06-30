@@ -43,7 +43,6 @@ import os
 
 from fastapi.responses import JSONResponse
 
-
 # Routes that DO NOT require org_id (public, no tenant binding).
 # Per architect IC-3: missing org_id is a loud error, not a
 # silent default. The list below is the explicit allow-list.
@@ -99,7 +98,7 @@ def _decode_jwt_org_id(token: str, jwt_secret: str) -> str | None:
     try:
         header = json.loads(_b64url_decode(header_b64))
         payload = json.loads(_b64url_decode(payload_b64))
-        signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
+        signing_input = f"{header_b64}.{payload_b64}".encode()
         expected_sig = hmac.new(
             jwt_secret.encode("utf-8"),
             signing_input,
@@ -112,7 +111,7 @@ def _decode_jwt_org_id(token: str, jwt_secret: str) -> str | None:
             return None
         org = payload.get("org_id")
         return str(org) if org else None
-    except Exception:  # noqa: BLE001 — JWT decode failure = no valid org_id; request falls to X-Org-Id header or 401
+    except Exception:
         # W8.9.1+narrowed: catch is documented in the function docstring.
         # Any JWT decode/parse failure (binascii.Error, json.JSONDecodeError, KeyError,
         # ValueError, AttributeError) is treated as "no valid org_id" — the request
@@ -142,7 +141,7 @@ def _resolve_org_id_from_scope(scope: dict, jwt_secret: str | None) -> str | Non
         try:
             k = key.decode("latin-1").lower()
             v = value.decode("latin-1")
-        except Exception:  # noqa: BLE001 — malformed ASGI header bytes; skip silently, never crash middleware on one bad header
+        except Exception:
             # W8.9.1+narrowed: catch is documented in the function docstring.
             # Per ASGI spec, headers are (bytes, bytes) tuples. If a header cannot
             # be decoded as latin-1 (which is the only spec-permitted encoding),

@@ -16,7 +16,6 @@ from tests.test_org_id_helpers import OrgIdTestClient
 import sys
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTROL_PLANE = REPO_ROOT / "services" / "control_plane"

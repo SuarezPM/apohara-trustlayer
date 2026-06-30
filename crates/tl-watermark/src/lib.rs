@@ -446,9 +446,9 @@ impl WatermarkProvider for AudioSealWatermark {
 ///
 /// 1. Seed a PRNG with the watermark key + the prompt hash.
 /// 2. For each token in the LLM output:
-///    a. Get the top-N tokens from the model at that position.
-///    b. Partition into "green-list" (size γ × N) and "red-list".
-///    c. During generation, the LLM is biased to pick green-list
+///    1. Get the top-N tokens from the model at that position.
+///    2. Partition into "green-list" (size γ × N) and "red-list".
+///    3. During generation, the LLM is biased to pick green-list
 ///       tokens. The bias is a constant (δ added to logits).
 /// 3. Detection: count green-list tokens in the suspect text.
 ///    Z-test against null hypothesis (no watermark).

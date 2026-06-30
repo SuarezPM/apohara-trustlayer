@@ -16,12 +16,9 @@ custom session/lookup override, exercise the route via TestClient
 
 from __future__ import annotations
 
-import asyncio
 import sys
-import time
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTROL_PLANE = REPO_ROOT / "services" / "control_plane"
@@ -30,7 +27,6 @@ sys.path.insert(0, str(CONTROL_PLANE))
 # Import after sys.path adjustment so the control_plane package is importable.
 from app.api.evidence import (  # noqa: E402
     InMemoryBundleLookup,
-    _select_content_type,
 )
 
 

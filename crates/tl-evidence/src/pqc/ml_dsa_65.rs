@@ -53,6 +53,7 @@ impl MlDsa65KeyPair {
     /// Generate a deterministic keypair from a 32-byte seed (FIPS 204 §4.1).
     pub fn from_seed(seed: &[u8; 32]) -> Self {
         // Seed = B32 = Array<u8, U32>. Construct via GenericArray::from_slice.
+        #[allow(deprecated)]
         let seed_arr = Seed::from_slice(seed);
         let signing_key = SigningKey::<MlDsa65>::from_seed(seed_arr);
         // `verifying_key()` comes from the `Keypair` trait (imported above).
@@ -159,9 +160,10 @@ impl MlDsa65Signature {
             });
         }
         // EncodedSignature<MlDsa65> = Array<u8, U3309>. Construct from slice.
+        #[allow(deprecated)]
         let enc = EncodedSignature::<MlDsa65>::from_slice(bytes);
         // Signature::decode returns Option<Signature<MlDsa65>>.
-        let sig = Signature::<MlDsa65>::decode(&enc).ok_or(MlDsa65VerifyError::InvalidSignature)?;
+        let sig = Signature::<MlDsa65>::decode(enc).ok_or(MlDsa65VerifyError::InvalidSignature)?;
         Ok(Self { inner: sig })
     }
 

@@ -78,6 +78,7 @@ def assess_4_layers(req: DisclosureGenerateRequest) -> ComplianceAssessment:
     # the control plane if unset). Tokenizers live in the LLM serving
     # stack — the control plane accepts `token_ids` and runs z-test.
     import os
+
     from app.watermark_strategy import detect_or_not_applicable
 
     wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
@@ -264,7 +265,7 @@ def verify_provenance(
     try:
         cose_bytes = base64.b64decode(cose_sign1_b64)
         sig_valid = len(cose_bytes) > 0  # stub: any non-empty COSE is "valid"
-    except Exception:  # noqa: BLE001 — stub COSE verifier; base64 decode failure = malformed envelope = invalid sig
+    except Exception:
         # W8.9.1+narrowed: catch is documented in the function docstring.
         # Stub verifier: any base64 decode failure (binascii.Error, ValueError, etc.)
         # means the COSE envelope is malformed, so we treat the signature as invalid.

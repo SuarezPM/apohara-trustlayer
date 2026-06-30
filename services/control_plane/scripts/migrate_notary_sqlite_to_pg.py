@@ -36,11 +36,12 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "services" / "control_plane"))
 
 
+from sqlalchemy import select  # noqa: E402
+
 from app.config import get_settings  # noqa: E402
 from app.db.models import Base, CertificateRecord  # noqa: E402
 from app.db.session import _get_engine, _get_sessionmaker  # noqa: E402
-from app.notary.db import NotaryDB, _row_to_dict  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from app.notary.db import NotaryDB  # noqa: E402
 
 # Mirror of the legacy SQLite `certificates` table column order
 # (see app/notary/db.py::SCHEMA). Must match the SELECT below.
@@ -71,7 +72,7 @@ def _legacy_row_to_dict(row: tuple) -> dict[str, Any]:
     `CertificateRecord`-shaped dict that `NotaryDB.save_certificate`
     consumes (P5.1: single-dict API).
     """
-    out = dict(zip(_LEGACY_COLUMNS, row))
+    out = dict(zip(_LEGACY_COLUMNS, row, strict=False))
     # Parse the legacy timestamp strings to `datetime` so the SQLAlchemy
     # `DateTime(timezone=False)` columns receive naive-UTC values.
     from datetime import datetime as _dt

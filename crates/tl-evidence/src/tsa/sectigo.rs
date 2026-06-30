@@ -90,9 +90,9 @@ impl SectigoTsaClient {
     /// (e.g. `https://timestamp.sectigo.com` for production or
     /// the wiremock server URL for tests).
     ///
-    /// `chain_pem` is the PEM-encoded certificate chain (intermediate
-    /// + root) used to verify the TSA signing cert. The chain is
-    /// held in memory; pass the contents of `chain.pem` from
+    /// `chain_pem` is the PEM-encoded certificate chain (intermediate + root)
+    /// used to verify the TSA signing cert. The chain is held in memory;
+    /// pass the contents of `chain.pem` from
     /// `audit_artifacts/test_fixtures/sectigo/` (or, for tests that
     /// exercise the Sectigo wire format with a different chain, any
     /// RFC 3161-compliant chain will work because the wire format is

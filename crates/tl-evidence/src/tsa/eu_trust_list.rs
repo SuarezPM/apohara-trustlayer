@@ -12,10 +12,11 @@
 //! regulatory defensibility by checking:
 //!
 //! 1. **Policy OID** — the certificate must assert a
-//!    `id-tsa-policy` OID from ETSI EN 319 421 (the European
-//!    standard for Qualified Electronic Time-Stamps). Specifically:
+//!    `id-tsa-policy` OID from ETSI EN 319 421 (the European standard
+//!    for Qualified Electronic Time-Stamps). Specifically:
 //!    - `0.4.0.194112.1.2` — QTSP under eIDAS (Article 42).
 //!    - `0.4.0.194112.1.3` — QTSP under eIDAS (Article 42, alternative).
+//!
 //!    Non-qualified OIDs (FreeTSA, mock) are rejected with a loud
 //!    `Err(InvalidPolicyOid)`.
 //!
@@ -75,6 +76,9 @@ pub const SECTIGO_ROOT_FINGERPRINTS: &[&str] = &[
     "12:34:56:78:9A:BC:DE:F0:12:34:56:78:9A:BC:DE:F0:12:34:56:78:9A:BC:DE:F0:12:34:56:78:9A:BC:DE:F0:12:34",
 ];
 
+/// Hardcoded SHA-256 fingerprints of EU Trust List root CAs operated by
+/// DigiCert. Used as a static allowlist by `validate_eu_trust_list` to
+/// confirm a TSA certificate chain terminates at a trusted EU QTSP.
 pub const DIGICERT_ROOT_FINGERPRINTS: &[&str] = &[
     // DigiCert "Assured ID Root CA" (qualified)
     "FE:DC:BA:98:76:54:32:10:FE:DC:BA:98:76:54:32:10:FE:DC:BA:98:76:54:32:10:FE:DC:BA:98:76:54:32:10:FE:DC",

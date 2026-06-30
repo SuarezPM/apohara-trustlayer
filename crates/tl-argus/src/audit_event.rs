@@ -66,22 +66,31 @@ pub mod hex_signature {
 /// A single tool call made during an LLM turn. Inputs/outputs are
 /// hashed — the audit log stays GDPR-safe even when the tool touches
 /// user data.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ToolCallRecord {
+    /// Name of the tool invoked.
     pub tool_name: String,
+    /// BLAKE3 hash of the tool input (32 bytes).
     #[serde(with = "hex_bytes")]
     pub input_hash: [u8; 32],
+    /// BLAKE3 hash of the tool output (32 bytes).
     #[serde(with = "hex_bytes")]
     pub output_hash: [u8; 32],
+    /// End-to-end tool latency in milliseconds.
     pub latency_ms: u64,
 }
 
 /// The final structured decision an LLM turn produced.
 /// `verdict` is a closed enum-ish string: `"allow"` | `"warn"` | `"block"`.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DecisionArtifact {
+    /// Closed verdict string: "allow" | "warn" | "block".
     pub verdict: String,
+    /// Number of findings the decision is based on.
     pub findings_count: u32,
+    /// Human-readable rationale for the verdict.
     pub rationale: String,
 }
 

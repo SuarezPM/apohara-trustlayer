@@ -330,7 +330,7 @@ class CordonEnforcerMapping:
     audit_log_evidence: list[str] = field(default_factory=list)
 
     @classmethod
-    def all(cls) -> list["CordonEnforcerMapping"]:
+    def all(cls) -> list[CordonEnforcerMapping]:
         """Build the full CordonEnforcer mapping table for all scenarios."""
         all_scenarios = OASB_SCENARIOS + AGENTDOJO_ATTACKS + ATLAS_TECHNIQUES
         return [
@@ -416,7 +416,7 @@ def run_scenario(scenario: AdversarialScenario) -> dict:
     # proof).
     try:
         live_passed, live_audit = _run_live_fixture(scenario)
-    except Exception as e:  # noqa: BLE001 — fixture boundary must never crash callers
+    except Exception as e:
         logger.warning("Live fixture for %s failed: %r", scenario.code, e)
         return {
             "scenario_code": scenario.code,
@@ -477,7 +477,7 @@ def _run_live_fixture(scenario: AdversarialScenario) -> tuple[bool, list[str]]:
             capture_output=True,
             text=True,
             timeout=60,
-            env={**os.environ, "TL_OASB_MOCK": os.environ.get("TL_OASB_MOCK", "0")},
+            env={**os.environ, "TL_OASB_MOCK": os.environ.get("TL_OASB_MOCK", "0")}, check=False,
         )
         audit.append(f"OASB subprocess exit={result.returncode}")
         audit.append(f"OASB stdout (truncated): {result.stdout[:200]}")
@@ -542,9 +542,9 @@ def _check_kirchenbauer_watermark() -> tuple[bool, list[str]]:
     audit: list[str] = []
     try:
         from app.watermark_strategy import (  # noqa: F401
+            kirchenbauer_bias_logits,
             kirchenbauer_detect,
             kirchenbauer_embed_tokens,
-            kirchenbauer_bias_logits,
         )
     except ImportError as e:
         return False, [f"kirchenbauer watermark not importable: {e}"]
@@ -846,8 +846,8 @@ def _check_model_versioning() -> tuple[bool, list[str]]:
     """
     audit: list[str] = []
     try:
-        from app.notary.service import NotaryServiceProduction  # noqa: F401
         from app.notary.models import NotarizeRequest  # noqa: F401
+        from app.notary.service import NotaryServiceProduction  # noqa: F401
     except ImportError as e:
         return False, [f"notary service not importable: {e}"]
     audit.append("NotaryServiceProduction + NotarizeRequest importable")
@@ -986,4 +986,4 @@ __all__ = [
     "CordonEnforcerMapping",
     "run_scenario",
     "_CONTROL_CHECKS",
-] 
+]

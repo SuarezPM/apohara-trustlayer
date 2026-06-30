@@ -255,6 +255,9 @@ impl DORAEvidenceStrategy {
         }
     }
 
+    /// Stub: returns `CheckResult::fail` because per-tenant isolation
+    /// requires Plan v1.2 / Block 3 v1.1.0-US-3 AC-6 wiring (the v1.1.x
+    /// honest-stub path). See `multi_tenant_isolation_stub`.
     pub fn check_multi_tenant_isolation(&self, _ctx: &DORAContext) -> CheckResult {
         // Per Plan v1.2 Block 3 v1.1.0-US-3 AC-6 + Plan v1.2 Block 4
         // v1.1.0.x+1+5: this check explicitly returns pass=false in
@@ -499,9 +502,13 @@ pub enum Status {
 /// `evidence_refs` points at the underlying strategy output.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComplianceReport {
+    /// Compliance framework the report covers (e.g. `DORA`, `ISO42001`).
     pub framework: Framework,
+    /// Overall pass/fail status.
     pub status: Status,
+    /// Human-readable reason for the status (especially when failing).
     pub reason: String,
+    /// Pointer to the underlying strategy output (e.g. file:line, JSON path).
     pub evidence_refs: Vec<String>,
 }
 

@@ -35,7 +35,7 @@ Per SQLAlchemy 2.0 async best practices:
 
 from __future__ import annotations
 
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -116,7 +116,7 @@ def reset_engine_for_tests() -> None:
         # Best-effort dispose. In production, this is never called.
         try:
             _engine.sync_engine.dispose()
-        except Exception:  # noqa: BLE001 — best-effort engine dispose for test cleanup; never block teardown
+        except Exception:
             # W8.9.1+narrowed: catch is documented in the function docstring.
             # Best-effort dispose for test cleanup. Disposal errors are not actionable here
             # (the test is over and we are about to drop the reference anyway). Swallow

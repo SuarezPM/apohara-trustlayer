@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 # Add the control_plane package to sys.path so `app.db.models` resolves.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db.models import Base  # noqa: E402
+from app.db.models import Base
 
 config = context.config
 

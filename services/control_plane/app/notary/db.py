@@ -17,11 +17,11 @@ in-memory or file-backed SQLite via aiosqlite. The migration script
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CertificateRecord
 from app.db.session import get_async_session

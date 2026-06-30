@@ -13,7 +13,6 @@ from app.compliance_mappers import (
     assess_cross_jurisdiction,
     assess_dora_evidence_pack,
     assess_iso_42001_aims,
-    assess_nist_ai_600_1_risks,
     assess_nist_ai_rmf,
     federate_scitt_evidence,
 )

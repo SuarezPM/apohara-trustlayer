@@ -14,16 +14,16 @@ Compliance: EU AI Act Art. 9 (risk management), DORA Art. 11
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_org_id
 from app.risk_scoring.iso_23894 import (
+    NIST_AI_RMF_TO_ISO23894,
     ISO23894Stage,
     NISTAIRMFFunction,
-    NIST_AI_RMF_TO_ISO23894,
     RiskRegister,
     assess_iso_23894_risk,
 )
@@ -150,8 +150,14 @@ def post_add_risk(
     """
     from app.risk_scoring.iso_23894 import (
         ISO23894Stage as _Stage,
+    )
+    from app.risk_scoring.iso_23894 import (
         NISTAIRMFFunction as _RMF,
+    )
+    from app.risk_scoring.iso_23894 import (
         Risk as _Risk,
+    )
+    from app.risk_scoring.iso_23894 import (
         RiskTreatment as _Treatment,
     )
     risk = _Risk(
@@ -168,7 +174,7 @@ def post_add_risk(
         treatment=_Treatment(req.treatment),
         owner=req.owner,
         review_cadence_days=req.review_cadence_days,
-        last_reviewed=datetime.now(timezone.utc).isoformat(),
+        last_reviewed=datetime.now(UTC).isoformat(),
     )
     register = RiskRegister(org_id=org_id)
     register.add(risk)

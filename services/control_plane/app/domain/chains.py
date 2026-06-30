@@ -19,7 +19,7 @@ import hashlib
 import os
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def _hasher():
@@ -115,4 +115,4 @@ def next_row_number(current_head_row_number: int) -> int:
 
 def utcnow() -> datetime:
     """UTC now (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

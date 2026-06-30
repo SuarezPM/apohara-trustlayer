@@ -31,9 +31,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import DisclosureRecord
 from app.api.bundle_lookup import _record_to_bundle_dict
 from app.api.deps import get_org_id
+from app.db.models import DisclosureRecord
 
 # v1.1.0.x+1+2: closed CRÍTICO 2 (66-byte COSE_Sign1 placeholder) by
 # using the real tl-ffi signing function. This path is ONLY for the

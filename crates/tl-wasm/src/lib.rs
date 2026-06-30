@@ -334,8 +334,8 @@ pub(crate) fn detect_watermark_pure(
 pub fn detect_watermark_native(text: &str) -> Result<WatermarkDetection, WasmError> {
     // Default key (matches the Go SDK's DefaultWatermarkConfig).
     let mut key = [0u8; 32];
-    for i in 0..32 {
-        key[i] = (i + 1) as u8;
+    for (i, slot) in key.iter_mut().enumerate() {
+        *slot = (i + 1) as u8;
     }
     detect_watermark_pure(text, &key, DEFAULT_GAMMA, DEFAULT_THRESHOLD)
 }

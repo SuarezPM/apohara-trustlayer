@@ -18,7 +18,6 @@ sessionmaker across tests). These focused tests:
 """
 from __future__ import annotations
 
-import asyncio
 import os
 import sqlite3
 import tempfile
