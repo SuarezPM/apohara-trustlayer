@@ -45,6 +45,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 
+from app.constants import (
+    RESIDUAL_BAND_CRITICAL,
+    RESIDUAL_BAND_HIGH,
+    RESIDUAL_BAND_MEDIUM,
+    RISK_IMPACT_MAX,
+    RISK_LIKELIHOOD_MAX,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,10 +135,10 @@ class Risk:
     """Per Clause 6.7: stable ID for audit traceability."""
 
     def __post_init__(self):
-        if not 1 <= self.likelihood <= 5:
-            raise ValueError(f"likelihood must be 1-5, got {self.likelihood}")
-        if not 1 <= self.impact <= 5:
-            raise ValueError(f"impact must be 1-5, got {self.impact}")
+        if not 1 <= self.likelihood <= RISK_LIKELIHOOD_MAX:
+            raise ValueError(f"likelihood must be 1-{RISK_LIKELIHOOD_MAX}, got {self.likelihood}")
+        if not 1 <= self.impact <= RISK_IMPACT_MAX:
+            raise ValueError(f"impact must be 1-{RISK_IMPACT_MAX}, got {self.impact}")
         if not 0.0 <= self.control_effectiveness <= 1.0:
             raise ValueError(f"control_effectiveness must be 0-1, got {self.control_effectiveness}")
         # Inherent risk = L x I (before controls)
@@ -144,11 +152,11 @@ class Risk:
     @property
     def risk_band(self) -> str:
         """Map residual risk score to a 5x5 heatmap band."""
-        if self.residual_risk_score >= 16:
+        if self.residual_risk_score >= RESIDUAL_BAND_CRITICAL:
             return "critical"  # 4-5 x 4-5
-        if self.residual_risk_score >= 9:
+        if self.residual_risk_score >= RESIDUAL_BAND_HIGH:
             return "high"  # 3-5 x 3-5
-        if self.residual_risk_score >= 4:
+        if self.residual_risk_score >= RESIDUAL_BAND_MEDIUM:
             return "medium"  # 2-4 x 2-4
         return "low"  # 1-2 x 1-2
 

@@ -22,6 +22,11 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from app.constants import (
+    RESIDUAL_BAND_CRITICAL,
+    RESIDUAL_BAND_HIGH,
+    RESIDUAL_BAND_MEDIUM,
+)
 from app.risk_scoring.iso_23894 import (
     ISO23894Stage,
     NISTAIRMFFunction,
@@ -159,11 +164,11 @@ class DBRiskRegister(RiskRegister):
 
 
 def _band(residual: int) -> str:
-    if residual >= 16:
+    if residual >= RESIDUAL_BAND_CRITICAL:
         return "critical"
-    if residual >= 9:
+    if residual >= RESIDUAL_BAND_HIGH:
         return "high"
-    if residual >= 4:
+    if residual >= RESIDUAL_BAND_MEDIUM:
         return "medium"
     return "low"
 

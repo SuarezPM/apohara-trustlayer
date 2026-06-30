@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field  # noqa: F401  (kept for legacy callers)
 
+from app.constants import HASH_OUTPUT_BYTES
+
 if TYPE_CHECKING:
     from app.notary.certificate_generator import CertificateArtifactGenerator
     from app.notary.db import NotaryDB
@@ -218,9 +220,9 @@ class NotaryServiceProduction:
 
                 # Detection key: TL_TEXT_WATERMARK_KEY env or all-zero dev
                 wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
-                wm_key = wm_key_env.encode("utf-8")[:32] if wm_key_env else b"\x00" * 32
-                if len(wm_key) < 32:
-                    wm_key = wm_key + b"\x00" * (32 - len(wm_key))
+                wm_key = wm_key_env.encode("utf-8")[:HASH_OUTPUT_BYTES] if wm_key_env else b"\x00" * HASH_OUTPUT_BYTES
+                if len(wm_key) < HASH_OUTPUT_BYTES:
+                    wm_key = wm_key + b"\x00" * (HASH_OUTPUT_BYTES - len(wm_key))
 
                 detected_result = kirchenbauer_detect(
                     tokens=list(token_ids),

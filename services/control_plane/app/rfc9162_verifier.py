@@ -30,6 +30,8 @@ from __future__ import annotations
 import hashlib
 import logging
 
+from app.constants import HASH_OUTPUT_BYTES, MAX_INTERNAL_EVIDENCE_BYTES
+
 logger = logging.getLogger(__name__)
 
 
@@ -157,18 +159,18 @@ def reconstruct_root_ccf(
 
     Returns: bytes of the reconstructed root.
     """
-    if len(internal_transaction_hash) != 32:
+    if len(internal_transaction_hash) != HASH_OUTPUT_BYTES:
         raise ValueError("internal_transaction_hash must be 32 bytes")
-    if not 1 <= len(internal_evidence) <= 1024:
-        raise ValueError(f"internal_evidence must be 1-1024 bytes, got {len(internal_evidence)}")
-    if len(data_hash) != 32:
+    if not 1 <= len(internal_evidence) <= MAX_INTERNAL_EVIDENCE_BYTES:
+        raise ValueError(f"internal_evidence must be 1-{MAX_INTERNAL_EVIDENCE_BYTES} bytes, got {len(internal_evidence)}")
+    if len(data_hash) != HASH_OUTPUT_BYTES:
         raise ValueError("data_hash must be 32 bytes")
 
     evidence_digest = hashlib.sha256(internal_evidence).digest()
     h = hashlib.sha256(internal_transaction_hash + evidence_digest + data_hash).digest()
 
     for is_left, sibling in audit_path:
-        if len(sibling) != 32:
+        if len(sibling) != HASH_OUTPUT_BYTES:
             raise ValueError("audit path siblings must be 32 bytes")
         if is_left:
             h = hashlib.sha256(h + sibling).digest()
@@ -303,9 +305,9 @@ def extract_sth_root(sth_bytes: bytes) -> str | None:
 
     # Fallback: scan for a 32-byte sequence that looks like a SHA-256
     # root hash (heuristic; production uses cbor2 decode).
-    if len(sth_bytes) >= 32:
+    if len(sth_bytes) >= HASH_OUTPUT_BYTES:
         # Return the first 32 bytes as hex (heuristic fallback)
-        return sth_bytes[:32].hex()
+        return sth_bytes[:HASH_OUTPUT_BYTES].hex()
     return None
 
 

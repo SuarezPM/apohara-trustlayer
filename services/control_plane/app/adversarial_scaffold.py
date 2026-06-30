@@ -80,6 +80,8 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.constants import MIN_DEFENSE_LAYERS_REQUIRED
+
 logger = logging.getLogger(__name__)
 
 
@@ -580,7 +582,7 @@ def _check_untrusted_tool_outputs() -> tuple[bool, list[str]]:
         )
         # BOTH sentinel positions must carry the nonce for defense-in-depth
         # (per commit c11ccc9).
-        if src.count("APOHARA_UNTRUSTED") >= 2:
+        if src.count("APOHARA_UNTRUSTED") >= MIN_DEFENSE_LAYERS_REQUIRED:
             audit.append(
                 "Nonce present in BOTH sentinel positions (BEGIN + END) "
                 "— defense-in-depth per commit c11ccc9"
@@ -793,7 +795,7 @@ def _check_input_injection_defense() -> tuple[bool, list[str]]:
                 "(GoalOverride + SystemOverride + RoleImpersonation + "
                 "SecretExtraction + Jailbreak)"
             )
-    if len(audit) >= 2:
+    if len(audit) >= MIN_DEFENSE_LAYERS_REQUIRED:
         return True, audit
     return False, [*audit, "prompt injection defense incomplete"]
 
@@ -900,7 +902,7 @@ def _check_agent_context_isolation() -> tuple[bool, list[str]]:
         audit.append("tl-context/src/context.rs: ContextBudget enforcement present")
     if (ctx / "z3_inv15.rs").exists():
         audit.append("tl-context/src/z3_inv15.rs: Z3 UNSAT proof wrapper (10.08 ms per Z3 4.16.0)")
-    if len(audit) >= 2:
+    if len(audit) >= MIN_DEFENSE_LAYERS_REQUIRED:
         return True, audit
     return False, [*audit, "agent context isolation incomplete"]
 
@@ -932,7 +934,7 @@ def _check_context_poisoning_defense() -> tuple[bool, list[str]]:
                 "apohara-agentguard/src/firewall/: 5-category regex "
                 "(catches context-poisoning payloads)"
             )
-    if len(audit) >= 2:
+    if len(audit) >= MIN_DEFENSE_LAYERS_REQUIRED:
         return True, audit
     return False, [*audit, "context poisoning defense incomplete"]
 

@@ -58,6 +58,27 @@ DEFAULT_NOTARY_DB_PATH: Final[str] = "notary.db"
 # but easier to detect; lower γ → less visible watermark. Default 0.25.  # noqa: RUF003
 DEFAULT_GAMMA: Final[float] = 0.25
 
+# Number of bytes used for both the watermark detection key and the SHA-256 /
+# BLAKE3 hash output. Matches the BLAKE3 default output size; the watermark
+# key is padded/truncated to this length. Per Kirchenbauer §3.1 and RFC 9162
+# §2.1 (SHA-256 Merkle tree leaf hash). Used in:
+# - watermark_strategy._normalise_key (key32 padding)
+# - watermark_strategy._score_tokens / _bias_logits
+# - domain.disclosure_service.assess_4_layers
+# - notary.service.detect_watermark
+# - rfc9162_verifier.verify_inclusion / _parse_signed_tree_head
+# - constants.env_text_watermark_key
+HASH_OUTPUT_BYTES: Final[int] = 32
+
+# Maximum size of the internal `internal_evidence` payload accepted by the
+# RFC 9162 inclusion verifier. Above this we reject to bound decode cost and
+# avoid feeding multi-MB blobs into hashlib.sha256. Per rfc9162_verifier.py.
+MAX_INTERNAL_EVIDENCE_BYTES: Final[int] = 1024
+
+# Maximum characters shown in the COSE_Sign1 preview row of the notary
+# certificate PDF (truncates with ellipsis if longer).
+COSE_PREVIEW_CHARS: Final[int] = 80
+
 # One-sided z-score threshold per Kirchenbauer §4 (z > 4.0 → p < 0.00003).
 DEFAULT_Z_THRESHOLD: Final[float] = 4.0
 
@@ -106,6 +127,60 @@ EU_TRUST_LIST_FINGERPRINTS: Final[dict[str, str]] = {
 
 
 # ============================================================================
+# ISO/IEC 23894:2023 risk register — band thresholds + field validation
+# ============================================================================
+
+# Residual-risk score → band mapping (5x5 heatmap, post-control):
+#   >= 16 → critical (top-right of 5x5 matrix)
+#   >=  9 → high
+#   >=  4 → medium
+#   <   4 → low
+# Per ISO/IEC 23894:2023 Clause 6.4 + NIST AI RMF 1.0 severity tiers.
+RESIDUAL_BAND_CRITICAL: Final[int] = 16
+RESIDUAL_BAND_HIGH: Final[int] = 9
+RESIDUAL_BAND_MEDIUM: Final[int] = 4
+
+# Per-field validation range for ISO 23894 Risk dataclass (1-5 likelihood /
+# impact scale per Clause 6.3).
+RISK_LIKELIHOOD_MAX: Final[int] = 5
+RISK_IMPACT_MAX: Final[int] = 5
+
+
+# ============================================================================
+# Regulatory deadline warning threshold (W2 PLD compliance endpoints)
+# ============================================================================
+
+# If days remaining until a regulatory deadline is below this, the
+# /v1/pld/deadline endpoint returns `"status": "urgent"`. Operators use
+# this to escalate pacing before the EU AI Act / PLD transposition dates.
+REGULATORY_URGENT_DAYS: Final[int] = 30
+
+
+# ============================================================================
+# Adversarial scaffold minimum defense-layer threshold
+# ============================================================================
+
+# Minimum number of independent defense-layer audit entries required for
+# an AD-* / AML.T*-* scenario check to be considered PASS. Two layers is
+# the engineering baseline (defense-in-depth per commit c11ccc9).
+MIN_DEFENSE_LAYERS_REQUIRED: Final[int] = 2
+
+
+# ============================================================================
+# COSE / CMS structural-validation thresholds (verification page UI)
+# ============================================================================
+
+# Minimum decoded-byte length for a COSE_Sign1 envelope to be considered
+# structurally valid (RFC 9052 §4.4 array must contain >= protected + payload).
+COSE_SIGN1_MIN_BYTES: Final[int] = 2
+
+# DER SEQUENCE identifier (X.690 §8.1). The first byte of a valid CMS
+# ContentInfo (RFC 5652 §3) must be 0x30. Used as a quick structural check
+# for the TSA token in the verification page.
+ASN1_SEQUENCE_TAG: Final[int] = 0x30
+
+
+# ============================================================================
 # Helpers — env-var overrides for production tuning
 # ============================================================================
 
@@ -123,12 +198,19 @@ def env_text_watermark_key() -> bytes:
     """
     env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
     if env:
-        b = env.encode("utf-8")[:32]
-        return b + b"\x00" * (32 - len(b)) if len(b) < 32 else b
-    return b"\x00" * 32
+        b = env.encode("utf-8")[:HASH_OUTPUT_BYTES]
+        return (
+            b + b"\x00" * (HASH_OUTPUT_BYTES - len(b))
+            if len(b) < HASH_OUTPUT_BYTES
+            else b
+        )
+    return b"\x00" * HASH_OUTPUT_BYTES
 
 
 __all__ = [
+    "ASN1_SEQUENCE_TAG",
+    "COSE_PREVIEW_CHARS",
+    "COSE_SIGN1_MIN_BYTES",
     "DEFAULT_BPE_VOCAB_SIZE",
     "DEFAULT_GAMMA",
     "DEFAULT_ISSUER_DID",
@@ -139,11 +221,20 @@ __all__ = [
     "DEFAULT_TSA_URL",
     "DEFAULT_Z_THRESHOLD",
     "EU_TRUST_LIST_FINGERPRINTS",
+    "HASH_OUTPUT_BYTES",
+    "MAX_INTERNAL_EVIDENCE_BYTES",
+    "MIN_DEFENSE_LAYERS_REQUIRED",
     "OID_ES_I4_QTST_STATEMENT_1",
     "OID_ETSI_TSTS",
     "OID_QC_STATEMENTS",
     "OID_QC_TSTS",
     "OID_QC_TSTS_ARCH",
+    "REGULATORY_URGENT_DAYS",
+    "RESIDUAL_BAND_CRITICAL",
+    "RESIDUAL_BAND_HIGH",
+    "RESIDUAL_BAND_MEDIUM",
+    "RISK_IMPACT_MAX",
+    "RISK_LIKELIHOOD_MAX",
     "env_text_watermark_key",
     "env_tsa_url",
 ]

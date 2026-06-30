@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_org_id
+from app.constants import REGULATORY_URGENT_DAYS
 from app.pld_shield import (
     EU_AI_ACT_ART_50_DEADLINE,
     ISO_42001_BS_EN,
@@ -267,7 +268,7 @@ async def get_regulatory_deadline(
         "regulation": regulation,
         "deadline": deadline_str,
         "days_remaining": days_remaining,
-        "status": "urgent" if days_remaining < 30 else "on_track",
+        "status": "urgent" if days_remaining < REGULATORY_URGENT_DAYS else "on_track",
     }
 
 

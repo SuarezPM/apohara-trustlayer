@@ -15,6 +15,7 @@ from typing import Any
 import structlog
 
 from app.config import get_settings
+from app.constants import HASH_OUTPUT_BYTES
 from app.domain.chains import (
     GENESIS_HASH,
     compute_row_hash,
@@ -86,11 +87,11 @@ def assess_4_layers(req: DisclosureGenerateRequest) -> ComplianceAssessment:
     # so tests are deterministic. Production MUST set this to a
     # 32-byte secret in TL_TEXT_WATERMARK_KEY.
     if wm_key_env:
-        wm_key = wm_key_env.encode("utf-8")[:32]
-        if len(wm_key) < 32:
-            wm_key = wm_key + b"\x00" * (32 - len(wm_key))
+        wm_key = wm_key_env.encode("utf-8")[:HASH_OUTPUT_BYTES]
+        if len(wm_key) < HASH_OUTPUT_BYTES:
+            wm_key = wm_key + b"\x00" * (HASH_OUTPUT_BYTES - len(wm_key))
     else:
-        wm_key = b"\x00" * 32
+        wm_key = b"\x00" * HASH_OUTPUT_BYTES
 
     # token_ids is optional on the request; honour it when present.
     wm_token_ids = None

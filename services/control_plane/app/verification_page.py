@@ -23,6 +23,8 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from app.constants import ASN1_SEQUENCE_TAG, COSE_SIGN1_MIN_BYTES
+
 if TYPE_CHECKING:
     from app.notary_production import NotaryDB
 
@@ -144,7 +146,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
             raw = base64.b64decode(cose_b64, validate=True)
             # COSE_Sign1 array: [protected, unprotected, payload, signature]
             # (RFC 9052 §4.4). Minimal structural check: non-empty + protected header present.
-            if len(raw) >= 2:
+            if len(raw) >= COSE_SIGN1_MIN_BYTES:
                 steps.append(
                     f"[STRUCTURE_OK] COSE_Sign1 envelope parsed ({len(raw)} bytes); "
                     f"protected header + signature present"
@@ -162,7 +164,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
         try:
             raw = base64.b64decode(tsa_token_b64, validate=True)
             # CMS ContentInfo starts with SEQUENCE tag (0x30) — minimal structural check.
-            if raw and raw[0] == 0x30:
+            if raw and raw[0] == ASN1_SEQUENCE_TAG:
                 steps.append(f"[STRUCTURE_OK] TSA token parsed ({len(raw)} bytes CMS ContentInfo)")
             else:
                 steps.append(

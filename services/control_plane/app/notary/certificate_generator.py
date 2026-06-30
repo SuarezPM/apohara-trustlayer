@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from app.constants import COSE_PREVIEW_CHARS
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,8 +116,12 @@ class CertificateArtifactGenerator:
             ],
             [
                 "COSE_Sign1 (truncated)",
-                (cert.get("cose_sign1_b64", "") or "")[:80]
-                + ("…" if len(cert.get("cose_sign1_b64", "") or "") > 80 else ""),
+                (cert.get("cose_sign1_b64", "") or "")[:COSE_PREVIEW_CHARS]
+                + (
+                    "…"
+                    if len(cert.get("cose_sign1_b64", "") or "") > COSE_PREVIEW_CHARS
+                    else ""
+                ),
             ],
         ]
         story.append(self._kv_table(crypto_rows))
