@@ -50,6 +50,9 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - name: Install protoc
+        # Required by themis-evidence/build.rs (Rekor v2 protobuf codegen).
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           components: clippy
@@ -70,6 +73,12 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      # macOS / Windows: protoc binaries are pre-installed on the
+      # GitHub-hosted runners, so no extra setup needed. Linux needs
+      # protobuf-compiler for themis-evidence/build.rs (Rekor v2 codegen).
+      - name: Install protoc (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
@@ -103,7 +112,9 @@ jobs:
       # cargo-deny and cargo-audit share the same RustSec advisory DB but
       # sometimes catch a crate the other misses (different version range
       # matching, different sourcing).
-      - run: cargo audit
+      # --no-fetch reuses the advisory DB populated by `cargo deny` above
+      # (cargo-audit refuses to git-clone into a non-empty dir).
+      - run: cargo audit --no-fetch
 
   # ===========================================================================
   # PYTHON JOBS
@@ -152,7 +163,10 @@ jobs:
         run: pip install --upgrade "pip==24.3.1" "uv==0.5.11"
       - name: Run pytest suite
         env:
-          PYTHONPATH: services
+          # `app` lives at services/control_plane/app/; PYTHONPATH must
+          # point at the package root (services/control_plane) so
+          # `from app.x import y` resolves under `uv run --no-project`.
+          PYTHONPATH: services/control_plane
         run: |
           uv run --no-project \
             --with pytest --with pytest-asyncio --with pytest-cov \
@@ -160,6 +174,7 @@ jobs:
             --with 'pydantic[email]' --with pydantic-settings \
             --with sqlalchemy --with asyncpg --with structlog \
             --with pyjwt --with uvicorn \
+            --with cryptography \
             --with maturin \
             pytest tests/ -v --tb=short
 

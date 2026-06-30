@@ -4,6 +4,15 @@
 #
 #    pip-compile --generate-hashes --output-file=requirements-audit.txt /tmp/requirements.in
 #
+greenlet==3.5.3 \
+    --hash=sha256:719757059f5a53fd0dde23f78cffeafcdd97b21c850ddb7ca684a3c1a1f122e2 \
+    --hash=sha256:efa9f765dd09f9d0cdac651ffdf631ee59ec5dc6ee7a73e0c012ba9c52fbdf5b \
+    --hash=sha256:87142215824be6ac05e2e8e2786eec307ccbc27c36723c3881959df654af6861 \
+    --hash=sha256:6b1b0eed82364b0e32c4ea0f221452d33e6bb17ae094d9f72aed9851812747ea \
+    --hash=sha256:cde8adafa2365676f74a979744629589999093bc86e2484214f58e61df08902c \
+    # via sqlalchemy (transitive: pulled in via greenlet!=0.4.17 constraint
+    # from SQLAlchemy's metadata. pin to silence --require-hashes mode.)
+
 annotated-types==0.7.0 \
     --hash=sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53 \
     --hash=sha256:aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89
