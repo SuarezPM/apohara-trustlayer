@@ -162,6 +162,10 @@ jobs:
           python-version: "3.12"
       - name: Install uv
         run: pip install --upgrade "pip==26.1.2" "uv==0.5.11"
+      - name: Install protoc
+        # Required by tests/test_config_fail_fast.py::test_tsa_fail_fast_compile_test
+        # which spawns cargo test tsa::tests (uses prost-build / Rekor v2 codegen).
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run pytest suite
         env:
           # `app` lives at services/control_plane/app/; PYTHONPATH must
