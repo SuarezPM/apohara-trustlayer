@@ -8,6 +8,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # starlette 0.x → 1.x is a major-version bump with breaking FastAPI
+    # integration. Track migration in v1.2.x; ignore major versions here
+    # so dependabot only proposes minor/patch bumps that are safe to
+    # roll forward.
+    ignore:
+      - dependency-name: "starlette"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
