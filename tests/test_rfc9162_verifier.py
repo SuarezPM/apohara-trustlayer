@@ -4,6 +4,7 @@
 The verifier is a library (no FastAPI router). Tests exercise the
 reconstruction + verification primitives directly.
 """
+
 from __future__ import annotations
 
 import hashlib

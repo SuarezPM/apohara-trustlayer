@@ -199,11 +199,7 @@ def env_text_watermark_key() -> bytes:
     env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
     if env:
         b = env.encode("utf-8")[:HASH_OUTPUT_BYTES]
-        return (
-            b + b"\x00" * (HASH_OUTPUT_BYTES - len(b))
-            if len(b) < HASH_OUTPUT_BYTES
-            else b
-        )
+        return b + b"\x00" * (HASH_OUTPUT_BYTES - len(b)) if len(b) < HASH_OUTPUT_BYTES else b
     return b"\x00" * HASH_OUTPUT_BYTES
 
 

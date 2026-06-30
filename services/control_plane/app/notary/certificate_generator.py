@@ -158,11 +158,7 @@ class CertificateArtifactGenerator:
             [
                 "COSE_Sign1 (truncated)",
                 (cert.get("cose_sign1_b64", "") or "")[:COSE_PREVIEW_CHARS]
-                + (
-                    "…"
-                    if len(cert.get("cose_sign1_b64", "") or "") > COSE_PREVIEW_CHARS
-                    else ""
-                ),
+                + ("…" if len(cert.get("cose_sign1_b64", "") or "") > COSE_PREVIEW_CHARS else ""),
             ],
         ]
         return [

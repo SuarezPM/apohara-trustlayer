@@ -10,6 +10,7 @@ This module provides a `TestClient` wrapper that:
 2. Auto-attaches the org_resolver_middleware (for test apps that
    don't include it via main.create_app()).
 """
+
 from __future__ import annotations
 
 # Make the control_plane app importable for `from app.middleware import ...`
@@ -22,7 +23,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-control_plane_dir = Path(__file__).resolve().parent.parent / "services" / "control_plane"
+control_plane_dir = (
+    Path(__file__).resolve().parent.parent / "services" / "control_plane"
+)
 sys.path.insert(0, str(control_plane_dir))
 
 from fastapi import FastAPI  # noqa: E402
@@ -40,6 +43,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 # rationale.
 try:
     from app.middleware import OrgResolverASGIMiddleware
+
     _HAS_ASGI_MIDDLEWARE = True
 except ImportError:
     _HAS_ASGI_MIDDLEWARE = False
@@ -69,10 +73,14 @@ class OrgIdTestClient:
         self._org_id = org_id
 
     def get(self, path, **kwargs):
-        return self._client.get(path, headers=self._inject(kwargs.pop("headers", None)), **kwargs)
+        return self._client.get(
+            path, headers=self._inject(kwargs.pop("headers", None)), **kwargs
+        )
 
     def post(self, path, **kwargs):
-        return self._client.post(path, headers=self._inject(kwargs.pop("headers", None)), **kwargs)
+        return self._client.post(
+            path, headers=self._inject(kwargs.pop("headers", None)), **kwargs
+        )
 
     def _inject(self, existing):
         h = dict(existing) if existing else {}

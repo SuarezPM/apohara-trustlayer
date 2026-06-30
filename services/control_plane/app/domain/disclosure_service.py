@@ -79,11 +79,7 @@ def _resolve_watermark_layer(req: DisclosureGenerateRequest) -> ComplianceLayerS
         wm_key = b"\x00" * HASH_OUTPUT_BYTES
 
     # token_ids / vocab_size are optional on the request; honour them when present.
-    wm_token_ids = (
-        list(req.options.token_ids)
-        if getattr(req.options, "token_ids", None)
-        else None
-    )
+    wm_token_ids = list(req.options.token_ids) if getattr(req.options, "token_ids", None) else None
     wm_vocab = (
         int(req.options.vocab_size)
         if getattr(req.options, "vocab_size", None)

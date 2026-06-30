@@ -25,6 +25,7 @@ separately (env-var-driven, no live AWS/Thales calls):
 - TL_AWS_KMS_KEY_ID set → AWSKmsMLDSASigner (mocked boto3 so no real KMS call)
 - TL_THALES_PKCS11_MODULE set → ThalesLunaPqcSigner (mocked pkcs11)
 """
+
 from __future__ import annotations
 
 import base64
@@ -65,6 +66,7 @@ class FakeSigner:
         # Deterministic 64-byte signature (not a real Ed25519 sig — but
         # we don't verify the cryptographic sig here, only the header).
         import hashlib
+
         return hashlib.sha256(b"fake-sig:" + payload).digest()[:64]
 
 
@@ -153,9 +155,9 @@ def test_cose_sign1_protected_header_uses_signer_algorithm(
     )
 
     decoded = _decode_cose_sign1(cose)
-    assert decoded["protected"]["alg"] == algorithm, (
-        f"alg mismatch: expected {algorithm}, got {decoded['protected']['alg']}"
-    )
+    assert (
+        decoded["protected"]["alg"] == algorithm
+    ), f"alg mismatch: expected {algorithm}, got {decoded['protected']['alg']}"
     assert decoded["protected"]["typ"] == "application/notary+cose"
     assert decoded["protected"]["kid"].endswith("#test-key-1")
     # The CWT payload carries the cert_id we asked for.
@@ -185,6 +187,7 @@ def test_get_signer_defaults_to_ephemeral_when_no_env_vars(
     monkeypatch.delenv("TL_PREFER_THALES", raising=False)
 
     from app.hsm_adapter import get_signer, EphemeralEd25519Signer
+
     signer = get_signer()
     assert isinstance(signer, EphemeralEd25519Signer)
     assert signer.algorithm() == "EdDSA"
@@ -199,7 +202,9 @@ def test_get_signer_picks_aws_kms_when_key_id_set(
     constructor so no real AWS call is made. Production would
     install boto3 and have valid IAM credentials.
     """
-    monkeypatch.setenv("TL_AWS_KMS_KEY_ID", "arn:aws:kms:us-east-1:123456789012:key/abcd1234")
+    monkeypatch.setenv(
+        "TL_AWS_KMS_KEY_ID", "arn:aws:kms:us-east-1:123456789012:key/abcd1234"
+    )
     monkeypatch.delenv("TL_THALES_PKCS11_MODULE", raising=False)
 
     # Mock the boto3 client so AWSKmsMLDSASigner.__init__ doesn't
@@ -229,18 +234,21 @@ def test_get_signer_picks_aws_kms_when_key_id_set(
         client = _FakeBoto
 
     import sys
+
     fake_boto3 = type(sys)("boto3")
     fake_boto3.client = _FakeBoto
     sys.modules["boto3"] = fake_boto3
 
     try:
         from app import hsm_adapter
+
         hsm_adapter.boto3 = fake_boto3  # so the `import boto3` inside resolves
         from app.hsm_adapter import get_signer, AWSKmsMLDSASigner
+
         signer = get_signer()
-        assert isinstance(signer, AWSKmsMLDSASigner), (
-            f"expected AWSKmsMLDSASigner, got {type(signer).__name__}"
-        )
+        assert isinstance(
+            signer, AWSKmsMLDSASigner
+        ), f"expected AWSKmsMLDSASigner, got {type(signer).__name__}"
         assert signer.algorithm() == "ML-DSA-65"
         assert "mldsa65:" in signer.key_fingerprint()
     finally:
@@ -265,6 +273,7 @@ def test_get_signer_picks_thales_when_pkcs11_module_set(
 
     try:
         from app.hsm_adapter import get_signer
+
         try:
             get_signer()
         except (ImportError, OSError, FileNotFoundError):
@@ -275,7 +284,10 @@ def test_get_signer_picks_thales_when_pkcs11_module_set(
         # via the env-var-driven selection in the function before the
         # module load).
         from app import hsm_adapter as _ha
-        assert _ha.os.environ.get("TL_THALES_PKCS11_MODULE") == "/tmp/notareal-pkcs11.so"
+
+        assert (
+            _ha.os.environ.get("TL_THALES_PKCS11_MODULE") == "/tmp/notareal-pkcs11.so"
+        )
     finally:
         # Pass if we got here without crashing on selection logic.
         pass
@@ -320,15 +332,15 @@ def test_cose_sign1_signature_is_over_canonical_sign_structure() -> None:
     assert len(captured_payloads) == 1
     sig_struct = captured_payloads[0]
     # The first segment is the ASCII byte "Signature1".
-    assert sig_struct.startswith(b"Signature1"), (
-        f"first 10 bytes should be b'Signature1', got {sig_struct[:10]!r}"
-    )
+    assert sig_struct.startswith(
+        b"Signature1"
+    ), f"first 10 bytes should be b'Signature1', got {sig_struct[:10]!r}"
     # The structure has the form: b"Signature1" \x00 protected \x00 aad \x00 payload.
     # Empty external_aad = b"" → two consecutive \x00 separators, so we
     # see exactly 3 \x00 bytes total in the body of the structure.
-    assert sig_struct.count(b"\x00") == 3, (
-        f"expected 3 NUL separators (empty aad), got {sig_struct.count(b'\\x00')}"
-    )
+    assert (
+        sig_struct.count(b"\x00") == 3
+    ), f"expected 3 NUL separators (empty aad), got {sig_struct.count(b'\\x00')}"
     assert b"\x00\x00" in sig_struct  # empty aad → adjacent separators
 
 
@@ -354,9 +366,7 @@ def test_ephemeral_ed25519_signer_produces_verifiable_signature() -> None:
     # We can't directly verify because the EphemeralEd25519Signer
     # generates a fresh key per call (by design — no persistence). But
     # we CAN verify the signature length and that it's non-empty.
-    assert len(signature) == 64, (
-        f"Ed25519 sig must be 64 bytes, got {len(signature)}"
-    )
+    assert len(signature) == 64, f"Ed25519 sig must be 64 bytes, got {len(signature)}"
     assert signature != b"\x00" * 64
     # Algorithm name is the COSE IANA-registered "EdDSA".
     assert signer.algorithm() == "EdDSA"

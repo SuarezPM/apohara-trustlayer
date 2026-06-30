@@ -91,6 +91,7 @@ class _BundleRecordAdapter:
     def __getattr__(self, name):
         return self.bundle.get(name)
 
+
 # Importing main lazily because it triggers structlog config
 # which needs the env vars set. We construct the app directly.
 def _make_client():
@@ -149,6 +150,7 @@ def _make_empty_client():
         class _EmptySession:
             async def execute(self, _stmt):
                 return _NullResult()
+
         return _EmptySession()
 
     app = FastAPI()
@@ -169,8 +171,15 @@ def test_accept_json_returns_evidence_bundle_v1() -> None:
     assert r.headers["content-type"].startswith("application/json")
     body = r.json()
     # evidence_bundle_v1 has these required keys
-    for key in ("bundle_id", "created_at", "disclosures", "key_chain",
-                "signature", "verification_instructions", "disclaimers"):
+    for key in (
+        "bundle_id",
+        "created_at",
+        "disclosures",
+        "key_chain",
+        "signature",
+        "verification_instructions",
+        "disclaimers",
+    ):
         assert key in body, f"missing key {key!r} in response"
     assert body["bundle_id"] == "test-bundle-1"
     assert isinstance(body["disclaimers"], list)
@@ -187,14 +196,22 @@ def test_accept_scitt_returns_scitt_receipt() -> None:
     assert r.headers["content-type"].startswith("application/scitt+json")
     body = r.json()
     # SCITTReceipt has these required keys (matches Rust SCITTReceipt struct)
-    for key in ("payload", "cose_sign1", "issuer_kid",
-                "issuer_pubkey_fingerprint", "inclusion_proof",
-                "issued_at", "registry_id"):
+    for key in (
+        "payload",
+        "cose_sign1",
+        "issuer_kid",
+        "issuer_pubkey_fingerprint",
+        "inclusion_proof",
+        "issued_at",
+        "registry_id",
+    ):
         assert key in body, f"missing key {key!r} in SCITT response"
-    assert HEX64.match(body["issuer_pubkey_fingerprint"]), \
-        f"fingerprint must be 64 hex chars: {body['issuer_pubkey_fingerprint']!r}"
+    assert HEX64.match(
+        body["issuer_pubkey_fingerprint"]
+    ), f"fingerprint must be 64 hex chars: {body['issuer_pubkey_fingerprint']!r}"
     # payload is base64
     import base64
+
     payload_bytes = base64.b64decode(body["payload"])
     parsed = json.loads(payload_bytes)
     assert parsed["bundle_id"] == "test-bundle-2"
@@ -258,8 +275,12 @@ def test_synthetic_bundle_is_deterministic() -> None:
     in the SCITT envelope.
     """
     client = _make_client()
-    r1 = client.get("/v1/evidence/deterministic-test", headers={"Accept": "application/scitt+json"})
-    r2 = client.get("/v1/evidence/deterministic-test", headers={"Accept": "application/scitt+json"})
+    r1 = client.get(
+        "/v1/evidence/deterministic-test", headers={"Accept": "application/scitt+json"}
+    )
+    r2 = client.get(
+        "/v1/evidence/deterministic-test", headers={"Accept": "application/scitt+json"}
+    )
     assert r1.json() == r2.json(), "synthetic SCITT receipt must be deterministic"
 
 

@@ -18,6 +18,7 @@ Scenarios covered (15 total):
 A FAIL on any scenario is a real finding for the CISO — it means the
 corresponding TrustLayer control is missing or malformed.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -73,15 +74,19 @@ def test_run_scenario_returns_real_verdict(scenario: AdversarialScenario) -> Non
     assert result["name"] == scenario.name
     assert result["severity"] == scenario.severity
     # W8.9.2: no more NOT_RUN — every registered check returns PASS or FAIL.
-    assert result["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED", "FAIL", "CONTROL_REGISTERED"}, (
+    assert result["verdict"] in {
+        "PASS",
+        "FAIL",
+        "CONTROL_REGISTERED",
+        "FAIL",
+        "CONTROL_REGISTERED",
+    }, (
         f"{scenario.code} returned {result['verdict']}; expected PASS or FAIL. "
         f"audit_log={result['audit_log']}"
     )
     # Audit log names the specific control that was checked.
     assert isinstance(result["audit_log"], list)
-    assert len(result["audit_log"]) >= 1, (
-        f"{scenario.code} audit_log is empty"
-    )
+    assert len(result["audit_log"]) >= 1, f"{scenario.code} audit_log is empty"
 
 
 # ---------------------------------------------------------------------------
@@ -93,27 +98,39 @@ def test_oasb_scenarios_all_run_not_not_run() -> None:
     """All OASB scenarios must return PASS or FAIL."""
     for scenario in OASB_SCENARIOS:
         result = run_scenario(scenario)
-        assert result["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED", "FAIL", "CONTROL_REGISTERED"}, (
-            f"OASB scenario {scenario.code} returned {result['verdict']}"
-        )
+        assert result["verdict"] in {
+            "PASS",
+            "FAIL",
+            "CONTROL_REGISTERED",
+            "FAIL",
+            "CONTROL_REGISTERED",
+        }, f"OASB scenario {scenario.code} returned {result['verdict']}"
 
 
 def test_agentdojo_scenarios_all_run_not_not_run() -> None:
     """All AgentDojo scenarios must return PASS or FAIL."""
     for scenario in AGENTDOJO_ATTACKS:
         result = run_scenario(scenario)
-        assert result["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED", "FAIL", "CONTROL_REGISTERED"}, (
-            f"AgentDojo scenario {scenario.code} returned {result['verdict']}"
-        )
+        assert result["verdict"] in {
+            "PASS",
+            "FAIL",
+            "CONTROL_REGISTERED",
+            "FAIL",
+            "CONTROL_REGISTERED",
+        }, f"AgentDojo scenario {scenario.code} returned {result['verdict']}"
 
 
 def test_atlas_scenarios_all_run_not_not_run() -> None:
     """All MITRE ATLAS techniques must return PASS or FAIL."""
     for scenario in ATLAS_TECHNIQUES:
         result = run_scenario(scenario)
-        assert result["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED", "FAIL", "CONTROL_REGISTERED"}, (
-            f"ATLAS scenario {scenario.code} returned {result['verdict']}"
-        )
+        assert result["verdict"] in {
+            "PASS",
+            "FAIL",
+            "CONTROL_REGISTERED",
+            "FAIL",
+            "CONTROL_REGISTERED",
+        }, f"ATLAS scenario {scenario.code} returned {result['verdict']}"
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +138,9 @@ def test_atlas_scenarios_all_run_not_not_run() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="pre-existing TestClient global pollution (CI infra requires postgres service that is a pre-existing main branch gap); tracked in KNOWN_ISSUES.md#testclient-pollution")
+@pytest.mark.xfail(
+    reason="pre-existing TestClient global pollution (CI infra requires postgres service that is a pre-existing main branch gap); tracked in KNOWN_ISSUES.md#testclient-pollution"
+)
 def test_run_endpoint_returns_real_verdicts_via_api() -> None:
     """POST /v1/adversarial/run returns PASS or FAIL (not NOT_RUN)."""
     with TestClient(app) as client:
@@ -138,12 +157,18 @@ def test_run_endpoint_returns_real_verdicts_via_api() -> None:
             data = r.json()
             assert data["scenario_code"] == scenario.code
             assert data["suite"] == scenario.suite
-            assert data["verdict"] in {"PASS", "FAIL", "CONTROL_REGISTERED", "FAIL", "CONTROL_REGISTERED"}, (
-                f"{scenario.code} via API returned {data['verdict']}"
-            )
+            assert data["verdict"] in {
+                "PASS",
+                "FAIL",
+                "CONTROL_REGISTERED",
+                "FAIL",
+                "CONTROL_REGISTERED",
+            }, f"{scenario.code} via API returned {data['verdict']}"
 
 
-@pytest.mark.xfail(reason="pre-existing TestClient global pollution; tracked in KNOWN_ISSUES.md#testclient-pollution")
+@pytest.mark.xfail(
+    reason="pre-existing TestClient global pollution; tracked in KNOWN_ISSUES.md#testclient-pollution"
+)
 def test_run_endpoint_response_shape() -> None:
     """POST /v1/adversarial/run response includes all required fields."""
     with TestClient(app) as client:
@@ -178,7 +203,9 @@ def test_run_endpoint_response_shape() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="pre-existing TestClient global pollution (CI infra requires postgres service that is a pre-existing main branch gap); tracked in KNOWN_ISSUES.md#testclient-pollution")
+@pytest.mark.xfail(
+    reason="pre-existing TestClient global pollution (CI infra requires postgres service that is a pre-existing main branch gap); tracked in KNOWN_ISSUES.md#testclient-pollution"
+)
 def test_cordon_enforcer_mapping_endpoint_registered() -> None:
     """GET /v1/adversarial/cordon-enforcer/mapping shows real controls."""
     with TestClient(app) as client:
@@ -210,7 +237,9 @@ def test_cordon_enforcer_mapping_covers_all_scenarios() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="pre-existing TestClient global pollution; tracked in KNOWN_ISSUES.md#testclient-pollution")
+@pytest.mark.xfail(
+    reason="pre-existing TestClient global pollution; tracked in KNOWN_ISSUES.md#testclient-pollution"
+)
 def test_run_endpoint_unknown_code_returns_404() -> None:
     """POST /v1/adversarial/run with an unknown code returns 404."""
     with TestClient(app) as client:
@@ -228,7 +257,9 @@ def test_run_endpoint_unknown_code_returns_404() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="pre-existing TestClient global pollution (CI infra requires postgres service that is a pre-existing main branch gap); tracked in KNOWN_ISSUES.md#testclient-pollution")
+@pytest.mark.xfail(
+    reason="pre-existing TestClient global pollution (CI infra requires postgres service that is a pre-existing main branch gap); tracked in KNOWN_ISSUES.md#testclient-pollution"
+)
 def test_run_endpoint_multi_tenant_org_id() -> None:
     """The X-Org-Id from the request is echoed back in the response."""
     with TestClient(app) as client:
