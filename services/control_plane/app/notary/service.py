@@ -20,17 +20,21 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field  # noqa: F401  (kept for legacy callers)
 
 from app.constants import HASH_OUTPUT_BYTES
-from app.notary.certificate_generator import CertificateArtifactGenerator
-from app.notary.db import NotaryDB
-from app.notary.models import NotarizeRequest, NotarizeResponse
-from app.notary.qtsp import QTSPClient
-from app.notary.scitt import SCITTClient
+from app.notary.certificate_generator import (  # noqa: TCH001 (runtime: __init__ type annotations)
+    CertificateArtifactGenerator,
+)
+from app.notary.db import NotaryDB  # noqa: TCH001 (runtime: __init__ type annotations)
+from app.notary.models import (  # noqa: TCH001 (runtime: FastAPI body param + response_model)
+    NotarizeRequest,
+    NotarizeResponse,
+)
+from app.notary.qtsp import QTSPClient  # noqa: TCH001 (runtime: __init__ type annotations)
+from app.notary.scitt import SCITTClient  # noqa: TCH001 (runtime: __init__ type annotations)
 
 logger = logging.getLogger(__name__)
 

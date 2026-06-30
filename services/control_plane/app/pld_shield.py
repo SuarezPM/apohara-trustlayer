@@ -58,9 +58,8 @@ Reference:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime  # noqa: TCH003 (runtime: Pydantic field type resolution)
 from enum import Enum
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 

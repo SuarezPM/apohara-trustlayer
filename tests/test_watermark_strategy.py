@@ -8,6 +8,7 @@ RED→GREEN coverage for:
 - Detection semantics: random tokens → not detected; green-biased
   tokens → detected.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -38,7 +39,9 @@ def _biased_green_tokens(
         seed_material = key + pos.to_bytes(8, "little", signed=False)
         d = hashlib.blake2b(seed_material, digest_size=32).digest()
         seed = int.from_bytes(d[:4], "little", signed=False)
-        green = [(seed + i * 0x9E3779B1) % max(1, vocab_size) for i in range(green_size)]
+        green = [
+            (seed + i * 0x9E3779B1) % max(1, vocab_size) for i in range(green_size)
+        ]
         out.append(random.choice(green))
     return out
 
@@ -60,7 +63,9 @@ def test_random_tokens_not_detected() -> None:
     tokens = [random.randint(0, VOCAB - 1) for _ in range(500)]
     result = kirchenbauer_detect(tokens=tokens, vocab_size=VOCAB, key=key)
     # z-score for random tokens should be near 0, well below 4.0.
-    assert abs(result.z_score) < 3.0, f"unexpected z for random tokens: {result.z_score}"
+    assert (
+        abs(result.z_score) < 3.0
+    ), f"unexpected z for random tokens: {result.z_score}"
     assert result.detected is False
 
 
@@ -94,9 +99,7 @@ def test_z_score_matches_kirchenbauer_formula() -> None:
     # So z = T * (1 - γ) / sqrt(γ(1-γ)T) = sqrt(T * (1-γ)/γ) = sqrt(T).
     # For T=100, z ≈ 10.
     tokens = list(range(100))  # not necessarily green, but we assert formula structure
-    result = kirchenbauer_detect(
-        tokens=tokens, vocab_size=VOCAB, key=key, gamma=gamma
-    )
+    result = kirchenbauer_detect(tokens=tokens, vocab_size=VOCAB, key=key, gamma=gamma)
     # Verify formula structure: |s| - γT and γ(1-γ)T
     expected_num = result.green_count - gamma * 100
     expected_den = (gamma * (1 - gamma) * 100) ** 0.5
@@ -194,6 +197,7 @@ def test_bias_logits_no_input_mutated() -> None:
         KirchenbauerBiasLogitsArgs,
         kirchenbauer_bias_logits,
     )
+
     logits = [0.0] * 100
     original = list(logits)
     _ = kirchenbauer_bias_logits(
@@ -215,6 +219,7 @@ def test_bias_logits_green_count_matches_gamma() -> None:
         KirchenbauerBiasLogitsArgs,
         kirchenbauer_bias_logits,
     )
+
     for vocab in (100, 1000, 5000):
         for gamma in (0.10, 0.25, 0.50):
             biased = kirchenbauer_bias_logits(
@@ -229,9 +234,9 @@ def test_bias_logits_green_count_matches_gamma() -> None:
             )
             green = sum(1 for v in biased if v > 0.0)
             expected = int(gamma * vocab)
-            assert green == expected, (
-                f"green={green}, expected~{expected} (γ={gamma}, vocab={vocab})"
-            )
+            assert (
+                green == expected
+            ), f"green={green}, expected~{expected} (γ={gamma}, vocab={vocab})"
 
 
 def test_bias_logits_delta_applied() -> None:
@@ -240,6 +245,7 @@ def test_bias_logits_delta_applied() -> None:
         KirchenbauerBiasLogitsArgs,
         kirchenbauer_bias_logits,
     )
+
     biased = kirchenbauer_bias_logits(
         KirchenbauerBiasLogitsArgs(
             logits=[1.0] * 200,
@@ -262,12 +268,17 @@ def test_bias_logits_deterministic_for_same_key_and_position() -> None:
         KirchenbauerBiasLogitsArgs,
         kirchenbauer_bias_logits,
     )
+
     logits = [float(i) for i in range(500)]
     b1 = kirchenbauer_bias_logits(
-        KirchenbauerBiasLogitsArgs(logits=logits, position=5, key=b"my-key", vocab_size=500)
+        KirchenbauerBiasLogitsArgs(
+            logits=logits, position=5, key=b"my-key", vocab_size=500
+        )
     )
     b2 = kirchenbauer_bias_logits(
-        KirchenbauerBiasLogitsArgs(logits=logits, position=5, key=b"my-key", vocab_size=500)
+        KirchenbauerBiasLogitsArgs(
+            logits=logits, position=5, key=b"my-key", vocab_size=500
+        )
     )
     assert b1 == b2
 
@@ -278,6 +289,7 @@ def test_bias_logits_different_positions_differ() -> None:
         KirchenbauerBiasLogitsArgs,
         kirchenbauer_bias_logits,
     )
+
     logits = [0.0] * 200
     b1 = kirchenbauer_bias_logits(
         KirchenbauerBiasLogitsArgs(logits=logits, position=0, key=b"k", vocab_size=200)
@@ -293,6 +305,7 @@ def test_embed_tokens_all_in_green_list() -> None:
     from app.watermark_strategy import kirchenbauer_embed_tokens, kirchenbauer_detect
     import os
     import random
+
     random.seed(42)
     key = os.urandom(32)
     vocab = 1000
@@ -301,7 +314,9 @@ def test_embed_tokens_all_in_green_list() -> None:
     # Verify detection on the embedded sequence.
     result = kirchenbauer_detect(tokens=embedded, vocab_size=vocab, key=key)
     assert result.green_count == result.total_count
-    assert result.z_score > 20.0  # all-green → z = (T-γT)/sqrt(γ(1-γ)T) ≈ 24.5 for T=200, γ=0.25
+    assert (
+        result.z_score > 20.0
+    )  # all-green → z = (T-γT)/sqrt(γ(1-γ)T) ≈ 24.5 for T=200, γ=0.25
     assert result.detected is True
 
 
@@ -309,6 +324,7 @@ def test_embed_tokens_preserves_length() -> None:
     """embed_tokens must return a sequence of equal length."""
     from app.watermark_strategy import kirchenbauer_embed_tokens
     import os
+
     key = os.urandom(32)
     for n in (0, 1, 50, 500):
         tokens = list(range(n))
@@ -319,12 +335,14 @@ def test_embed_tokens_preserves_length() -> None:
 def test_embed_tokens_empty_input() -> None:
     """embed_tokens must handle empty input without error."""
     from app.watermark_strategy import kirchenbauer_embed_tokens
+
     assert kirchenbauer_embed_tokens([], key=b"\x00" * 32) == []
 
 
 def test_embed_tokens_invalid_gamma() -> None:
     """Invalid gamma should raise ValueError."""
     from app.watermark_strategy import kirchenbauer_embed_tokens
+
     for bad in (0.0, 1.0, -0.1, 1.5):
         with pytest.raises(ValueError, match="gamma must be in"):
             kirchenbauer_embed_tokens([1, 2, 3], key=b"\x00" * 32, gamma=bad)
@@ -335,6 +353,7 @@ def test_embed_tokens_vs_detect_roundtrip() -> None:
     from app.watermark_strategy import kirchenbauer_embed_tokens, kirchenbauer_detect
     import os
     import random
+
     random.seed(123)
     key = os.urandom(32)
     vocab = 5000
@@ -348,6 +367,7 @@ def test_embed_tokens_deterministic_for_same_key() -> None:
     """Same key must produce the same embedded sequence."""
     from app.watermark_strategy import kirchenbauer_embed_tokens
     import random
+
     random.seed(99)
     tokens = [random.randint(0, 1000 - 1) for _ in range(50)]
     e1 = kirchenbauer_embed_tokens(tokens, key=b"deterministic-key", vocab_size=1000)

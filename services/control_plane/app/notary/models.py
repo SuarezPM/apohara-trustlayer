@@ -8,9 +8,8 @@ models are also re-exported from `app.notary` (the package) and
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TCH003 (runtime: Pydantic field type resolution)
 from enum import Enum
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 

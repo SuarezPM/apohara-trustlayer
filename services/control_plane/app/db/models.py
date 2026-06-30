@@ -13,9 +13,9 @@ whichever is longer).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TCH003 (runtime: SQLAlchemy 2.0 Mapped[datetime] resolution)
 from enum import Enum as PyEnum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -29,9 +29,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-if TYPE_CHECKING:
-    pass
 
 
 class Base(DeclarativeBase):
