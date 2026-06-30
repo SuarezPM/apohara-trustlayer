@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.catalyst_integration import (
+    AgentStepReceiptArgs,
     agent_step_receipt,
     orchestration_manifest,
 )
@@ -114,16 +115,18 @@ def post_step_receipt(req: StepReceiptRequest) -> StepReceiptResponse:
     """
     try:
         receipt = agent_step_receipt(
-            run_id=req.run_id,
-            step_id=req.step_id,
-            agent_id=req.agent_id,
-            tool_calls=[tc.model_dump() for tc in req.tool_calls],
-            input_prompt_hash=req.input_prompt_hash,
-            output_response_hash=req.output_response_hash,
-            decision=req.decision,
-            latency_ms=req.latency_ms,
-            context_root_hash=req.context_root_hash,
-            prev_step_hash=req.prev_step_hash,
+            AgentStepReceiptArgs(
+                run_id=req.run_id,
+                step_id=req.step_id,
+                agent_id=req.agent_id,
+                tool_calls=[tc.model_dump() for tc in req.tool_calls],
+                input_prompt_hash=req.input_prompt_hash,
+                output_response_hash=req.output_response_hash,
+                decision=req.decision,
+                latency_ms=req.latency_ms,
+                context_root_hash=req.context_root_hash,
+                prev_step_hash=req.prev_step_hash,
+            )
         )
     except Exception as exc:
         logger.error(f"agent_step_receipt failed: {exc}")

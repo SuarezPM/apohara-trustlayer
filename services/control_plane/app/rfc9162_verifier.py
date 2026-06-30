@@ -27,6 +27,7 @@ verifier that returns (verified: bool, root: str, error: str|None).
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import logging
 
@@ -184,15 +185,29 @@ def reconstruct_root_ccf(
 # ---------------------------------------------------------------------------
 
 
-def verify_federated_receipt(
-    receipt_bytes: bytes,
-    leaf_hex: str,
-    log_a_public_key_pem: bytes,
-    inclusion_path_in_b: list[str],
-    tree_size_b: int,
-    leaf_index_b: int,
-    sth_b_signature_material: bytes,
-    log_b_public_key_pem: bytes,  # noqa: ARG001 (reserved for future cross-log verification)
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class VerifyFederatedReceiptArgs:
+    """Bundled arguments for `verify_federated_receipt` (PLR0913 reduction).
+
+    The original signature had 8 parameters; per the W11.1 refactor we
+    group them into a frozen kw-only dataclass so the call site is
+    self-documenting. The optional `log_b_public_key_pem` is reserved
+    for future cross-log verification (the W11.1 stub does not use it
+    yet).
+    """
+
+    receipt_bytes: bytes
+    leaf_hex: str
+    log_a_public_key_pem: bytes
+    inclusion_path_in_b: list[str]
+    tree_size_b: int
+    leaf_index_b: int
+    sth_b_signature_material: bytes
+    log_b_public_key_pem: bytes  # reserved for future cross-log verification
+
+
+def verify_federated_receipt(  # noqa: PLR0911 (each return carries a distinct verifier-error message)
+    args: VerifyFederatedReceiptArgs,
 ) -> tuple[bool, str | None, str]:
     """Verify a federated SCITT receipt (Log A anchors Log B's STH).
 
@@ -223,9 +238,9 @@ def verify_federated_receipt(
         # Step 1: extract the payload of the Log A receipt (the
         # signed material is Log B's STH, hex-encoded).
         res = verify_receipt(
-            receipt_bytes,
-            leaf_entry_hex=leaf_hex,
-            log_public_key_pem=log_a_public_key_pem,
+            args.receipt_bytes,
+            leaf_entry_hex=args.leaf_hex,
+            log_public_key_pem=args.log_a_public_key_pem,
         )
         if not res.ok:
             return False, None, f"Log A receipt invalid: {res}"
@@ -238,10 +253,10 @@ def verify_federated_receipt(
         # verify that the receipt's signed root matches the root
         # reconstructed from (leaf, index, size, path).
         reconstructed_a = reconstruct_root_rfc9162(
-            leaf_hex=leaf_hex,
-            leaf_index=leaf_index_b,  # the index in Log A's tree
-            tree_size=tree_size_b,
-            audit_path=inclusion_path_in_b,
+            leaf_hex=args.leaf_hex,
+            leaf_index=args.leaf_index_b,  # the index in Log A's tree
+            tree_size=args.tree_size_b,
+            audit_path=args.inclusion_path_in_b,
         )
         if reconstructed_a != res.root.hex():
             return (
@@ -259,7 +274,7 @@ def verify_federated_receipt(
         # scitt-cose.verify_receipt with the STH as the leaf.
         # For the stub implementation, we check the signature_material
         # format and the embedded root.
-        sth_root = extract_sth_root(sth_b_signature_material)
+        sth_root = extract_sth_root(args.sth_b_signature_material)
         if sth_root is None:
             return False, None, "Log B STH format invalid"
         # For now, accept the extracted root as-is (production
@@ -312,6 +327,7 @@ def extract_sth_root(sth_bytes: bytes) -> str | None:
 
 
 __all__ = [
+    "VerifyFederatedReceiptArgs",
     "extract_sth_root",
     "reconstruct_root_ccf",
     "reconstruct_root_rfc9162",

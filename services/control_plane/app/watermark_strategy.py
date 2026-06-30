@@ -14,6 +14,7 @@ watermark layer of the most-restrictive-wins rollup.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import math
 
@@ -179,14 +180,25 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def kirchenbauer_bias_logits(
-    logits: list[float],
-    position: int,
-    key: bytes,
-    vocab_size: int | None = None,
-    gamma: float = DEFAULT_GAMMA,
-    delta: float = 2.0,
-) -> list[float]:
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class KirchenbauerBiasLogitsArgs:
+    """Bundled arguments for `kirchenbauer_bias_logits` (PLR0913 reduction).
+
+    The original signature had 6 parameters; per the W9.0 watermark
+    refactor we group them into a frozen kw-only dataclass so the call
+    site is self-documenting. The optional fields (vocab_size, gamma,
+    delta) keep their default values via kw_only semantics.
+    """
+
+    logits: list[float]
+    position: int
+    key: bytes
+    vocab_size: int | None = None
+    gamma: float = DEFAULT_GAMMA
+    delta: float = 2.0
+
+
+def kirchenbauer_bias_logits(args: KirchenbauerBiasLogitsArgs) -> list[float]:
     """Sampling-side hook: bias logits at green-list positions.
 
     Pure-Python port of `KirchenbauerTextWatermark::bias_logits` in
@@ -195,29 +207,34 @@ def kirchenbauer_bias_logits(
     exponentially more likely during sampling.
 
     Args:
-        logits: logit vector of length vocab_size.
-        position: token position (0-indexed).
-        key: 32-byte secret watermark key.
-        vocab_size: vocab size; default `len(logits)`.
-        gamma: green-list fraction (default 0.25).
-        delta: logit bias added to green-list tokens (default 2.0).
+        args.logits: logit vector of length vocab_size.
+        args.position: token position (0-indexed).
+        args.key: 32-byte secret watermark key.
+        args.vocab_size: vocab size; default `len(logits)`.
+        args.gamma: green-list fraction (default 0.25).
+        args.delta: logit bias added to green-list tokens (default 2.0).
 
     Returns:
         New logit vector with `delta` added to each green-list token's
         logit. The input list is not mutated.
     """
+    vocab_size = args.vocab_size
     if vocab_size is None:
-        vocab_size = len(logits)
+        vocab_size = len(args.logits)
     if vocab_size <= 0:
-        return list(logits)
-    if not (0.0 < gamma < 1.0):
-        raise ValueError(f"gamma must be in (0, 1), got {gamma}")
-    key32 = (key + b"\x00" * HASH_OUTPUT_BYTES)[:32] if len(key) < HASH_OUTPUT_BYTES else key[:HASH_OUTPUT_BYTES]
-    green = _green_list_for_position(key32, position, vocab_size, gamma)
-    biased = list(logits)
+        return list(args.logits)
+    if not (0.0 < args.gamma < 1.0):
+        raise ValueError(f"gamma must be in (0, 1), got {args.gamma}")
+    key32 = (
+        (args.key + b"\x00" * HASH_OUTPUT_BYTES)[:HASH_OUTPUT_BYTES]
+        if len(args.key) < HASH_OUTPUT_BYTES
+        else args.key[:HASH_OUTPUT_BYTES]
+    )
+    green = _green_list_for_position(key32, args.position, vocab_size, args.gamma)
+    biased = list(args.logits)
     for i in range(min(vocab_size, len(biased))):
         if i in green:
-            biased[i] += delta
+            biased[i] += args.delta
     return biased
 
 
@@ -267,6 +284,7 @@ def kirchenbauer_embed_tokens(
 __all__ = [
     "DEFAULT_GAMMA",
     "DEFAULT_Z_THRESHOLD",
+    "KirchenbauerBiasLogitsArgs",
     "WatermarkResult",
     "detect_or_not_applicable",
     "kirchenbauer_bias_logits",

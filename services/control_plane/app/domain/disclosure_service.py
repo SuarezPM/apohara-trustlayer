@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.constants import HASH_OUTPUT_BYTES
 from app.domain.chains import (
     GENESIS_HASH,
+    ComputeRowHashArgs,
     compute_row_hash,
     new_chain_id,
     next_row_number,
@@ -201,12 +202,14 @@ def generate_disclosure(
     # Compute row_hash deterministically.
     artifact_bytes = req.artifact.content.encode()
     row_hash = compute_row_hash(
-        chain_id=chain_id,
-        row_number=next_row,
-        prev_hash=chain_head_row_hash,
-        payload=artifact_bytes,
-        cose_sign1_b64=cose_sign1_b64,
-        created_at=now,
+        ComputeRowHashArgs(
+            chain_id=chain_id,
+            row_number=next_row,
+            prev_hash=chain_head_row_hash,
+            payload=artifact_bytes,
+            cose_sign1_b64=cose_sign1_b64,
+            created_at=now,
+        )
     )
 
     # Build the signed receipt.

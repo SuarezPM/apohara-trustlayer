@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 
 from app.rfc9162_verifier import (
+    VerifyFederatedReceiptArgs,
     extract_sth_root,
     reconstruct_root_ccf,
     reconstruct_root_rfc9162,
@@ -209,14 +210,16 @@ def test_verify_federated_receipt_returns_three_tuple() -> None:
     # Malformed receipt bytes — the function should fail gracefully
     # (per the docstring: "Never raises" contract from scitt-cose).
     verified, root, error = verify_federated_receipt(
-        receipt_bytes=b"not-a-real-cose-receipt",
-        leaf_hex="0" * 64,
-        log_a_public_key_pem=b"-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----\n",
-        inclusion_path_in_b=[],
-        tree_size_b=1,
-        leaf_index_b=0,
-        sth_b_signature_material=b"\x00" * 64,
-        log_b_public_key_pem=b"-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----\n",
+        VerifyFederatedReceiptArgs(
+            receipt_bytes=b"not-a-real-cose-receipt",
+            leaf_hex="0" * 64,
+            log_a_public_key_pem=b"-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----\n",
+            inclusion_path_in_b=[],
+            tree_size_b=1,
+            leaf_index_b=0,
+            sth_b_signature_material=b"\x00" * 64,
+            log_b_public_key_pem=b"-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----\n",
+        )
     )
     # Result is a 3-tuple
     assert isinstance(verified, bool)

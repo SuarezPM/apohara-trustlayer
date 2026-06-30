@@ -190,25 +190,42 @@ def test_adapter_random_tokens_returns_partial() -> None:
 
 def test_bias_logits_no_input_mutated() -> None:
     """bias_logits must NOT mutate the input list."""
-    from app.watermark_strategy import kirchenbauer_bias_logits
+    from app.watermark_strategy import (
+        KirchenbauerBiasLogitsArgs,
+        kirchenbauer_bias_logits,
+    )
     logits = [0.0] * 100
     original = list(logits)
-    _ = kirchenbauer_bias_logits(logits, position=0, key=b"\x00" * 32, vocab_size=100, gamma=0.25, delta=2.0)
+    _ = kirchenbauer_bias_logits(
+        KirchenbauerBiasLogitsArgs(
+            logits=logits,
+            position=0,
+            key=b"\x00" * 32,
+            vocab_size=100,
+            gamma=0.25,
+            delta=2.0,
+        )
+    )
     assert logits == original, "bias_logits mutated the input list"
 
 
 def test_bias_logits_green_count_matches_gamma() -> None:
     """Exactly γ*vocab_size tokens should be biased (+delta)."""
-    from app.watermark_strategy import kirchenbauer_bias_logits
+    from app.watermark_strategy import (
+        KirchenbauerBiasLogitsArgs,
+        kirchenbauer_bias_logits,
+    )
     for vocab in (100, 1000, 5000):
         for gamma in (0.10, 0.25, 0.50):
             biased = kirchenbauer_bias_logits(
-                logits=[0.0] * vocab,
-                position=0,
-                key=b"\x00" * 32,
-                vocab_size=vocab,
-                gamma=gamma,
-                delta=2.0,
+                KirchenbauerBiasLogitsArgs(
+                    logits=[0.0] * vocab,
+                    position=0,
+                    key=b"\x00" * 32,
+                    vocab_size=vocab,
+                    gamma=gamma,
+                    delta=2.0,
+                )
             )
             green = sum(1 for v in biased if v > 0.0)
             expected = int(gamma * vocab)
@@ -219,14 +236,19 @@ def test_bias_logits_green_count_matches_gamma() -> None:
 
 def test_bias_logits_delta_applied() -> None:
     """Every green-list token should be biased by exactly `delta`."""
-    from app.watermark_strategy import kirchenbauer_bias_logits
+    from app.watermark_strategy import (
+        KirchenbauerBiasLogitsArgs,
+        kirchenbauer_bias_logits,
+    )
     biased = kirchenbauer_bias_logits(
-        logits=[1.0] * 200,
-        position=2,
-        key=b"key123",
-        vocab_size=200,
-        gamma=0.25,
-        delta=3.0,
+        KirchenbauerBiasLogitsArgs(
+            logits=[1.0] * 200,
+            position=2,
+            key=b"key123",
+            vocab_size=200,
+            gamma=0.25,
+            delta=3.0,
+        )
     )
     green = [v for v in biased if v > 1.0]
     assert len(green) > 0
@@ -236,19 +258,33 @@ def test_bias_logits_delta_applied() -> None:
 
 def test_bias_logits_deterministic_for_same_key_and_position() -> None:
     """Same key + position → same green list → same biased output."""
-    from app.watermark_strategy import kirchenbauer_bias_logits
+    from app.watermark_strategy import (
+        KirchenbauerBiasLogitsArgs,
+        kirchenbauer_bias_logits,
+    )
     logits = [float(i) for i in range(500)]
-    b1 = kirchenbauer_bias_logits(logits, position=5, key=b"my-key", vocab_size=500)
-    b2 = kirchenbauer_bias_logits(logits, position=5, key=b"my-key", vocab_size=500)
+    b1 = kirchenbauer_bias_logits(
+        KirchenbauerBiasLogitsArgs(logits=logits, position=5, key=b"my-key", vocab_size=500)
+    )
+    b2 = kirchenbauer_bias_logits(
+        KirchenbauerBiasLogitsArgs(logits=logits, position=5, key=b"my-key", vocab_size=500)
+    )
     assert b1 == b2
 
 
 def test_bias_logits_different_positions_differ() -> None:
     """Different positions must produce different green lists."""
-    from app.watermark_strategy import kirchenbauer_bias_logits
+    from app.watermark_strategy import (
+        KirchenbauerBiasLogitsArgs,
+        kirchenbauer_bias_logits,
+    )
     logits = [0.0] * 200
-    b1 = kirchenbauer_bias_logits(logits, position=0, key=b"k", vocab_size=200)
-    b2 = kirchenbauer_bias_logits(logits, position=10, key=b"k", vocab_size=200)
+    b1 = kirchenbauer_bias_logits(
+        KirchenbauerBiasLogitsArgs(logits=logits, position=0, key=b"k", vocab_size=200)
+    )
+    b2 = kirchenbauer_bias_logits(
+        KirchenbauerBiasLogitsArgs(logits=logits, position=10, key=b"k", vocab_size=200)
+    )
     assert b1 != b2, "positions 0 and 10 should produce different bias patterns"
 
 

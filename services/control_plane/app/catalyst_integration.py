@@ -135,19 +135,31 @@ goal.
 # Minimal W7.2 implementation stub
 # ============================================================================
 
+import dataclasses
 
-def agent_step_receipt(
-    run_id: str,
-    step_id: int,
-    agent_id: str,
-    tool_calls: list,
-    input_prompt_hash: str,
-    output_response_hash: str,
-    decision: dict,
-    latency_ms: int,
-    context_root_hash: str,
-    prev_step_hash: str | None = None,
-) -> dict:
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class AgentStepReceiptArgs:
+    """Bundled arguments for `agent_step_receipt` (PLR0913 reduction).
+
+    The original signature had 10 positional parameters; per the W7.2
+    refactor we group them into a frozen kw-only dataclass so callers
+    pass named fields and the call site is self-documenting.
+    """
+
+    run_id: str
+    step_id: int
+    agent_id: str
+    tool_calls: list
+    input_prompt_hash: str
+    output_response_hash: str
+    decision: dict
+    latency_ms: int
+    context_root_hash: str
+    prev_step_hash: str | None = None
+
+
+def agent_step_receipt(args: AgentStepReceiptArgs) -> dict:
     """Build a per-step receipt (COSE_Sign1 structure).
 
     Production wire-up signs this with Ed25519 and submits to SCITT TS.
@@ -158,22 +170,22 @@ def agent_step_receipt(
     import time
 
     payload = {
-        "run_id": run_id,
-        "step_id": step_id,
-        "agent_id": agent_id,
-        "tool_calls": tool_calls,
-        "input_prompt_hash": input_prompt_hash,
-        "output_response_hash": output_response_hash,
-        "decision": decision,
-        "latency_ms": latency_ms,
-        "context_root_hash": context_root_hash,
-        "prev_step_hash": prev_step_hash,
+        "run_id": args.run_id,
+        "step_id": args.step_id,
+        "agent_id": args.agent_id,
+        "tool_calls": args.tool_calls,
+        "input_prompt_hash": args.input_prompt_hash,
+        "output_response_hash": args.output_response_hash,
+        "decision": args.decision,
+        "latency_ms": args.latency_ms,
+        "context_root_hash": args.context_root_hash,
+        "prev_step_hash": args.prev_step_hash,
         "timestamp": int(time.time()),
     }
     payload_json = json.dumps(payload, sort_keys=True)
     payload_hash = hashlib.blake2b(payload_json.encode(), digest_size=32).hexdigest()
     return {
-        "step_id": step_id,
+        "step_id": args.step_id,
         "payload": payload,
         "payload_hash": payload_hash,
         "cose_sign1_b64": f"eyJhbGciOiJFZDI1NTE5In0.{payload_hash}",
