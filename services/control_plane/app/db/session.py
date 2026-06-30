@@ -80,15 +80,26 @@ def _get_engine() -> AsyncEngine:
                 connect_args["ssl"] = ssl_kwargs
         # echo=False in production; tests can override the global
         # to inspect the SQL.
-        _engine = create_async_engine(
-            settings.database_url,
-            echo=False,
-            pool_size=settings.database_pool_size,
-            max_overflow=settings.database_pool_max_overflow,
-            pool_timeout=settings.database_pool_timeout_seconds,
-            pool_pre_ping=settings.database_pool_pre_ping,
-            connect_args=connect_args or None,
-        )
+        # Build kwargs carefully: SQLAlchemy SQLite dialects
+        # (aiosqlite / pysqlite) use StaticPool and reject
+        # pool_size / max_overflow / pool_timeout. So we only forward
+        # the production pool kwargs for non-SQLite URLs.
+        # Similarly, do not pass `connect_args=None` — SQLAlchemy's
+        # `pop_kwarg("connect_args", {})` returns the kwarg verbatim
+        # (so None propagates) and `.immutabledict(...).union(None)`
+        # then raises `TypeError: 'NoneType' object is not iterable`.
+        is_sqlite = settings.database_url.startswith("sqlite")
+        engine_kwargs: dict = dict(echo=False)
+        if not is_sqlite:
+            engine_kwargs.update(
+                pool_size=settings.database_pool_size,
+                max_overflow=settings.database_pool_max_overflow,
+                pool_timeout=settings.database_pool_timeout_seconds,
+                pool_pre_ping=settings.database_pool_pre_ping,
+            )
+        if connect_args:
+            engine_kwargs["connect_args"] = connect_args
+        _engine = create_async_engine(settings.database_url, **engine_kwargs)
     return _engine
 
 

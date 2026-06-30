@@ -153,6 +153,22 @@ jobs:
   python-test:
     name: pytest (Python tests)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: apohara_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TL_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/apohara_test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -162,6 +178,10 @@ jobs:
           python-version: "3.12"
       - name: Install uv
         run: pip install --upgrade "pip==26.1.2" "uv==0.5.11"
+      - name: Install protoc
+        # Required by tests/test_config_fail_fast.py::test_tsa_fail_fast_compile_test
+        # which spawns cargo test tsa::tests (uses prost-build / Rekor v2 codegen).
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run pytest suite
         env:
           # `app` lives at services/control_plane/app/; PYTHONPATH must
@@ -173,9 +193,10 @@ jobs:
             --with pytest --with pytest-asyncio --with pytest-cov \
             --with httpx --with fastapi \
             --with 'pydantic[email]' --with pydantic-settings \
-            --with sqlalchemy --with asyncpg --with structlog \
+            --with sqlalchemy --with asyncpg --with aiosqlite --with structlog \
             --with pyjwt --with uvicorn \
             --with cryptography \
+            --with reportlab \
             --with maturin \
             pytest tests/ -v --tb=short
 
