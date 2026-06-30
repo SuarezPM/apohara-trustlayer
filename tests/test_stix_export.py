@@ -15,7 +15,7 @@ for evidence bundles, port from apohara-probant):
   said STIX dual-mode: content-negotiation + dedicated endpoint)
 """
 from __future__ import annotations
-from tests.test_org_id_helpers import OrgIdTestClient
+from test_org_id_helpers import OrgIdTestClient
 
 import sys
 from pathlib import Path

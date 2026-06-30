@@ -11,7 +11,7 @@ Uses the _SyncSessionAdapter pattern from test_real_evidence_lookup.py
 to avoid a real DB.
 """
 from __future__ import annotations
-from tests.test_org_id_helpers import OrgIdTestClient
+from test_org_id_helpers import OrgIdTestClient
 
 import sys
 from pathlib import Path

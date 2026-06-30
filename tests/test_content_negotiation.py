@@ -16,7 +16,7 @@ the synthetic content is deterministic per bundle_id.
 """
 
 
-from tests.test_org_id_helpers import OrgIdTestClient  # noqa: E402
+from test_org_id_helpers import OrgIdTestClient  # noqa: E402
 
 import json
 import re
@@ -137,7 +137,7 @@ def _make_client():
 
 def _make_empty_client():
     """TestClient for the 404 + 406 paths (no bundles injected)."""
-    from tests.test_org_id_helpers import OrgIdTestClient  # noqa: E402
+    from test_org_id_helpers import OrgIdTestClient  # noqa: E402
 
     from fastapi import FastAPI
     from fastapi.testclient import TestClient  # noqa: F401

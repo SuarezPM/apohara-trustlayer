@@ -46,7 +46,7 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup, org_id: str = "acme")
     WHERE clause's org_id filter to enforce tenant isolation.
     """
     from fastapi import FastAPI
-    from tests.test_org_id_helpers import OrgIdTestClient
+    from test_org_id_helpers import OrgIdTestClient
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,
@@ -173,7 +173,7 @@ def test_default_lookup_returns_404_when_not_initialized() -> None:
     provide a session that returns a null result (no records found).
     """
     from fastapi import FastAPI
-    from tests.test_org_id_helpers import OrgIdTestClient
+    from test_org_id_helpers import OrgIdTestClient
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,
