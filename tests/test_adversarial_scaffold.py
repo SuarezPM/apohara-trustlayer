@@ -6,7 +6,6 @@ from app.adversarial_scaffold import (
     ATLAS_TECHNIQUES,
     CordonEnforcerMapping,
     OASB_SCENARIOS,
-    AdversarialScenario,
     run_scenario,
 )
 

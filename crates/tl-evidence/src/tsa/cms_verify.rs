@@ -16,12 +16,12 @@
 //!    `openssl ts -verify -token_in` accepts).
 //! 2. Extracts the `SignedData` from the ContentInfo.
 //! 3. For each `SignerInfo`:
-//!    a. Verifies the signature cryptographically against the cert
-//!       in the `certificates` field.
-//!    b. Verifies the `messageDigest` attribute matches the SHA-256
-//!       of the encapsulated content (the TSTInfo DER).
+//!    a. Verifies the signature cryptographically against the cert in
+//!    the `certificates` field.
+//!    b. Verifies the `messageDigest` attribute matches the SHA-256 of
+//!    the encapsulated content (the TSTInfo DER).
 //!    c. Verifies the `contentType` attribute is `id-ct-TSTInfo`
-//!       (1.2.840.113549.1.9.16.1.4).
+//!    (1.2.840.113549.1.9.16.1.4).
 //! 4. Parses the TSTInfo from the eContent.
 //! 5. Verifies the `messageImprint.hashedMessage` matches the
 //!    `expected_digest` parameter.
@@ -42,8 +42,9 @@ use crate::tsa::{TsaError, TsaTokenBytes};
 /// OID for id-signedData (RFC 5652 §5.1).
 const ID_SIGNED_DATA_OCTETS: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02];
 /// OID for id-ct-TSTInfo (RFC 3161 §2.4.2).
-const ID_CT_TST_INFO_OCTETS: &[u8] =
-    &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x10, 0x01, 0x04];
+const ID_CT_TST_INFO_OCTETS: &[u8] = &[
+    0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x10, 0x01, 0x04,
+];
 
 /// Errors emitted by `verify_strict_with_certs`. Wraps both
 /// `CmsError` from `cryptographic-message-syntax` and our own
@@ -60,7 +61,12 @@ pub enum CmsVerifyError {
 
     /// The messageImprint in the TSTInfo does not match the expected digest.
     #[error("messageImprint mismatch: expected {expected}, got {got}")]
-    MessageImprintMismatch { expected: String, got: String },
+    MessageImprintMismatch {
+        /// Expected SHA-256/384/512 digest as hex string.
+        expected: String,
+        /// Actual digest computed from the request as hex string.
+        got: String,
+    },
 
     /// The contentType attribute is not id-ct-TSTInfo.
     #[error("content_type is not id-ct-TSTInfo: {0}")]
@@ -204,8 +210,7 @@ fn extract_signed_data(token_der: &[u8]) -> Result<SignedData, CmsVerifyError> {
     use bcder::Mode;
 
     // Try TimeStampResp first (the natural RFC 3161 format).
-    let tsr_result =
-        Constructed::decode(token_der, Mode::Ber, |cons| TimeStampResp::take_from(cons));
+    let tsr_result = Constructed::decode(token_der, Mode::Ber, TimeStampResp::take_from);
     if let Ok(tsr) = tsr_result {
         let ts_response: TimeStampResponse = tsr.into();
         let sd = ts_response
@@ -216,11 +221,8 @@ fn extract_signed_data(token_der: &[u8]) -> Result<SignedData, CmsVerifyError> {
     }
 
     // Fallback: maybe it's a bare ContentInfo (what `openssl ts -verify -token_in` consumes).
-    let ci_result: Result<Option<Asn1ContentInfo>, _> = Constructed::decode(
-        token_der,
-        Mode::Ber,
-        Asn1ContentInfo::take_opt_from,
-    );
+    let ci_result: Result<Option<Asn1ContentInfo>, _> =
+        Constructed::decode(token_der, Mode::Ber, Asn1ContentInfo::take_opt_from);
     if let Ok(Some(ci)) = ci_result {
         if ci.content_type.as_ref() != ID_SIGNED_DATA_OCTETS {
             return Err(CmsVerifyError::ContentInfoType(format!(
@@ -250,7 +252,7 @@ fn parse_tst_info(e_content: &[u8]) -> Result<TstInfo, CmsVerifyError> {
     use bcder::decode::Constructed;
     use bcder::Mode;
 
-    Constructed::decode(e_content, Mode::Ber, |cons| TstInfo::take_from(cons))
+    Constructed::decode(e_content, Mode::Ber, TstInfo::take_from)
         .map_err(|e| CmsVerifyError::Cms(format!("TSTInfo parse: {e:?}")))
 }
 
@@ -337,7 +339,8 @@ mod tests {
             .parent()
             .unwrap()
             .join("audit_artifacts/test_fixtures/digicert/chain.pem");
-        std::fs::read(&path).expect("chain.pem must exist (run scripts/generate_digicert_sample_response.py)")
+        std::fs::read(&path)
+            .expect("chain.pem must exist (run scripts/generate_digicert_sample_response.py)")
     }
 
     fn read_test_token() -> Vec<u8> {
@@ -347,7 +350,8 @@ mod tests {
             .parent()
             .unwrap()
             .join("audit_artifacts/test_fixtures/digicert/token.der");
-        std::fs::read(&path).expect("token.der must exist (run scripts/generate_digicert_sample_response.py)")
+        std::fs::read(&path)
+            .expect("token.der must exist (run scripts/generate_digicert_sample_response.py)")
     }
 
     fn read_test_response() -> Vec<u8> {
@@ -437,9 +441,8 @@ mod tests {
     fn test_cms_verify_rejects_malformed_der() {
         let chain = read_test_chain();
         let mut malformed = vec![0x30, 0x10];
-        malformed.extend(std::iter::repeat(0xFFu8).take(16));
+        malformed.extend(std::iter::repeat_n(0xFFu8, 16));
         let result = verify_strict_with_certs(&malformed, &EXPECTED_DIGEST, &chain);
         assert!(result.is_err());
     }
 }
-

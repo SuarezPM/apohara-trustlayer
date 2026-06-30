@@ -42,12 +42,14 @@ use crate::ToolHandler;
 
 /// Input for `bundle.get`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct BundleGetInput {
     /// The bundle UUID (e.g. `bnd_01HXYZ...`).
     pub bundle_id: String,
 }
 
 /// Retrieve a full evidence bundle by ID.
+#[allow(missing_docs)]
 pub fn handle_bundle_get(input: Value) -> Result<Value, String> {
     let p: BundleGetInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -55,11 +57,14 @@ pub fn handle_bundle_get(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"bundle_id": b.bundle_id, "bundle": b, "disclaimers": ["v3.0 W7.0: real backend wire-up"]}))
+    Ok(
+        json!({"bundle_id": b.bundle_id, "bundle": b, "disclaimers": ["v3.0 W7.0: real backend wire-up"]}),
+    )
 }
 
 /// Input for `bundle.list`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct BundleListInput {
     /// Tenant org_id (DNS-safe per Architect IC-4).
     pub org_id: String,
@@ -73,18 +78,25 @@ fn default_bundle_limit() -> u32 {
 }
 
 /// List evidence bundles for a tenant.
+#[allow(missing_docs)]
 pub fn handle_bundle_list(input: Value) -> Result<Value, String> {
     let p: BundleListInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let b = match crate::backends_global::get().bundle.list(&p.org_id, p.limit as usize) {
+    let b = match crate::backends_global::get()
+        .bundle
+        .list(&p.org_id, p.limit as usize)
+    {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"org_id": p.org_id, "count": b.len(), "bundles": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"org_id": p.org_id, "count": b.len(), "bundles": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `bundle.search`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct BundleSearchInput {
     /// Free-text query (matches disclosure content + bundle metadata).
     pub query: String,
@@ -98,23 +110,31 @@ fn default_search_limit() -> u32 {
 }
 
 /// Search bundles by content / metadata.
+#[allow(missing_docs)]
 pub fn handle_bundle_search(input: Value) -> Result<Value, String> {
     let p: BundleSearchInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let b = match crate::backends_global::get().bundle.search(&p.query, p.limit as usize) {
+    let b = match crate::backends_global::get()
+        .bundle
+        .search(&p.query, p.limit as usize)
+    {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"query": p.query, "matches": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"query": p.query, "matches": b, "limit": p.limit, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `bundle.metadata`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct BundleMetadataInput {
     pub bundle_id: String,
 }
 
 /// Lightweight metadata fetch (no full bundle download).
+#[allow(missing_docs)]
 pub fn handle_bundle_metadata(input: Value) -> Result<Value, String> {
     let p: BundleMetadataInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -122,11 +142,14 @@ pub fn handle_bundle_metadata(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"bundle_id": b.bundle_id, "size_bytes": serde_json::to_string(&b).unwrap().len(), "disclosure_count": b.disclosure_ids.len(), "compliance_rollup": "Compliant", "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"bundle_id": b.bundle_id, "size_bytes": serde_json::to_string(&b).unwrap().len(), "disclosure_count": b.disclosure_ids.len(), "compliance_rollup": "Compliant", "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `bundle.export`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct BundleExportInput {
     pub bundle_id: String,
     /// Export format. One of `pdf`, `json`, `csv`.
@@ -134,14 +157,20 @@ pub struct BundleExportInput {
 }
 
 /// Export an evidence bundle to PDF / JSON / CSV.
+#[allow(missing_docs)]
 pub fn handle_bundle_export(input: Value) -> Result<Value, String> {
     let p: BundleExportInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let b = match crate::backends_global::get().bundle.export(&p.bundle_id, &p.format) {
+    let b = match crate::backends_global::get()
+        .bundle
+        .export(&p.bundle_id, &p.format)
+    {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"bundle_id": b.bundle_id, "format": b.format, "content": b.content, "output_path": format!("/tmp/bundle-{}.{}", b.bundle_id, b.format), "bytes": 0, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"bundle_id": b.bundle_id, "format": b.format, "content": b.content, "output_path": format!("/tmp/bundle-{}.{}", b.bundle_id, b.format), "bytes": 0, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 // =============================================================================
@@ -150,12 +179,14 @@ pub fn handle_bundle_export(input: Value) -> Result<Value, String> {
 
 /// Input for `scitt.verify`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct ScittVerifyInput {
     /// SCITT receipt (CBOR-encoded COSE_Sign1 envelope, base64url).
     pub receipt: String,
 }
 
 /// Verify a SCITT receipt against the issuer's public key (offline).
+#[allow(missing_docs)]
 pub fn handle_scitt_verify(input: Value) -> Result<Value, String> {
     let p: ScittVerifyInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -163,17 +194,21 @@ pub fn handle_scitt_verify(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"verified": b.verified, "issuer_kid": b.issuer_kid, "registry_id": b.registry_id, "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"verified": b.verified, "issuer_kid": b.issuer_kid, "registry_id": b.registry_id, "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `scitt.get`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct ScittGetInput {
     /// Transparency log entry ID.
     pub entry_id: String,
 }
 
 /// Retrieve an entry from the SCITT transparency log.
+#[allow(missing_docs)]
 pub fn handle_scitt_get(input: Value) -> Result<Value, String> {
     let p: ScittGetInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -188,6 +223,7 @@ pub fn handle_scitt_get(input: Value) -> Result<Value, String> {
 
 /// Input for `scitt.submit`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct ScittSubmitInput {
     /// Statement (claim payload) to register. Typically a CBOR map
     /// containing `subject`, `predicate`, `issued_at`.
@@ -195,6 +231,7 @@ pub struct ScittSubmitInput {
 }
 
 /// Submit a statement to the Transparency Service.
+#[allow(missing_docs)]
 pub fn handle_scitt_submit(input: Value) -> Result<Value, String> {
     let p: ScittSubmitInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -209,11 +246,13 @@ pub fn handle_scitt_submit(input: Value) -> Result<Value, String> {
 
 /// Input for `scitt.status`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct ScittStatusInput {
     pub entry_id: String,
 }
 
 /// Check inclusion status of a transparency log entry.
+#[allow(missing_docs)]
 pub fn handle_scitt_status(input: Value) -> Result<Value, String> {
     let p: ScittStatusInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -236,6 +275,7 @@ pub fn handle_scitt_status(input: Value) -> Result<Value, String> {
 
 /// Input for `watermark.detect`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct WatermarkDetectInput {
     /// Text to test for a Kirchenbauer watermark. Tokens split on
     /// whitespace in the v3.0 stub.
@@ -243,6 +283,7 @@ pub struct WatermarkDetectInput {
 }
 
 /// Detect a Kirchenbauer text watermark via z-test (z > 4 → detected).
+#[allow(missing_docs)]
 pub fn handle_watermark_detect(input: Value) -> Result<Value, String> {
     let p: WatermarkDetectInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -250,11 +291,14 @@ pub fn handle_watermark_detect(input: Value) -> Result<Value, String> {
         Ok(r) => r,
         Err(e) => return Ok(e.to_json()),
     };
-    Ok(json!({"detected": b.detected, "z_score": b.z_score, "confidence": b.confidence, "algorithm": "kirchenbauer_et_al_2023", "disclaimers": ["v3.0 W7.0: real backend"]}))
+    Ok(
+        json!({"detected": b.detected, "z_score": b.z_score, "confidence": b.confidence, "algorithm": "kirchenbauer_et_al_2023", "disclaimers": ["v3.0 W7.0: real backend"]}),
+    )
 }
 
 /// Input for `watermark.generate`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct WatermarkGenerateInput {
     /// Plaintext to watermark.
     pub text: String,
@@ -263,6 +307,7 @@ pub struct WatermarkGenerateInput {
 }
 
 /// Embed a Kirchenbauer watermark (sampling-side hook in production).
+#[allow(missing_docs)]
 pub fn handle_watermark_generate(input: Value) -> Result<Value, String> {
     let p: WatermarkGenerateInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -280,16 +325,22 @@ pub fn handle_watermark_generate(input: Value) -> Result<Value, String> {
 
 /// Input for `watermark.confidence`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct WatermarkConfidenceInput {
     pub text: String,
 }
 
 /// Return the z-score + confidence for a Kirchenbauer watermark test.
+#[allow(missing_docs)]
 pub fn handle_watermark_confidence(input: Value) -> Result<Value, String> {
     let p: WatermarkConfidenceInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     let n = p.text.split_whitespace().count();
-    let z = if n == 0 { 0.0 } else { (n as f64).log2().min(8.0) };
+    let z = if n == 0 {
+        0.0
+    } else {
+        (n as f64).log2().min(8.0)
+    };
     Ok(json!({
         "z_score": z,
         "confidence": if z > 4.0 { 0.99997 } else { 0.5 },
@@ -308,12 +359,14 @@ pub fn handle_watermark_confidence(input: Value) -> Result<Value, String> {
 
 /// Input for `trustlist.check`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct TrustlistCheckInput {
     /// SHA-256 fingerprint of the TSP root certificate (hex).
     pub public_key_fp: String,
 }
 
 /// Check whether a TSP root certificate is on the EU Trust List.
+#[allow(missing_docs)]
 pub fn handle_trustlist_check(input: Value) -> Result<Value, String> {
     let p: TrustlistCheckInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -332,12 +385,14 @@ pub fn handle_trustlist_check(input: Value) -> Result<Value, String> {
 
 /// Input for `trustlist.list_providers`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct TrustlistListProvidersInput {
     /// ISO 3166-1 alpha-2 country code (e.g. `DE`, `FR`, `ES`).
     pub country: String,
 }
 
 /// List qualified TSPs by country from the EU Trust List.
+#[allow(missing_docs)]
 pub fn handle_trustlist_list_providers(input: Value) -> Result<Value, String> {
     let p: TrustlistListProvidersInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -353,12 +408,14 @@ pub fn handle_trustlist_list_providers(input: Value) -> Result<Value, String> {
 
 /// Input for `trustlist.policy_oid`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct TrustlistPolicyOidInput {
     /// DER-encoded X.509 certificate (base64).
     pub cert_der: String,
 }
 
 /// Extract the QTSP policy OID from a certificate (ETSI EN 319 421).
+#[allow(missing_docs)]
 pub fn handle_trustlist_policy_oid(input: Value) -> Result<Value, String> {
     let p: TrustlistPolicyOidInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -378,12 +435,14 @@ pub fn handle_trustlist_policy_oid(input: Value) -> Result<Value, String> {
 
 /// Input for `key.status`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct KeyStatusInput {
     /// Tenant org_id.
     pub tenant: String,
 }
 
 /// Rotation state for a tenant's signing key.
+#[allow(missing_docs)]
 pub fn handle_key_status(input: Value) -> Result<Value, String> {
     let p: KeyStatusInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -401,6 +460,7 @@ pub fn handle_key_status(input: Value) -> Result<Value, String> {
 
 /// Input for `key.rotate`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct KeyRotateInput {
     pub tenant: String,
     /// Reason: `Scheduled`, `Compromised`, `AlgorithmMigration`,
@@ -414,10 +474,17 @@ pub struct KeyRotateInput {
 /// gated on the Agentic Rule of Two (≥2 of: CI env, TTY, human
 /// override). The MCP dispatcher already enforces this for the v1
 /// toolset; v3.0 W3.3 inherits the same gate.
+#[allow(missing_docs)]
 pub fn handle_key_rotate(input: Value) -> Result<Value, String> {
     let p: KeyRotateInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
-    let valid = ["Scheduled", "Compromised", "AlgorithmMigration", "Operational", "Initial"];
+    let valid = [
+        "Scheduled",
+        "Compromised",
+        "AlgorithmMigration",
+        "Operational",
+        "Initial",
+    ];
     if !valid.contains(&p.reason.as_str()) {
         return Err(format!(
             "invalid reason: {} (must be one of {:?})",
@@ -435,6 +502,7 @@ pub fn handle_key_rotate(input: Value) -> Result<Value, String> {
 
 /// Input for `key.history`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct KeyHistoryInput {
     pub tenant: String,
     /// ISO-8601 date (e.g. `2026-01-01`); events since this date.
@@ -442,6 +510,7 @@ pub struct KeyHistoryInput {
 }
 
 /// Audit log of key rotation events for a tenant.
+#[allow(missing_docs)]
 pub fn handle_key_history(input: Value) -> Result<Value, String> {
     let p: KeyHistoryInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -462,6 +531,7 @@ pub fn handle_key_history(input: Value) -> Result<Value, String> {
 
 /// Input for `soa.generate` (empty: SoA is auto-generated).
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct SoaGenerateInput {
     /// Optional org_id for tenant-scoped SoA.
     #[serde(default)]
@@ -470,6 +540,7 @@ pub struct SoaGenerateInput {
 
 /// Auto-generate an ISO 42001 Statement of Applicability from the
 /// current `tl-policy::iso_42001` mapper.
+#[allow(missing_docs)]
 pub fn handle_soa_generate(input: Value) -> Result<Value, String> {
     let p: SoaGenerateInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -484,9 +555,11 @@ pub fn handle_soa_generate(input: Value) -> Result<Value, String> {
 
 /// Input for `soa.controls` (empty).
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct SoaControlsInput {}
 
 /// List all ISO/IEC 42001:2023 Annex A controls (A.5 through A.10).
+#[allow(missing_docs)]
 pub fn handle_soa_controls(_input: Value) -> Result<Value, String> {
     Ok(json!({
         "controls": [
@@ -505,9 +578,11 @@ pub fn handle_soa_controls(_input: Value) -> Result<Value, String> {
 
 /// Input for `soa.compliance_status` (empty).
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct SoaComplianceStatusInput {}
 
 /// Aggregate ISO 42001 SoA compliance status (implemented/partial/planned).
+#[allow(missing_docs)]
 pub fn handle_soa_compliance_status(_input: Value) -> Result<Value, String> {
     Ok(json!({
         "implemented": 67,
@@ -529,9 +604,11 @@ pub fn handle_soa_compliance_status(_input: Value) -> Result<Value, String> {
 
 /// Input for `nist.risks` (empty).
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct NistRisksInput {}
 
 /// Catalog of the 12 NIST AI 600-1 GAI risks.
+#[allow(missing_docs)]
 pub fn handle_nist_risks(_input: Value) -> Result<Value, String> {
     Ok(json!({
         "risks": [
@@ -554,12 +631,14 @@ pub fn handle_nist_risks(_input: Value) -> Result<Value, String> {
 
 /// Input for `nist.mitigations`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct NistMitigationsInput {
     /// Risk ID (e.g. `GV-01`).
     pub risk_id: String,
 }
 
 /// TrustLayer mitigations for a specific NIST AI 600-1 risk.
+#[allow(missing_docs)]
 pub fn handle_nist_mitigations(input: Value) -> Result<Value, String> {
     let p: NistMitigationsInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -577,9 +656,11 @@ pub fn handle_nist_mitigations(input: Value) -> Result<Value, String> {
 
 /// Input for `nist.profile_compliance` (empty).
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct NistProfileComplianceInput {}
 
 /// Overall NIST AI 600-1 profile compliance score.
+#[allow(missing_docs)]
 pub fn handle_nist_profile_compliance(_input: Value) -> Result<Value, String> {
     Ok(json!({
         "total_risks": 12,
@@ -605,12 +686,14 @@ pub fn handle_nist_profile_compliance(_input: Value) -> Result<Value, String> {
 
 /// Input for `pld.disclosure_response`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct PldDisclosureResponseInput {
     /// Court / regulatory order ID.
     pub order_id: String,
 }
 
 /// Generate a PLD Art. 11 disclosure response (evidence bundle + chain of custody).
+#[allow(missing_docs)]
 pub fn handle_pld_disclosure_response(input: Value) -> Result<Value, String> {
     let p: PldDisclosureResponseInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -625,12 +708,14 @@ pub fn handle_pld_disclosure_response(input: Value) -> Result<Value, String> {
 
 /// Input for `pld.rebuttal_pack`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct PldRebuttalPackInput {
     /// Product ID being challenged.
     pub product_id: String,
 }
 
 /// Build a PLD Art. 11 rebuttal pack (defeats the rebuttable presumption).
+#[allow(missing_docs)]
 pub fn handle_pld_rebuttal_pack(input: Value) -> Result<Value, String> {
     let p: PldRebuttalPackInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -650,6 +735,7 @@ pub fn handle_pld_rebuttal_pack(input: Value) -> Result<Value, String> {
 
 /// Input for `pld.deadline`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct PldDeadlineInput {
     /// Regulation ID (e.g. `EU-AI-Act-Art50`, `PLD-2024-2853`,
     /// `DORA-Art-19`).
@@ -657,6 +743,7 @@ pub struct PldDeadlineInput {
 }
 
 /// Days remaining to a regulatory deadline.
+#[allow(missing_docs)]
 pub fn handle_pld_deadline(input: Value) -> Result<Value, String> {
     let p: PldDeadlineInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -685,6 +772,7 @@ pub fn handle_pld_deadline(input: Value) -> Result<Value, String> {
 
 /// Input for `partner.apply`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct PartnerApplyInput {
     /// Org info: `{name, country, sector, contact_email, use_case}`.
     /// Free-form JSON for v3.0 stub; validated against a schema in v3.1.
@@ -692,6 +780,7 @@ pub struct PartnerApplyInput {
 }
 
 /// Submit a design partner program application.
+#[allow(missing_docs)]
 pub fn handle_partner_apply(input: Value) -> Result<Value, String> {
     let p: PartnerApplyInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -706,11 +795,13 @@ pub fn handle_partner_apply(input: Value) -> Result<Value, String> {
 
 /// Input for `partner.status`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct PartnerStatusInput {
     pub org_id: String,
 }
 
 /// Application status for a design partner candidate.
+#[allow(missing_docs)]
 pub fn handle_partner_status(input: Value) -> Result<Value, String> {
     let p: PartnerStatusInput =
         serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
@@ -738,6 +829,7 @@ fn tool_spec<T: JsonSchema>(name: &str, title: &str, description: &str) -> Value
 }
 
 /// Register all 29 v2 tools into the shared dispatch table.
+#[allow(missing_docs)]
 pub fn register_dispatch(map: &mut HashMap<&'static str, ToolHandler>) {
     // 1. Bundle query (5)
     map.insert("bundle.get", handle_bundle_get);
@@ -780,46 +872,155 @@ pub fn register_dispatch(map: &mut HashMap<&'static str, ToolHandler>) {
 }
 
 /// Build the `tools/list` specs for all 29 v2 tools.
+#[allow(missing_docs)]
 pub fn tools_list() -> Vec<Value> {
     vec![
         // 1. Bundle query (5)
-        tool_spec::<BundleGetInput>("bundle.get", "Get bundle", "Retrieve a full evidence bundle by ID."),
-        tool_spec::<BundleListInput>("bundle.list", "List bundles", "List evidence bundles for a tenant."),
-        tool_spec::<BundleSearchInput>("bundle.search", "Search bundles", "Search bundles by content / metadata."),
-        tool_spec::<BundleMetadataInput>("bundle.metadata", "Bundle metadata", "Lightweight metadata fetch."),
-        tool_spec::<BundleExportInput>("bundle.export", "Export bundle", "Export to PDF / JSON / CSV."),
+        tool_spec::<BundleGetInput>(
+            "bundle.get",
+            "Get bundle",
+            "Retrieve a full evidence bundle by ID.",
+        ),
+        tool_spec::<BundleListInput>(
+            "bundle.list",
+            "List bundles",
+            "List evidence bundles for a tenant.",
+        ),
+        tool_spec::<BundleSearchInput>(
+            "bundle.search",
+            "Search bundles",
+            "Search bundles by content / metadata.",
+        ),
+        tool_spec::<BundleMetadataInput>(
+            "bundle.metadata",
+            "Bundle metadata",
+            "Lightweight metadata fetch.",
+        ),
+        tool_spec::<BundleExportInput>(
+            "bundle.export",
+            "Export bundle",
+            "Export to PDF / JSON / CSV.",
+        ),
         // 2. SCITT (4)
-        tool_spec::<ScittVerifyInput>("scitt.verify", "Verify SCITT receipt", "Offline-verify a SCITT receipt."),
-        tool_spec::<ScittGetInput>("scitt.get", "Get SCITT entry", "Retrieve from transparency log."),
-        tool_spec::<ScittSubmitInput>("scitt.submit", "Submit to TS", "Submit a statement to the Transparency Service."),
-        tool_spec::<ScittStatusInput>("scitt.status", "SCITT status", "Check inclusion status of an entry."),
+        tool_spec::<ScittVerifyInput>(
+            "scitt.verify",
+            "Verify SCITT receipt",
+            "Offline-verify a SCITT receipt.",
+        ),
+        tool_spec::<ScittGetInput>(
+            "scitt.get",
+            "Get SCITT entry",
+            "Retrieve from transparency log.",
+        ),
+        tool_spec::<ScittSubmitInput>(
+            "scitt.submit",
+            "Submit to TS",
+            "Submit a statement to the Transparency Service.",
+        ),
+        tool_spec::<ScittStatusInput>(
+            "scitt.status",
+            "SCITT status",
+            "Check inclusion status of an entry.",
+        ),
         // 3. Watermark (3)
-        tool_spec::<WatermarkDetectInput>("watermark.detect", "Detect watermark", "Kirchenbauer z-test on text."),
-        tool_spec::<WatermarkGenerateInput>("watermark.generate", "Embed watermark", "Embed a Kirchenbauer watermark."),
-        tool_spec::<WatermarkConfidenceInput>("watermark.confidence", "Watermark confidence", "Return z-score for a text."),
+        tool_spec::<WatermarkDetectInput>(
+            "watermark.detect",
+            "Detect watermark",
+            "Kirchenbauer z-test on text.",
+        ),
+        tool_spec::<WatermarkGenerateInput>(
+            "watermark.generate",
+            "Embed watermark",
+            "Embed a Kirchenbauer watermark.",
+        ),
+        tool_spec::<WatermarkConfidenceInput>(
+            "watermark.confidence",
+            "Watermark confidence",
+            "Return z-score for a text.",
+        ),
         // 4. EU Trust List (3)
-        tool_spec::<TrustlistCheckInput>("trustlist.check", "Check EU TL", "Verify TSP root on EU Trust List."),
-        tool_spec::<TrustlistListProvidersInput>("trustlist.list_providers", "List QTSPs", "List qualified TSPs by country."),
-        tool_spec::<TrustlistPolicyOidInput>("trustlist.policy_oid", "Extract policy OID", "Extract QTSP policy OID from cert."),
+        tool_spec::<TrustlistCheckInput>(
+            "trustlist.check",
+            "Check EU TL",
+            "Verify TSP root on EU Trust List.",
+        ),
+        tool_spec::<TrustlistListProvidersInput>(
+            "trustlist.list_providers",
+            "List QTSPs",
+            "List qualified TSPs by country.",
+        ),
+        tool_spec::<TrustlistPolicyOidInput>(
+            "trustlist.policy_oid",
+            "Extract policy OID",
+            "Extract QTSP policy OID from cert.",
+        ),
         // 5. Key rotation (3)
         tool_spec::<KeyStatusInput>("key.status", "Key status", "Rotation state for a tenant."),
-        tool_spec::<KeyRotateInput>("key.rotate", "Rotate key", "Manually rotate a tenant's signing key."),
-        tool_spec::<KeyHistoryInput>("key.history", "Key history", "Audit log of rotation events."),
+        tool_spec::<KeyRotateInput>(
+            "key.rotate",
+            "Rotate key",
+            "Manually rotate a tenant's signing key.",
+        ),
+        tool_spec::<KeyHistoryInput>(
+            "key.history",
+            "Key history",
+            "Audit log of rotation events.",
+        ),
         // 6. ISO 42001 (3)
-        tool_spec::<SoaGenerateInput>("soa.generate", "Generate SoA", "Auto-generate ISO 42001 Statement of Applicability."),
-        tool_spec::<SoaControlsInput>("soa.controls", "List Annex A controls", "All ISO 42001 Annex A controls."),
-        tool_spec::<SoaComplianceStatusInput>("soa.compliance_status", "SoA compliance", "Implemented/partial/planned counts."),
+        tool_spec::<SoaGenerateInput>(
+            "soa.generate",
+            "Generate SoA",
+            "Auto-generate ISO 42001 Statement of Applicability.",
+        ),
+        tool_spec::<SoaControlsInput>(
+            "soa.controls",
+            "List Annex A controls",
+            "All ISO 42001 Annex A controls.",
+        ),
+        tool_spec::<SoaComplianceStatusInput>(
+            "soa.compliance_status",
+            "SoA compliance",
+            "Implemented/partial/planned counts.",
+        ),
         // 7. NIST AI 600-1 (3)
         tool_spec::<NistRisksInput>("nist.risks", "NIST 600-1 risks", "Catalog of 12 GAI risks."),
-        tool_spec::<NistMitigationsInput>("nist.mitigations", "NIST mitigations", "TrustLayer mitigations for a risk."),
-        tool_spec::<NistProfileComplianceInput>("nist.profile_compliance", "NIST profile score", "Overall NIST AI 600-1 profile score."),
+        tool_spec::<NistMitigationsInput>(
+            "nist.mitigations",
+            "NIST mitigations",
+            "TrustLayer mitigations for a risk.",
+        ),
+        tool_spec::<NistProfileComplianceInput>(
+            "nist.profile_compliance",
+            "NIST profile score",
+            "Overall NIST AI 600-1 profile score.",
+        ),
         // 8. PLD (3)
-        tool_spec::<PldDisclosureResponseInput>("pld.disclosure_response", "PLD disclosure", "Generate PLD Art. 11 disclosure response."),
-        tool_spec::<PldRebuttalPackInput>("pld.rebuttal_pack", "PLD rebuttal", "PLD Art. 11 rebuttal pack (defeats presumption)."),
-        tool_spec::<PldDeadlineInput>("pld.deadline", "Regulatory deadline", "Days remaining to a regulatory deadline."),
+        tool_spec::<PldDisclosureResponseInput>(
+            "pld.disclosure_response",
+            "PLD disclosure",
+            "Generate PLD Art. 11 disclosure response.",
+        ),
+        tool_spec::<PldRebuttalPackInput>(
+            "pld.rebuttal_pack",
+            "PLD rebuttal",
+            "PLD Art. 11 rebuttal pack (defeats presumption).",
+        ),
+        tool_spec::<PldDeadlineInput>(
+            "pld.deadline",
+            "Regulatory deadline",
+            "Days remaining to a regulatory deadline.",
+        ),
         // 9. Design partner (2)
-        tool_spec::<PartnerApplyInput>("partner.apply", "Apply to program", "Submit a design partner application."),
-        tool_spec::<PartnerStatusInput>("partner.status", "Application status", "Design partner application status."),
+        tool_spec::<PartnerApplyInput>(
+            "partner.apply",
+            "Apply to program",
+            "Submit a design partner application.",
+        ),
+        tool_spec::<PartnerStatusInput>(
+            "partner.status",
+            "Application status",
+            "Design partner application status.",
+        ),
     ]
 }
 
@@ -839,7 +1040,6 @@ mod tests {
             crate::backends_global::init(crate::backends::Backends::new());
         });
     }
-
 
     use super::*;
 
@@ -888,7 +1088,8 @@ mod tests {
         // (we test that the format validation is correct via rejection)
         for fmt in ["pdf", "json", "csv"] {
             // Use unknown id - should return not_found (format is valid)
-            let r = handle_bundle_export(json!({"bundle_id": "unknown", "format": fmt})).expect("ok");
+            let r =
+                handle_bundle_export(json!({"bundle_id": "unknown", "format": fmt})).expect("ok");
             assert_eq!(r["error"], "not_found");
         }
     }
@@ -946,8 +1147,12 @@ mod tests {
 
     #[test]
     fn test_watermark_generate_appends_marker() {
-        let r = handle_watermark_generate(json!({"text": "hello", "key": "abcdef0123456789"})).expect("ok");
-        assert!(r["watermarked_text"].as_str().unwrap().contains("kirchenbauer_text watermark v3.0"));
+        let r = handle_watermark_generate(json!({"text": "hello", "key": "abcdef0123456789"}))
+            .expect("ok");
+        assert!(r["watermarked_text"]
+            .as_str()
+            .unwrap()
+            .contains("kirchenbauer_text watermark v3.0"));
         assert_eq!(r["key_id"].as_str().unwrap().len(), 64); // blake3 hex = 64 chars
     }
 
@@ -993,7 +1198,8 @@ mod tests {
 
     #[test]
     fn test_key_rotate_valid_reason() {
-        let r = handle_key_rotate(json!({"tenant": "apohara", "reason": "Compromised"})).expect("ok");
+        let r =
+            handle_key_rotate(json!({"tenant": "apohara", "reason": "Compromised"})).expect("ok");
         assert_eq!(r["reason"], "Compromised");
         assert_eq!(r["new_key_id"], "key_apohara_v2");
     }
@@ -1007,7 +1213,8 @@ mod tests {
 
     #[test]
     fn test_key_history_returns_empty_events() {
-        let r = handle_key_history(json!({"tenant": "apohara", "since": "2026-01-01"})).expect("ok");
+        let r =
+            handle_key_history(json!({"tenant": "apohara", "since": "2026-01-01"})).expect("ok");
         assert_eq!(r["tenant"], "apohara");
         assert_eq!(r["since"], "2026-01-01");
         assert!(r["events"].as_array().unwrap().is_empty());
@@ -1049,8 +1256,12 @@ mod tests {
     fn test_nist_risks_returns_twelve() {
         let r = handle_nist_risks(json!({})).expect("ok");
         assert_eq!(r["total"], 12);
-        let ids: Vec<&str> = r["risks"].as_array().unwrap()
-            .iter().map(|x| x["id"].as_str().unwrap()).collect();
+        let ids: Vec<&str> = r["risks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["id"].as_str().unwrap())
+            .collect();
         assert!(ids.contains(&"GV-01"));
         assert!(ids.contains(&"MG-04"));
     }
@@ -1059,8 +1270,12 @@ mod tests {
     fn test_nist_mitigations_returns_tl_modules() {
         let r = handle_nist_mitigations(json!({"risk_id": "GV-01"})).expect("ok");
         assert_eq!(r["risk_id"], "GV-01");
-        let mods: Vec<&str> = r["tl_modules"].as_array().unwrap()
-            .iter().map(|x| x.as_str().unwrap()).collect();
+        let mods: Vec<&str> = r["tl_modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
         assert!(mods.contains(&"tl-evidence"));
     }
 
@@ -1106,11 +1321,16 @@ mod tests {
     fn test_partner_apply_submits_application() {
         let r = handle_partner_apply(json!({
             "org_info": {"name": "Acme", "country": "DE"}
-        })).expect("ok");
+        }))
+        .expect("ok");
         assert!(r["application_id"].as_str().unwrap().len() == 36);
         assert_eq!(r["status"], "Received");
-        let keys: Vec<&str> = r["received_org_info_keys"].as_array().unwrap()
-            .iter().map(|x| x.as_str().unwrap()).collect();
+        let keys: Vec<&str> = r["received_org_info_keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap())
+            .collect();
         assert!(keys.contains(&"name"));
         assert!(keys.contains(&"country"));
     }
@@ -1136,19 +1356,37 @@ mod tests {
         let specs = tools_list();
         assert_eq!(specs.len(), 29);
         // Spot-check key names
-        let names: Vec<&str> = specs.iter()
-            .map(|s| s["name"].as_str().unwrap())
-            .collect();
+        let names: Vec<&str> = specs.iter().map(|s| s["name"].as_str().unwrap()).collect();
         for expected in [
-            "bundle.get", "bundle.list", "bundle.search", "bundle.metadata", "bundle.export",
-            "scitt.verify", "scitt.get", "scitt.submit", "scitt.status",
-            "watermark.detect", "watermark.generate", "watermark.confidence",
-            "trustlist.check", "trustlist.list_providers", "trustlist.policy_oid",
-            "key.status", "key.rotate", "key.history",
-            "soa.generate", "soa.controls", "soa.compliance_status",
-            "nist.risks", "nist.mitigations", "nist.profile_compliance",
-            "pld.disclosure_response", "pld.rebuttal_pack", "pld.deadline",
-            "partner.apply", "partner.status",
+            "bundle.get",
+            "bundle.list",
+            "bundle.search",
+            "bundle.metadata",
+            "bundle.export",
+            "scitt.verify",
+            "scitt.get",
+            "scitt.submit",
+            "scitt.status",
+            "watermark.detect",
+            "watermark.generate",
+            "watermark.confidence",
+            "trustlist.check",
+            "trustlist.list_providers",
+            "trustlist.policy_oid",
+            "key.status",
+            "key.rotate",
+            "key.history",
+            "soa.generate",
+            "soa.controls",
+            "soa.compliance_status",
+            "nist.risks",
+            "nist.mitigations",
+            "nist.profile_compliance",
+            "pld.disclosure_response",
+            "pld.rebuttal_pack",
+            "pld.deadline",
+            "partner.apply",
+            "partner.status",
         ] {
             assert!(names.contains(&expected), "missing tool name: {expected}");
         }

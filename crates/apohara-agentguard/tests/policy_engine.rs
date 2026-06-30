@@ -29,10 +29,10 @@
 
 use std::path::PathBuf;
 
-use apohara_agentguard::Config;
 use apohara_agentguard::hook::contract::HookInput;
-use apohara_agentguard::PolicySet;
 use apohara_agentguard::verdict::Tier;
+use apohara_agentguard::Config;
+use apohara_agentguard::PolicySet;
 use serde_json::json;
 
 /// The default-deny policy used by the benchmark. Stored as a `&'static

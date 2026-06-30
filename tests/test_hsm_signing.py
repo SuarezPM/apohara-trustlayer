@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 from typing import Any
 
 import pytest
@@ -261,7 +260,7 @@ def test_get_signer_picks_thales_when_pkcs11_module_set(
     monkeypatch.setenv("TL_THALES_PKCS11_MODULE", "/tmp/notareal-pkcs11.so")
 
     try:
-        from app.hsm_adapter import get_signer, ThalesLunaPqcSigner
+        from app.hsm_adapter import get_signer
         try:
             signer = get_signer()
         except (ImportError, OSError, FileNotFoundError):
@@ -341,7 +340,6 @@ def test_ephemeral_ed25519_signer_produces_verifiable_signature() -> None:
     stays identical.
     """
     from app.hsm_adapter import EphemeralEd25519Signer
-    from cryptography.hazmat.primitives.asymmetric import ed25519
 
     signer = EphemeralEd25519Signer()
     payload = b"trustlayer-payload-test"

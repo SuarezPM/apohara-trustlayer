@@ -16,10 +16,9 @@ All functions are designed to be:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 
-def safe_html(s: Optional[str]) -> str:
+def safe_html(s: str | None) -> str:
     """Minimal HTML escape for Paragraph payloads.
 
     Used by `kv_table` and `watermark_stamp_drawing` before passing
@@ -35,7 +34,7 @@ def safe_html(s: Optional[str]) -> str:
     )
 
 
-def kv_table(rows: list[list[str]]) -> "Table":
+def kv_table(rows: list[list[str]]) -> Table:
     """Render a 2-column key/value table.
 
     Returns a reportlab.platypus.Table styled with grey borders, 1.8"
@@ -77,7 +76,7 @@ def kv_table(rows: list[list[str]]) -> "Table":
 
 def watermark_stamp(
     label: str, *, bg_hex: str = "#e8f5e9", text_color_hex: str = "#1b5e20"
-) -> "Paragraph":
+) -> Paragraph:
     """Build a centred colored Paragraph stamp (no rotation, broadest compat).
 
     Returns a reportlab.platypus.Paragraph with a coloured background

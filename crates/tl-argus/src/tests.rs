@@ -95,7 +95,10 @@ fn four_specialists_have_stable_names_and_prompts() {
     assert_eq!(ArchitectureFit::new().name(), "aegis-arch");
     assert_eq!(ArchitectureFit::new().prompt_name(), "architecture-fit");
     assert_eq!(VerdictSynthesizer::new().name(), "aegis-verdict");
-    assert_eq!(VerdictSynthesizer::new().prompt_name(), "verdict-synthesizer");
+    assert_eq!(
+        VerdictSynthesizer::new().prompt_name(),
+        "verdict-synthesizer"
+    );
 }
 
 #[test]
@@ -238,7 +241,10 @@ fn audit_event_json_has_all_16_fields_and_no_cleartext() {
 
     // GDPR: the cleartext prompt (and any PII inside it) is gone.
     let s = serde_json::to_string(&event).unwrap();
-    assert!(!s.contains(secret), "cleartext prompt must not appear in JSON");
+    assert!(
+        !s.contains(secret),
+        "cleartext prompt must not appear in JSON"
+    );
     assert!(!s.contains("123-45-6789"), "PII must not leak into JSON");
 
     // Fingerprint must be hex-encoded, exactly 64 chars (32 bytes).

@@ -88,11 +88,7 @@ impl Tenant {
     /// Update the `key_id` field (and only the key_id — for key
     /// rotation). All other fields are immutable. The new key id
     /// is paired with a freshly-derived public key from the keyring.
-    pub fn rotate_key(
-        &mut self,
-        new_key_id: String,
-        new_ed25519_public_key_hex: String,
-    ) {
+    pub fn rotate_key(&mut self, new_key_id: String, new_ed25519_public_key_hex: String) {
         self.key_id = new_key_id;
         self.ed25519_public_key_hex = new_ed25519_public_key_hex;
     }
@@ -233,13 +229,12 @@ impl TenantRegistry {
             ("stark", "Stark Industries", "stark-prod-2026-01"),
             ("wayne", "Wayne Enterprises", "wayne-prod-2026-01"),
         ] {
-            let signer =
-                themis_evidence::signer::SignerService::for_tenant(id).map_err(|e| {
-                    format!(
-                        "SignerService::for_tenant({id}) failed at startup: {e}. \
+            let signer = themis_evidence::signer::SignerService::for_tenant(id).map_err(|e| {
+                format!(
+                    "SignerService::for_tenant({id}) failed at startup: {e}. \
                          Seed file missing? Baked keys are at crates/themis-evidence/keys/."
-                    )
-                })?;
+                )
+            })?;
             tenants.insert(
                 id.to_string(),
                 Tenant {

@@ -8,9 +8,9 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use apohara_agentguard::audit::{self, AuditRecord};
-use apohara_agentguard::Config;
 use apohara_agentguard::hook;
 use apohara_agentguard::sandbox::{PermissionTier, SandboxRequest, SandboxRunner};
+use apohara_agentguard::Config;
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
@@ -221,24 +221,23 @@ fn run_ask(args: CheckArgs, cli_policy: Option<&std::path::Path>) -> ExitCode {
     // policy (per `Config.policy.file`, overridden by the CLI flag);
     // when no policy is loaded, the engine is a no-op combine and
     // `policy_v == Verdict::allow()` — the empty-TOML invariant.
-    let policy_v =
-        match apohara_agentguard::PolicySet::load(config.policy.file.as_deref()) {
-            Ok(set) => set.evaluate(
-                &apohara_agentguard::hook::contract::HookInput {
-                    hook_event_name: "PreToolUse".to_string(),
-                    session_id: None,
-                    tool_name: Some("Bash".to_string()),
-                    tool_input: serde_json::json!({ "command": &args.command }),
-                    prompt: None,
-                    tool_response: serde_json::Value::Null,
-                },
-                &config,
-            ),
-            // Fail-closed: a load error is a hard refusal.
-            Err(e) => apohara_agentguard::verdict::Verdict::block(format!(
-                "policy load error (fail-closed): {e}"
-            )),
-        };
+    let policy_v = match apohara_agentguard::PolicySet::load(config.policy.file.as_deref()) {
+        Ok(set) => set.evaluate(
+            &apohara_agentguard::hook::contract::HookInput {
+                hook_event_name: "PreToolUse".to_string(),
+                session_id: None,
+                tool_name: Some("Bash".to_string()),
+                tool_input: serde_json::json!({ "command": &args.command }),
+                prompt: None,
+                tool_response: serde_json::Value::Null,
+            },
+            &config,
+        ),
+        // Fail-closed: a load error is a hard refusal.
+        Err(e) => apohara_agentguard::verdict::Verdict::block(format!(
+            "policy load error (fail-closed): {e}"
+        )),
+    };
     // Compose: the MORE SEVERE wins (Block > Ask > Warn > Allow).
     let verdict = if policy_v.tier.rank() > gate_v.tier.rank() {
         policy_v
@@ -493,8 +492,7 @@ max_invocations = 1
         // since no rule matched + no default-deny + budget OK).
         // Same PolicySet instance for both calls so the budget
         // counter accumulates (the engine's counters are per-set).
-        let set = apohara_agentguard::PolicySet::load(cfg.policy.file.as_deref())
-            .unwrap();
+        let set = apohara_agentguard::PolicySet::load(cfg.policy.file.as_deref()).unwrap();
         let make_input = || apohara_agentguard::hook::contract::HookInput {
             hook_event_name: "PreToolUse".to_string(),
             session_id: Some("ask-test".to_string()),

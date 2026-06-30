@@ -172,7 +172,6 @@ fn map_agent_outputs(
 /// Zulu). Returns `None` when the timestamp is invalid (`chrono`
 /// clamps out-of-range values).
 fn to_iso(ms: i64) -> Option<String> {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms).map(|dt| {
-        dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-    })
+    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
+        .map(|dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
 }

@@ -19,7 +19,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
 
 # CRITICAL: we import `Request` at module level so FastAPI's type
 # checker can recognise the special-casing of `Request` parameters

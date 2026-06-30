@@ -105,13 +105,13 @@ pub use cms_verify::{verify_strict_with_certs, CmsVerifyError};
 pub struct TsaTokenBytes(Vec<u8>);
 
 impl TsaTokenBytes {
-/// THREAT: This function wraps untrusted DER bytes into TsaTokenBytes
-/// without validation. Downstream consumers (verify_token) parse the
-/// DER via x509-tsp which can be exploited by crafted input. MITIGATION:
-/// callers should pass a `TsaTokenBytes` only from trusted sources
-/// (TSA response in TLS-protected channel) and should use the
-/// size-bounded verifier. The unwrap inside this function is safe
-/// (no allocation beyond the Vec<u8>::from(Vec<u8>)).
+    /// THREAT: This function wraps untrusted DER bytes into TsaTokenBytes
+    /// without validation. Downstream consumers (verify_token) parse the
+    /// DER via x509-tsp which can be exploited by crafted input. MITIGATION:
+    /// callers should pass a `TsaTokenBytes` only from trusted sources
+    /// (TSA response in TLS-protected channel) and should use the
+    /// size-bounded verifier. The unwrap inside this function is safe
+    /// (no allocation beyond the Vec<u8>::from(Vec<u8>)).
     /// Construct from raw DER-encoded `TimeStampResp` bytes.
     pub fn from_der(bytes: Vec<u8>) -> Self {
         Self(bytes)
@@ -262,7 +262,10 @@ impl QualifiedTsaStub {
 
     /// Fetch a token. v1.1.0: this is a real HTTP call, not a stub.
     /// Returns `Err(TsaError::Fetch)` on network failure.
-    pub async fn fetch_token(&self, digest: &[u8]) -> Result<crate::tsa::TsaTokenBytes, crate::tsa::TsaError> {
+    pub async fn fetch_token(
+        &self,
+        digest: &[u8],
+    ) -> Result<crate::tsa::TsaTokenBytes, crate::tsa::TsaError> {
         self.inner.fetch_token(digest).await
     }
 
@@ -348,18 +351,14 @@ impl TsaClient {
     /// delegates to the underlying authority's `verify()` method.
     /// For mock, this is the demo-grade `verify_quick`. For FreeTSA,
     /// production callers should use `verify_strict_with_certs` directly.
-/// THREAT: This function verifies RFC 3161 tokens. The verify_fn
-/// closure accepts the TokenResponse from raw DER bytes — a malformed
-/// or attacker-controlled DER could trigger stack overflow in the
-/// ASN.1 parser (x509-tsp crate). MITIGATION: (1) input size bounded
-/// (COSE / TSA tokens < 32 KB), (2) trust anchor cert chain verified
-/// for prod path via verify_strict_with_certs, (3) mock path is
-/// safe (no parsing).
-    pub fn verify_token(
-        &self,
-        token: &TsaTokenBytes,
-        digest_hex: &str,
-    ) -> Result<(), TsaError> {
+    /// THREAT: This function verifies RFC 3161 tokens. The verify_fn
+    /// closure accepts the TokenResponse from raw DER bytes — a malformed
+    /// or attacker-controlled DER could trigger stack overflow in the
+    /// ASN.1 parser (x509-tsp crate). MITIGATION: (1) input size bounded
+    /// (COSE / TSA tokens < 32 KB), (2) trust anchor cert chain verified
+    /// for prod path via verify_strict_with_certs, (3) mock path is
+    /// safe (no parsing).
+    pub fn verify_token(&self, token: &TsaTokenBytes, digest_hex: &str) -> Result<(), TsaError> {
         // TimestampResponse is a value struct — reconstruct from raw DER.
         // time/accuracy are best-effort: 0 / 0 will fail strict verification
         // but pass quick. Production callers should reconstruct via
@@ -420,12 +419,10 @@ fn decode_hex_digest(digest_hex: &str) -> Result<[u8; 32], TsaError> {
     }
     let mut out = [0u8; 32];
     for (i, chunk) in digest_hex.as_bytes().chunks(2).enumerate() {
-        let s = std::str::from_utf8(chunk).map_err(|_| {
-            TsaError::Fetch(format!("digest_hex byte {i} is not valid UTF-8"))
-        })?;
-        out[i] = u8::from_str_radix(s, 16).map_err(|_| {
-            TsaError::Fetch(format!("digest_hex byte {i} is not valid hex: {s:?}"))
-        })?;
+        let s = std::str::from_utf8(chunk)
+            .map_err(|_| TsaError::Fetch(format!("digest_hex byte {i} is not valid UTF-8")))?;
+        out[i] = u8::from_str_radix(s, 16)
+            .map_err(|_| TsaError::Fetch(format!("digest_hex byte {i} is not valid hex: {s:?}")))?;
     }
     Ok(out)
 }
@@ -452,36 +449,33 @@ fn decode_hex_digest(digest_hex: &str) -> Result<[u8; 32], TsaError> {
 /// env var to surface the misconfiguration.
 pub fn init() -> Result<TsaClient, TsaError> {
     match std::env::var("TL_TSA_PROVIDER").as_deref() {
-        Ok("mock") => Ok(TsaClient::Mock(Arc::new(MockTimestampAuthority::new("mock://local")))),
-        Ok("free_tsa") | Ok("free") => {
-            Ok(TsaClient::FreeTsa(Arc::new(FreeTSAAuthority::new(
-                FreeTsaClient::DEFAULT_URL,
-            ))))
-        }
+        Ok("mock") => Ok(TsaClient::Mock(Arc::new(MockTimestampAuthority::new(
+            "mock://local",
+        )))),
+        Ok("free_tsa") | Ok("free") => Ok(TsaClient::FreeTsa(Arc::new(FreeTSAAuthority::new(
+            FreeTsaClient::DEFAULT_URL,
+        )))),
         Ok("sectigo") => {
             // v1.1.0.x+1+6: Sectigo as PRIMARY per locked user decision.
             // Closes auditor-4 BRECHA 2 (Sectigo + eIDAS QCP-n-qscd +
             // ETSI EN 319 421 + EU Trust List).
             let endpoint = std::env::var("TL_SECTIGO_URL")
                 .unwrap_or_else(|_| sectigo::DEFAULT_SECTIGO_ENDPOINT.to_string());
-            let chain_path = std::env::var("TL_SECTIGO_CHAIN_PEM_FILE")
-                .unwrap_or_else(|_| {
-                    let crate_dir = std::env::var("CARGO_MANIFEST_DIR")
-                        .unwrap_or_else(|_| ".".to_string());
-                    let workspace = std::path::Path::new(&crate_dir)
-                        .parent()
-                        .and_then(|p| p.parent())
-                        .map(|p| p.to_path_buf())
-                        .unwrap_or_else(|| std::path::PathBuf::from("."));
-                    workspace
-                        .join("audit_artifacts/test_fixtures/sectigo/chain.pem")
-                        .to_string_lossy()
-                        .into_owned()
-                });
+            let chain_path = std::env::var("TL_SECTIGO_CHAIN_PEM_FILE").unwrap_or_else(|_| {
+                let crate_dir =
+                    std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+                let workspace = std::path::Path::new(&crate_dir)
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                workspace
+                    .join("audit_artifacts/test_fixtures/sectigo/chain.pem")
+                    .to_string_lossy()
+                    .into_owned()
+            });
             let chain_pem = std::fs::read(&chain_path).map_err(|e| {
-                TsaError::Fetch(format!(
-                    "Sectigo chain PEM read failed ({chain_path}): {e}"
-                ))
+                TsaError::Fetch(format!("Sectigo chain PEM read failed ({chain_path}): {e}"))
             })?;
             let _client = sectigo::SectigoTsaClient::new(endpoint, chain_pem);
             Ok(TsaClient::Qualified(Arc::new(QualifiedTsaStub::new())))
@@ -498,20 +492,19 @@ pub fn init() -> Result<TsaClient, TsaError> {
             // frozen fixture in audit_artifacts/test_fixtures/digicert/chain.pem.
             let endpoint = std::env::var("TL_DIGICERT_URL")
                 .unwrap_or_else(|_| digicert::DEFAULT_DIGICERT_ENDPOINT.to_string());
-            let chain_path = std::env::var("TL_DIGICERT_CHAIN_PEM_FILE")
-                .unwrap_or_else(|_| {
-                    let crate_dir = std::env::var("CARGO_MANIFEST_DIR")
-                        .unwrap_or_else(|_| ".".to_string());
-                    let workspace = std::path::Path::new(&crate_dir)
-                        .parent()
-                        .and_then(|p| p.parent())
-                        .map(|p| p.to_path_buf())
-                        .unwrap_or_else(|| std::path::PathBuf::from("."));
-                    workspace
-                        .join("audit_artifacts/test_fixtures/digicert/chain.pem")
-                        .to_string_lossy()
-                        .into_owned()
-                });
+            let chain_path = std::env::var("TL_DIGICERT_CHAIN_PEM_FILE").unwrap_or_else(|_| {
+                let crate_dir =
+                    std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+                let workspace = std::path::Path::new(&crate_dir)
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                workspace
+                    .join("audit_artifacts/test_fixtures/digicert/chain.pem")
+                    .to_string_lossy()
+                    .into_owned()
+            });
             let chain_pem = std::fs::read(&chain_path).map_err(|e| {
                 TsaError::Fetch(format!(
                     "DigiCert chain PEM read failed ({chain_path}): {e}"
@@ -683,8 +676,7 @@ mod tests {
             .parent()
             .and_then(|p| p.parent())
             .unwrap();
-        let chain_path = workspace_root
-            .join("audit_artifacts/test_fixtures/digicert/chain.pem");
+        let chain_path = workspace_root.join("audit_artifacts/test_fixtures/digicert/chain.pem");
         std::env::set_var("TL_TSA_PROVIDER", "digicert");
         std::env::set_var("TL_DIGICERT_CHAIN_PEM_FILE", chain_path);
         let result = init();
@@ -711,9 +703,8 @@ mod tests {
         assert_eq!(mock.tier(), TsaTier::Mock);
         assert_eq!(mock.url(), "mock://local");
 
-        let freetsa = TsaClient::FreeTsa(Arc::new(FreeTSAAuthority::new(
-            FreeTsaClient::DEFAULT_URL,
-        )));
+        let freetsa =
+            TsaClient::FreeTsa(Arc::new(FreeTSAAuthority::new(FreeTsaClient::DEFAULT_URL)));
         assert_eq!(freetsa.tier(), TsaTier::FreeTsa);
         assert_eq!(freetsa.url(), "https://freetsa.org/tsr");
     }
@@ -737,7 +728,9 @@ mod tests {
         let stub = QualifiedTsaStub::new();
         let endpoint = stub.inner.endpoint();
         assert!(
-            endpoint.contains("sectigo") || endpoint.contains("digicert") || endpoint.contains("eidas"),
+            endpoint.contains("sectigo")
+                || endpoint.contains("digicert")
+                || endpoint.contains("eidas"),
             "Qualified default endpoint must be a qualified TSP URL (got: {endpoint})"
         );
     }
@@ -751,9 +744,9 @@ mod tests {
         // a real Fetch error (the production endpoint won't be reachable
         // from a unit test).
         let client = TsaClient::Qualified(Arc::new(QualifiedTsaStub::new()));
-        let result = client.fetch_token(
-            "0000000000000000000000000000000000000000000000000000000000000000"
-        ).await;
+        let result = client
+            .fetch_token("0000000000000000000000000000000000000000000000000000000000000000")
+            .await;
         match result {
             Err(TsaError::NotImplemented(_)) => {
                 panic!("v1.1.0 must NOT return NotImplemented on Qualified::fetch_token")

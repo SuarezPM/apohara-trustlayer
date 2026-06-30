@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -74,16 +73,16 @@ class NotarizeResponse(BaseModel):
     pdf_url: str
     qr_payload: str
     verify_url: str
-    tsa_token: Optional[str] = None
-    tsa_url: Optional[str] = None
-    rekor_entry_id: Optional[str] = None
-    rekor_log_id: Optional[str] = None
+    tsa_token: str | None = None
+    tsa_url: str | None = None
+    rekor_entry_id: str | None = None
+    rekor_log_id: str | None = None
     # W9.0: EU AI Act Art. 50(3) watermark status (Kirchenbauer z-test).
     # None when no token_ids were supplied (out of scope per Code of
     # Practice on Transparency §3.2 for hashes / non-text content).
     # When supplied, the dict carries: detected (bool), z_score,
     # green_count / total_count, z_threshold, framework, regulatory_basis.
-    watermark: Optional[dict] = None
+    watermark: dict | None = None
     disclaimers: list[str] = Field(
         default_factory=lambda: [
             "W7.1 v3.0: notary stub. COSE_Sign1 envelope structure per RFC 9052.",

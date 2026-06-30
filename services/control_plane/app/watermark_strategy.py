@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -120,8 +119,8 @@ def kirchenbauer_detect(
 
 
 def detect_or_not_applicable(
-    text: Optional[str],
-    token_ids: Optional[list[int]],
+    text: str | None,
+    token_ids: list[int] | None,
     vocab_size: int,
     key: bytes,
 ) -> dict:
@@ -190,7 +189,7 @@ def kirchenbauer_bias_logits(
     logits: list[float],
     position: int,
     key: bytes,
-    vocab_size: Optional[int] = None,
+    vocab_size: int | None = None,
     gamma: float = DEFAULT_GAMMA,
     delta: float = 2.0,
 ) -> list[float]:
@@ -231,7 +230,7 @@ def kirchenbauer_bias_logits(
 def kirchenbauer_embed_tokens(
     tokens: list[int],
     key: bytes,
-    vocab_size: Optional[int] = None,
+    vocab_size: int | None = None,
     gamma: float = DEFAULT_GAMMA,
 ) -> list[int]:
     """Offline embed: produce a watermarked token sequence with high z-score.

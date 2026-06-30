@@ -13,12 +13,12 @@ use std::time::Duration;
 use axum::routing::get;
 use axum::Router;
 use tempfile::tempdir;
-use tokio::net::TcpListener;
-use tokio::time::timeout;
 use tl_frontend::cost_calculator::RateTable;
 use tl_frontend::cost_log_schema::CostLogRow;
 use tl_frontend::evidence_cache::EvidenceCache;
 use tl_frontend::sse::{sse_handler, AppState};
+use tokio::net::TcpListener;
+use tokio::time::timeout;
 
 async fn spawn_app() -> (SocketAddr, AppState, tempfile::TempDir) {
     let dir = tempdir().expect("tempdir");

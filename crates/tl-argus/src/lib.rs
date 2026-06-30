@@ -24,8 +24,8 @@ pub mod specialists;
 mod tests;
 
 pub use audit_event::{
-    blake3_fingerprint, next_prev_hash, AuditEvent, DataClass, DecisionArtifact, ToolCallRecord,
-    hex_bytes, hex_signature,
+    blake3_fingerprint, hex_bytes, hex_signature, next_prev_hash, AuditEvent, DataClass,
+    DecisionArtifact, ToolCallRecord,
 };
 pub use cordon::{Constraint, ContextRequirement, CordonEnforcer, CordonError};
 pub use specialists::{

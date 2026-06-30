@@ -31,8 +31,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from typing import Optional, Protocol
-
+from typing import Protocol
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -132,9 +131,9 @@ class AWSKmsMLDSASigner:
 
     def __init__(
         self,
-        key_id: Optional[str] = None,
+        key_id: str | None = None,
         region: str = "eu-south-1",
-        boto3_client: Optional[object] = None,  # for testing without AWS
+        boto3_client: object | None = None,  # for testing without AWS
     ):
         self.key_id = key_id or os.environ.get("TL_AWS_KMS_KEY_ID")
         if not self.key_id:
@@ -146,7 +145,7 @@ class AWSKmsMLDSASigner:
             )
         self.region = region
         self._client = boto3_client  # None in production → load lazily
-        self._public_key: Optional[bytes] = None
+        self._public_key: bytes | None = None
 
     def _get_client(self):
         if self._client is None:
@@ -218,10 +217,10 @@ class ThalesLunaPqcSigner:
 
     def __init__(
         self,
-        module_path: Optional[str] = None,
-        slot: Optional[int] = None,
-        pin: Optional[str] = None,
-        key_label: Optional[str] = None,
+        module_path: str | None = None,
+        slot: int | None = None,
+        pin: str | None = None,
+        key_label: str | None = None,
     ):
         self.module_path = module_path or os.environ.get("TL_THALES_PKCS11_MODULE")
         self.slot = slot or int(os.environ.get("TL_THALES_PKCS11_SLOT", "0"))

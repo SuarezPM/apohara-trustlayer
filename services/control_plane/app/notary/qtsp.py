@@ -9,9 +9,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Optional
-
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +38,7 @@ class QTSPClient:
     marked in `metadata_json` so downstream consumers know.
     """
 
-    def __init__(self, tsa_url: Optional[str] = None, timeout: float = 10.0):
+    def __init__(self, tsa_url: str | None = None, timeout: float = 10.0):
         # W9.0: default to Actalis Italia (free test endpoint, RFC 3161,
         # eIDAS-qualified when paired with the qualified cert chain via
         # the W8.8 QES adapter). Actalis is the primary QTSP per the
@@ -54,7 +52,7 @@ class QTSPClient:
 
     def timestamp(
         self, content_hash_hex: str
-    ) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None, str | None]:
         """Request an RFC 3161 timestamp for the given content hash.
 
         Returns (tsa_token_b64, tsa_url, tsa_fetched_at) or
@@ -63,7 +61,7 @@ class QTSPClient:
         try:
             # Build the RFC 3161 TimeStampReq (ASN.1 DER) via rfc3161-client.
             try:
-                from rfc3161_client import TimestampRequestBuilder, HashAlgorithm
+                from rfc3161_client import HashAlgorithm, TimestampRequestBuilder
                 hash_bytes = bytes.fromhex(content_hash_hex)
                 ts_req = TimestampRequestBuilder(
                     data=hash_bytes, hash_algorithm=HashAlgorithm.SHA256
@@ -93,13 +91,13 @@ class QTSPClient:
             try:
                 from rfc3161_client import decode_timestamp_response
                 _ts_resp = decode_timestamp_response(resp.content)
-            except Exception as decode_err:  # noqa: BLE001 — rfc3161 decode; raw TSA bytes stored regardless for downstream verify
+            except Exception as decode_err:
                 logger.warning(
                     f"TSA response decode failed (storing raw bytes anyway): "
                     f"{decode_err}"
                 )
 
-            fetched_at = datetime.now(timezone.utc).isoformat()
+            fetched_at = datetime.now(UTC).isoformat()
             return (
                 base64.b64encode(resp.content).decode("ascii"),
                 self.tsa_url,
@@ -110,7 +108,7 @@ class QTSPClient:
             # debugging, return None (degraded mode per README).
             logger.error(f"QTSP HTTP error for {self.tsa_url}: {e!r}")
             return None, None, None
-        except Exception:  # noqa: BLE001 — QTSP unexpected error safety net; returns (None, None, None) degraded mode
+        except Exception:
             # Unknown — keep broad catch as degraded-mode safety net.
             logger.exception(f"QTSP unexpected error for {self.tsa_url}")
             return None, None, None

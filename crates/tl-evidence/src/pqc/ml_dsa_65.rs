@@ -53,6 +53,7 @@ impl MlDsa65KeyPair {
     /// Generate a deterministic keypair from a 32-byte seed (FIPS 204 §4.1).
     pub fn from_seed(seed: &[u8; 32]) -> Self {
         // Seed = B32 = Array<u8, U32>. Construct via GenericArray::from_slice.
+        #[allow(deprecated)]
         let seed_arr = Seed::from_slice(seed);
         let signing_key = SigningKey::<MlDsa65>::from_seed(seed_arr);
         // `verifying_key()` comes from the `Keypair` trait (imported above).
@@ -73,7 +74,9 @@ impl MlDsa65KeyPair {
             });
         }
         // EncodedVerifyingKey<MlDsa65> = Array<u8, U1952>. Construct from slice.
-        let enc: EncodedVerifyingKey<MlDsa65> = EncodedVerifyingKey::<MlDsa65>::try_from(public_key_bytes).map_err(|_| MlDsa65VerifyError::InvalidSignature)?;
+        let enc: EncodedVerifyingKey<MlDsa65> =
+            EncodedVerifyingKey::<MlDsa65>::try_from(public_key_bytes)
+                .map_err(|_| MlDsa65VerifyError::InvalidSignature)?;
         let verifying_key = VerifyingKey::<MlDsa65>::decode(&enc);
         // Signing key is not available in verification-only mode.
         // We use a placeholder signing key that will never be used.
@@ -157,10 +160,10 @@ impl MlDsa65Signature {
             });
         }
         // EncodedSignature<MlDsa65> = Array<u8, U3309>. Construct from slice.
+        #[allow(deprecated)]
         let enc = EncodedSignature::<MlDsa65>::from_slice(bytes);
         // Signature::decode returns Option<Signature<MlDsa65>>.
-        let sig = Signature::<MlDsa65>::decode(&enc)
-            .ok_or(MlDsa65VerifyError::InvalidSignature)?;
+        let sig = Signature::<MlDsa65>::decode(enc).ok_or(MlDsa65VerifyError::InvalidSignature)?;
         Ok(Self { inner: sig })
     }
 
@@ -188,10 +191,9 @@ mod tests {
     use super::*;
 
     const TEST_SEED: [u8; 32] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+        0x1f, 0x20,
     ];
 
     #[test]

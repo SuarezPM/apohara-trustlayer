@@ -29,7 +29,7 @@ impl Ed25519Keypair {
     /// Generate a fresh random keypair for a tenant.
     pub fn generate(tenant_id: impl Into<String>) -> Self {
         use rand::RngCore;
-        let mut csprng = rand::thread_rng();
+        let mut csprng = rand::rng();
         let mut bytes = [0u8; 32];
         csprng.fill_bytes(&mut bytes);
         let signing_key = SigningKey::from_bytes(&bytes);

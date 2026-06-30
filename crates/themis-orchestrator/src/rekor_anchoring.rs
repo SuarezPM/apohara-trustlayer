@@ -41,11 +41,7 @@ impl RekorAnchoring {
     /// `rekor_entry` field populated. Returns the original `signed`
     /// unchanged when no client is configured OR when Rekor
     /// anchoring fails (the run is not failed — best-effort).
-    pub(crate) async fn anchor(
-        &self,
-        signed: SignedPacket,
-        tenant_id: &str,
-    ) -> SignedPacket {
+    pub(crate) async fn anchor(&self, signed: SignedPacket, tenant_id: &str) -> SignedPacket {
         let Some(rekor) = self.client.as_ref() else {
             return signed;
         };

@@ -1,0 +1,33 @@
+# cargo-audit configuration for Apohara TrustLayer.
+#
+# Mirrors the `ignore` block in deny.toml (cargo-deny reads its own config;
+# cargo-audit uses this file). Keep both lists in sync.
+#
+# Each entry has a rationale on a follow-up comment so future audits can
+# re-evaluate without re-deriving context.
+[advisories]
+ignore = [
+  # RUSTSEC-2023-0071: Marvin Attack on `rsa` crate (timing sidechannel).
+  # Transitive via themis-evidence (x509-tsp). No fixed upstream.
+  # Mitigation: we do NOT use rsa for signing; Ed25519 only.
+  "RUSTSEC-2023-0071",
+
+  # RUSTSEC-2026-0187: Stack overflow in `lopdf` via deeply nested PDF
+  # objects in Document::load_mem (untrusted-input DoS, SIGABRT).
+  # Transitive via printpdf 0.7.0 which pins lopdf to ^0.31. printpdf 0.7
+  # is the only version whose writer API matches the themis-orchestrator
+  # pdf/* code; printpdf 0.9 has a rewritten API surface and would require
+  # a parallel rewrite of pdf/{mod,ctx}.rs.
+  # Mitigation: we never call lopdf::Document::load_mem / load /
+  # load_object at runtime — printpdf uses lopdf internally for object
+  # serialization, not for parsing. See deny.toml for the full rationale.
+  "RUSTSEC-2026-0187",
+
+  # RUSTSEC-2026-0192: `ttf-parser` is unmaintained.
+  # Transitive via printpdf. No replacement available that is API-compatible.
+  "RUSTSEC-2026-0192",
+
+  # RUSTSEC-2026-0173: `proc-macro-error2` is unmaintained.
+  # Transitive dependency. No functional impact; tracked for replacement.
+  "RUSTSEC-2026-0173",
+]

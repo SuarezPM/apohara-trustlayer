@@ -90,9 +90,9 @@ impl SectigoTsaClient {
     /// (e.g. `https://timestamp.sectigo.com` for production or
     /// the wiremock server URL for tests).
     ///
-    /// `chain_pem` is the PEM-encoded certificate chain (intermediate
-    /// + root) used to verify the TSA signing cert. The chain is
-    /// held in memory; pass the contents of `chain.pem` from
+    /// `chain_pem` is the PEM-encoded certificate chain (intermediate + root)
+    /// used to verify the TSA signing cert. The chain is held in memory;
+    /// pass the contents of `chain.pem` from
     /// `audit_artifacts/test_fixtures/sectigo/` (or, for tests that
     /// exercise the Sectigo wire format with a different chain, any
     /// RFC 3161-compliant chain will work because the wire format is
@@ -156,11 +156,7 @@ impl SectigoTsaClient {
     /// (RFC 3161 + CMS / RFC 5652) is vendor-agnostic, so the same
     /// verifier works for Sectigo, DigiCert, and any RFC 3161 compliant
     /// TSP.
-    pub fn verify_token(
-        &self,
-        token_der: &[u8],
-        expected_digest: &[u8],
-    ) -> Result<(), TsaError> {
+    pub fn verify_token(&self, token_der: &[u8], expected_digest: &[u8]) -> Result<(), TsaError> {
         crate::tsa::cms_verify::verify_strict_with_certs(
             token_der,
             expected_digest,
@@ -198,9 +194,7 @@ pub fn validate_chain_pem(chain_pem: &[u8]) -> Result<(), String> {
         let remaining = &chain_pem[offset..];
         let (next, pem) = parse_x509_pem(remaining)
             .map_err(|e| format!("PEM parse at offset {offset}: {e:?}"))?;
-        let cert = pem
-            .parse_x509()
-            .map_err(|e| format!("cert parse: {e:?}"))?;
+        let cert = pem.parse_x509().map_err(|e| format!("cert parse: {e:?}"))?;
 
         // Verify basicConstraints CA:TRUE for intermediate/root certs.
         let is_ca = match cert.tbs_certificate.basic_constraints() {
@@ -231,9 +225,7 @@ pub fn validate_chain_pem(chain_pem: &[u8]) -> Result<(), String> {
         chain_count += 1;
         let consumed = remaining.len() - next.len();
         offset += consumed;
-        while offset < total
-            && matches!(chain_pem[offset], b'\n' | b'\r' | b' ' | b'\t')
-        {
+        while offset < total && matches!(chain_pem[offset], b'\n' | b'\r' | b' ' | b'\t') {
             offset += 1;
         }
     }

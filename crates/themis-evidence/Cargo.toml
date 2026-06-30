@@ -55,7 +55,7 @@ sha2 = "0.10"
 x509-tsp = "0.1"
 cms = "0.2"
 der = "0.7"
-const-oid = "0.10"
+const-oid = { version = "0.10", features = ["db"] }
 x509-cert = { version = "0.2", features = ["pem"] }
 p384 = { version = "0.13", features = ["ecdsa"] }
 ecdsa = { version = "0.16", features = ["der", "sha2", "pkcs8"] }
@@ -71,7 +71,9 @@ pkcs1 = { version = "0.7", features = ["pem"] }
 # SaaS multi-tenant key derivation (FIX-6): HKDF-SHA256 derives a
 # deterministic 32-byte Ed25519 seed from MASTER_SEED + tenant_id.
 # `hkdf` 0.12 is paired with `sha2` 0.10 (already a workspace dep).
-hkdf = "0.13"
+# hkdf 0.13 switched to digest 0.11, which is incompatible with sha2 0.10's
+# digest 0.10 — pin to 0.12 to keep the trait chain working.
+hkdf = "0.12"
 # Rekor v2 gRPC stack (ADR 0010). Pinned to 0.14 for tonic/prost to
 # match the current stable on crates.io as of 2026-06-17. The
 # `transport` feature pulls in HTTP/2 connector + TLS roots;

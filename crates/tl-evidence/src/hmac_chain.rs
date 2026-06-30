@@ -1,9 +1,9 @@
 //! HMAC chain from chain root + `tenant_id` binding.
 //!
 //! Per Plan v1.2 Block 4 v1.1.0.x+1+8 (auditor-4 prior art port):
-//! HMAC-SHA256 over a canonical serialization of the chain entries
-//! + the `tenant_id`. The `verify_chain` function is **independent
-//! of the COSE signer key** — it only requires the HMAC key (from
+//! HMAC-SHA256 over a canonical serialization of the chain entries +
+//! the `tenant_id`. The `verify_chain` function is **independent of
+//! the COSE signer key** — it only requires the HMAC key (from
 //! `APOHARA_LEDGER_HMAC_KEY` env var) and the `tenant_id`. This means
 //! an auditor can verify the chain root without knowing the issuer
 //! key, decoupling chain integrity from issuer rotation.
@@ -82,22 +82,20 @@ pub struct HmacChainRoot {
 ///
 /// **Pure function** (no I/O, no clock, no env). Same input → same
 /// output forever.
-pub fn chain_root(
-    entries: &[ChainEntry],
-    tenant_id: &str,
-    hmac_key: &[u8],
-) -> HmacChainRoot {
+pub fn chain_root(entries: &[ChainEntry], tenant_id: &str, hmac_key: &[u8]) -> HmacChainRoot {
     // Build the canonical payload: sorted-keys JSON of {entries, tenant_id}.
     let mut payload = serde_json::Map::new();
-    payload.insert("entries".to_string(), serde_json::to_value(entries).expect(
-        "ChainEntry serialization must succeed (no float / non-string keys)",
-    ));
+    payload.insert(
+        "entries".to_string(),
+        serde_json::to_value(entries)
+            .expect("ChainEntry serialization must succeed (no float / non-string keys)"),
+    );
     payload.insert(
         "tenant_id".to_string(),
         serde_json::Value::String(tenant_id.to_string()),
     );
-    let canonical = serde_json::to_vec(&payload)
-        .expect("canonical payload serialization must succeed");
+    let canonical =
+        serde_json::to_vec(&payload).expect("canonical payload serialization must succeed");
 
     // Prefix the HMAC key with tenant_id to namespace it. This is a
     // cheap defense against key reuse across tenants: an attacker
@@ -182,7 +180,7 @@ mod tests {
         // Tamper with one entry → root mismatch.
         let mut entries = vec![
             make_entry(0, &"0".repeat(64), "hello"),
-            make_entry(1, &"hash_0", "world"),
+            make_entry(1, "hash_0", "world"),
         ];
         let key = b"hmac-key-1";
         let original = chain_root(&entries, "tenant-a", key);

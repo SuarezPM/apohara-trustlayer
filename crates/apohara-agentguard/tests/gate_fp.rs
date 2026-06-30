@@ -4,9 +4,9 @@
 //! blocks them is unusable, so they are pinned as Allow. The borderline
 //! `rm file.txt` (non-recursive, explicit single file) is documented below.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::gate::evaluate;
 use apohara_agentguard::verdict::Tier;
+use apohara_agentguard::Config;
 
 #[test]
 fn benign_commands_allow() {

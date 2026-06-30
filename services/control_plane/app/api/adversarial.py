@@ -22,8 +22,7 @@ taxonomy), MITRE ATLAS agentic threat catalog (AML.T0080-T0101).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -124,7 +123,7 @@ def _scenario_summary(s) -> AdversarialScenarioSummary:
     ),
 )
 def list_scenarios(
-    suite: Optional[str] = Query(
+    suite: str | None = Query(
         default=None,
         description="Filter by suite: OASB, AgentDojo, ATLAS, or omit for all",
     ),
@@ -143,7 +142,7 @@ def list_scenarios(
         agentdojo_count=len(AGENTDOJO_ATTACKS),
         atlas_count=len(ATLAS_TECHNIQUES),
         scenarios=scenarios,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         org_id=org_id,
     )
 
@@ -171,7 +170,8 @@ def post_run_scenario(
     catalog.update({s.code: s for s in ATLAS_TECHNIQUES})
     scenario = catalog.get(req.code)
     if scenario is None:
-        from fastapi import HTTPException, status as _status
+        from fastapi import HTTPException
+        from fastapi import status as _status
         raise HTTPException(
             status_code=_status.HTTP_404_NOT_FOUND,
             detail=f"unknown scenario code: {req.code}",
@@ -188,7 +188,7 @@ def post_run_scenario(
         verdict=result["verdict"],
         trustlayer_mitigations=result["trustlayer_mitigations"],
         audit_log=result["audit_log"],
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         org_id=org_id,
     )
 
@@ -211,7 +211,7 @@ def get_cordon_enforcer_mapping(
     mappings = CordonEnforcerMapping.all()
     return {
         "org_id": org_id,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "total_mappings": len(mappings),
         "mappings": [
             {

@@ -5,9 +5,9 @@
 //! proves the contrast: a faithful reimplementation of the legacy fixed-list
 //! gate returns Safe (no block) for all three, while apohara-agentguard blocks.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::gate::evaluate;
 use apohara_agentguard::verdict::Tier;
+use apohara_agentguard::Config;
 
 mod common;
 use common::naive_fixed_list;

@@ -9,8 +9,8 @@
 //! with `ENV_LOCK`, held for each test's entire body, so a "nothing disabled"
 //! sanity assertion can never observe another test's mutation.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::hook::run;
+use apohara_agentguard::Config;
 use serde_json::Value;
 use std::sync::Mutex;
 

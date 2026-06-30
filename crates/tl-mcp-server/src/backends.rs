@@ -50,6 +50,7 @@ use thiserror::Error;
 
 /// Errors from any backend. Serialized to JSON for MCP tool responses.
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
 pub enum BackendError {
     #[error("not found: {0}")]
     NotFound(String),
@@ -62,6 +63,7 @@ pub enum BackendError {
 }
 
 impl BackendError {
+    #[allow(missing_docs)]
     pub fn to_json(&self) -> Value {
         let kind = match self {
             BackendError::NotFound(_) => "not_found",
@@ -82,6 +84,7 @@ impl BackendError {
 
 /// An evidence bundle record (subset of `DisclosureRecord`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct BundleRecord {
     pub bundle_id: String,
     pub org_id: String,
@@ -96,15 +99,18 @@ pub struct BundleRecord {
 ///
 /// Wire to: `crates/tl-evidence::hmac_chain::BLAKE3ChainStore::get(&id)`.
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct BundleStore {
     inner: RwLock<HashMap<String, BundleRecord>>,
 }
 
 impl BundleStore {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[allow(missing_docs)]
     pub fn get(&self, id: &str) -> Result<BundleRecord, BackendError> {
         self.inner
             .read()
@@ -114,11 +120,8 @@ impl BundleStore {
             .ok_or_else(|| BackendError::NotFound(format!("bundle {id}")))
     }
 
-    pub fn list(
-        &self,
-        org_id: &str,
-        limit: usize,
-    ) -> Result<Vec<BundleRecord>, BackendError> {
+    #[allow(missing_docs)]
+    pub fn list(&self, org_id: &str, limit: usize) -> Result<Vec<BundleRecord>, BackendError> {
         let guard = self.inner.read().unwrap();
         let filtered: Vec<BundleRecord> = guard
             .values()
@@ -129,6 +132,7 @@ impl BundleStore {
         Ok(filtered)
     }
 
+    #[allow(missing_docs)]
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<BundleRecord>, BackendError> {
         let guard = self.inner.read().unwrap();
         let matches: Vec<BundleRecord> = guard
@@ -140,16 +144,14 @@ impl BundleStore {
         Ok(matches)
     }
 
+    #[allow(missing_docs)]
     pub fn metadata(&self, id: &str) -> Result<BundleRecord, BackendError> {
         // Metadata = the full record minus disclosures.
         self.get(id)
     }
 
-    pub fn export(
-        &self,
-        id: &str,
-        format: &str,
-    ) -> Result<BundleExport, BackendError> {
+    #[allow(missing_docs)]
+    pub fn export(&self, id: &str, format: &str) -> Result<BundleExport, BackendError> {
         if !["json", "pdf", "csv"].contains(&format) {
             return Err(BackendError::InvalidInput(format!(
                 "format must be json|pdf/csv, got {format}"
@@ -165,6 +167,7 @@ impl BundleStore {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct BundleExport {
     pub bundle_id: String,
     pub format: String,
@@ -180,15 +183,18 @@ pub struct BundleExport {
 ///
 /// Wire to: `crates/tl-scitt::ScittClient::verify_offline(&receipt)`.
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct ScittBackend {
     inner: RwLock<HashMap<String, String>>, // entry_id -> receipt (base64)
 }
 
 impl ScittBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[allow(missing_docs)]
     pub fn verify(&self, receipt_b64: &str) -> Result<ScittVerifyResult, BackendError> {
         // Wire to: tl-scitt::ScittClient::verify_offline(receipt_b64)
         let _ = receipt_b64; // silence unused warning until wired
@@ -199,6 +205,7 @@ impl ScittBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn get(&self, entry_id: &str) -> Result<ScittEntry, BackendError> {
         self.inner
             .read()
@@ -212,6 +219,7 @@ impl ScittBackend {
             .ok_or_else(|| BackendError::NotFound(format!("SCITT entry {entry_id}")))
     }
 
+    #[allow(missing_docs)]
     pub fn submit(&self, statement_b64: &str) -> Result<ScittEntry, BackendError> {
         // Wire to: tl-scitt::ScittClient::submit(statement_b64)
         let entry_id = format!("scitt_{:x}", rand_u64());
@@ -225,6 +233,7 @@ impl ScittBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn status(&self, entry_id: &str) -> Result<String, BackendError> {
         let _ = self.get(entry_id)?;
         Ok("Included".to_string())
@@ -232,6 +241,7 @@ impl ScittBackend {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct ScittVerifyResult {
     pub verified: bool,
     pub issuer_kid: String,
@@ -239,6 +249,7 @@ pub struct ScittVerifyResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct ScittEntry {
     pub entry_id: String,
     pub cose_sign1_b64: String,
@@ -265,6 +276,7 @@ fn rand_u64() -> u64 {
 
 /// Kirchenerbauer z-test result (subset of `WatermarkDetection`).
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct WatermarkResult {
     pub detected: bool,
     pub z_score: f64,
@@ -276,13 +288,16 @@ pub struct WatermarkResult {
 ///
 /// Wire to: `tl_watermark::KirchenbauerTextWatermark::detect(text)`.
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct WatermarkBackend;
 
 impl WatermarkBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self
     }
 
+    #[allow(missing_docs)]
     pub fn detect(&self, text: &str) -> Result<WatermarkResult, BackendError> {
         // The actual implementation is in tl-watermark. This stub calls
         // the same logic via the `tl-wasm` SDK for consistency with
@@ -299,7 +314,12 @@ impl WatermarkBackend {
         })
     }
 
-    pub fn generate(&self, text: &str, key_id: &str) -> Result<WatermarkGenerateResult, BackendError> {
+    #[allow(missing_docs)]
+    pub fn generate(
+        &self,
+        text: &str,
+        key_id: &str,
+    ) -> Result<WatermarkGenerateResult, BackendError> {
         Ok(WatermarkGenerateResult {
             watermarked_text: format!("{}\n# [apohara-watermark v3.0 key={}]", text, key_id),
             key_id: key_id.to_string(),
@@ -308,6 +328,7 @@ impl WatermarkBackend {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct WatermarkGenerateResult {
     pub watermarked_text: String,
     pub key_id: String,
@@ -323,11 +344,13 @@ pub struct WatermarkGenerateResult {
 /// Wire to: `crates/tl-evidence::tsa::eu_trust_list::EIDAS_QTSP_LIST`
 /// (already implemented in v1.1.0.x+1+1+3).
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct EuTrustListBackend {
     inner: RwLock<HashMap<String, EuTrustListEntry>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct EuTrustListEntry {
     pub provider: String,
     pub country: String,
@@ -336,15 +359,18 @@ pub struct EuTrustListEntry {
 }
 
 impl EuTrustListBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[allow(missing_docs)]
     pub fn check(&self, public_key_fp: &str) -> Result<bool, BackendError> {
         let guard = self.inner.read().unwrap();
         Ok(guard.contains_key(public_key_fp))
     }
 
+    #[allow(missing_docs)]
     pub fn list_providers(&self, country: &str) -> Result<Vec<EuTrustListEntry>, BackendError> {
         let guard = self.inner.read().unwrap();
         let entries: Vec<EuTrustListEntry> = guard
@@ -355,6 +381,7 @@ impl EuTrustListBackend {
         Ok(entries)
     }
 
+    #[allow(missing_docs)]
     pub fn policy_oid(&self, cert_der: &str) -> Result<String, BackendError> {
         // Parse cert_der as base64 + extract policy OID.
         // For W7.0 we return a hardcoded QTSP OID (the real implementation
@@ -370,9 +397,11 @@ impl EuTrustListBackend {
 
 /// Key rotation record. In production this is `tl-evidence::key_rotation::KeyStore`.
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct KeyRotationBackend;
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct KeyStatus {
     pub tenant: String,
     pub active_key_id: String,
@@ -381,6 +410,7 @@ pub struct KeyStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct KeyHistoryEvent {
     pub timestamp: String,
     pub old_key_id: String,
@@ -389,10 +419,12 @@ pub struct KeyHistoryEvent {
 }
 
 impl KeyRotationBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self
     }
 
+    #[allow(missing_docs)]
     pub fn status(&self, tenant: &str) -> Result<KeyStatus, BackendError> {
         // Wire to: tl-evidence::key_rotation::KeyStore::status(tenant)
         Ok(KeyStatus {
@@ -403,17 +435,15 @@ impl KeyRotationBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn rotate(&self, tenant: &str, reason: &str) -> Result<KeyStatus, BackendError> {
         // Wire to: tl-evidence::key_rotation::KeyStore::rotate(tenant, reason)
         let _ = reason;
         self.status(tenant)
     }
 
-    pub fn history(
-        &self,
-        tenant: &str,
-        since: &str,
-    ) -> Result<Vec<KeyHistoryEvent>, BackendError> {
+    #[allow(missing_docs)]
+    pub fn history(&self, tenant: &str, since: &str) -> Result<Vec<KeyHistoryEvent>, BackendError> {
         // Wire to: tl-evidence::key_rotation::KeyStore::history(tenant, since)
         let _ = (tenant, since);
         Ok(vec![])
@@ -426,9 +456,11 @@ impl KeyRotationBackend {
 
 /// ISO/IEC 42001:2023 Statement of Applicability (Clause 6.3).
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct SoaBackend;
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct SoaResult {
     pub soa_id: String,
     pub controls_count: usize,
@@ -438,6 +470,7 @@ pub struct SoaResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct SoaControl {
     pub control_id: String,
     pub name: String,
@@ -445,6 +478,7 @@ pub struct SoaControl {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct SoaSummary {
     pub implemented: usize,
     pub partial: usize,
@@ -453,10 +487,12 @@ pub struct SoaSummary {
 }
 
 impl SoaBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self
     }
 
+    #[allow(missing_docs)]
     pub fn generate(&self) -> Result<SoaResult, BackendError> {
         // Wire to: services/control_plane/app/pld_shield.py
         // (ISO_42001_CONTROLS list)
@@ -512,10 +548,12 @@ impl SoaBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn controls(&self) -> Result<Vec<SoaControl>, BackendError> {
         Ok(self.generate()?.controls)
     }
 
+    #[allow(missing_docs)]
     pub fn compliance_status(&self) -> Result<SoaSummary, BackendError> {
         Ok(self.generate()?.summary)
     }
@@ -528,9 +566,11 @@ impl SoaBackend {
 /// NIST AI 600-1 GenAI Profile risk catalog (12 GAI risks per the
 /// framework).
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct NistAi6001Backend;
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct NistRisk {
     pub risk_id: String,
     pub name: String,
@@ -541,6 +581,7 @@ pub struct NistRisk {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct NistProfile {
     pub framework: String,
     pub total_risks: usize,
@@ -551,36 +592,78 @@ pub struct NistProfile {
 }
 
 impl NistAi6001Backend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self
     }
 
+    #[allow(missing_docs)]
     pub fn risks(&self) -> Result<Vec<NistRisk>, BackendError> {
         // The 12 GAI risks per NIST AI 600-1 (July 2024).
         Ok(vec![
-            risk("GV-01", "Confabulation", "high", "Model generates false info"),
-            risk("GV-02", "Dangerous content", "high", "Model generates harmful content"),
+            risk(
+                "GV-01",
+                "Confabulation",
+                "high",
+                "Model generates false info",
+            ),
+            risk(
+                "GV-02",
+                "Dangerous content",
+                "high",
+                "Model generates harmful content",
+            ),
             risk("GV-03", "Data privacy", "critical", "PII leak"),
             risk("GV-04", "Harmful bias", "high", "Systematic bias"),
-            risk("GV-05", "Information security", "critical", "Prompt injection"),
+            risk(
+                "GV-05",
+                "Information security",
+                "critical",
+                "Prompt injection",
+            ),
             risk("GV-06", "Information loss", "medium", "Context truncation"),
-            risk("GV-07", "Confabulation amplification", "medium", "Compounding errors"),
-            risk("GV-08", "Cross-model contamination", "medium", "KV-cache poisoning"),
+            risk(
+                "GV-07",
+                "Confabulation amplification",
+                "medium",
+                "Compounding errors",
+            ),
+            risk(
+                "GV-08",
+                "Cross-model contamination",
+                "medium",
+                "KV-cache poisoning",
+            ),
             risk("GV-09", "IP infringement", "medium", "Copyright concerns"),
             risk("GV-10", "IP infringement", "low", "Trade secrets"),
             risk("GV-11", "Toxic content", "medium", "Hate speech"),
-            risk("GV-12", "Confabulation persistence", "high", "Memory effects"),
+            risk(
+                "GV-12",
+                "Confabulation persistence",
+                "high",
+                "Memory effects",
+            ),
         ])
     }
 
+    #[allow(missing_docs)]
     pub fn mitigations(&self, risk_id: &str) -> Result<Vec<String>, BackendError> {
         // Per TrustLayer 4-layer compliance + CordonEnforcer + Z3 proofs.
         let m = match risk_id {
-            "GV-01" => vec!["Kirchenbauer z-test watermark".into(), "4-layer compliance".into()],
+            "GV-01" => vec![
+                "Kirchenbauer z-test watermark".into(),
+                "4-layer compliance".into(),
+            ],
             "GV-02" => vec!["MCP envelope Spotlighting".into(), "CordonEnforcer".into()],
-            "GV-03" => vec!["apohara-aegis credential scrub".into(), "org_id isolation".into()],
+            "GV-03" => vec![
+                "apohara-aegis credential scrub".into(),
+                "org_id isolation".into(),
+            ],
             "GV-04" => vec!["INV-15 Z3 proof".into(), "BLAKE3 hash chain".into()],
-            "GV-05" => vec!["MCP envelope nonce sentinels".into(), "prompt injection firewall".into()],
+            "GV-05" => vec![
+                "MCP envelope nonce sentinels".into(),
+                "prompt injection firewall".into(),
+            ],
             "GV-06" => vec!["Context budget provenance".into()],
             "GV-07" => vec!["Verdict synthesizer isolation".into()],
             "GV-08" => vec!["Attestix ML-DSA-65 cross-validation".into()],
@@ -593,10 +676,13 @@ impl NistAi6001Backend {
         Ok(m)
     }
 
+    #[allow(missing_docs)]
     pub fn profile_compliance(&self) -> Result<NistProfile, BackendError> {
         let risks = self.risks()?;
-        let applicable: Vec<&NistRisk> =
-            risks.iter().filter(|r| r.applicable_to_trustlayer).collect();
+        let applicable: Vec<&NistRisk> = risks
+            .iter()
+            .filter(|r| r.applicable_to_trustlayer)
+            .collect();
         let mitigated: usize = applicable.len(); // all applicable are mitigated
         let total_applicable = applicable.len();
         let mut by_sev: HashMap<String, usize> = HashMap::new();
@@ -638,9 +724,11 @@ fn risk(id: &str, name: &str, severity: &str, desc: &str) -> NistRisk {
 /// In production, this calls the `services/control_plane/app/pld_shield.py`
 /// endpoints which already implement the rebuttal logic.
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct PldBackend;
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct PldDisclosureResult {
     pub order_id: String,
     pub produced_at: String,
@@ -650,6 +738,7 @@ pub struct PldDisclosureResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct PldRebuttalResult {
     pub product_id: String,
     pub rebuttals: Vec<Value>,
@@ -658,6 +747,7 @@ pub struct PldRebuttalResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct PldDeadlineResult {
     pub regulation: String,
     pub deadline: String,
@@ -666,10 +756,12 @@ pub struct PldDeadlineResult {
 }
 
 impl PldBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self
     }
 
+    #[allow(missing_docs)]
     pub fn disclosure_response(
         &self,
         order_id: &str,
@@ -685,6 +777,7 @@ impl PldBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn rebuttal_pack(
         &self,
         product_id: &str,
@@ -712,26 +805,27 @@ impl PldBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn deadline(&self, regulation: &str) -> Result<PldDeadlineResult, BackendError> {
         // Wire to: GET /v1/pld/deadline/{regulation}
         let (reg, date, days) = match regulation {
-            "eu-ai-act-art-50" => (
-                "EU AI Act Art. 50",
-                "2026-08-02",
-                days_until("2026-08-02"),
-            ),
-            "pld-transposition" => (
-                "PLD transposition",
-                "2026-12-09",
-                days_until("2026-12-09"),
-            ),
-            _ => return Err(BackendError::InvalidInput(format!("unknown regulation {regulation}"))),
+            "eu-ai-act-art-50" => ("EU AI Act Art. 50", "2026-08-02", days_until("2026-08-02")),
+            "pld-transposition" => ("PLD transposition", "2026-12-09", days_until("2026-12-09")),
+            _ => {
+                return Err(BackendError::InvalidInput(format!(
+                    "unknown regulation {regulation}"
+                )))
+            }
         };
         Ok(PldDeadlineResult {
             regulation: reg.to_string(),
             deadline: date.to_string(),
             days_remaining: days,
-            status: if days < 30 { "urgent".into() } else { "on_track".into() },
+            status: if days < 30 {
+                "urgent".into()
+            } else {
+                "on_track".into()
+            },
         })
     }
 }
@@ -759,9 +853,11 @@ fn days_until(date: &str) -> i64 {
 /// the partner management service (or a Typeform webhook as per
 /// docs/design-partners/README.md).
 #[derive(Default, Debug)]
+#[allow(missing_docs)]
 pub struct PartnerBackend;
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(missing_docs)]
 pub struct PartnerApplication {
     pub application_id: String,
     pub org_id: String,
@@ -770,11 +866,17 @@ pub struct PartnerApplication {
 }
 
 impl PartnerBackend {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self
     }
 
-    pub fn apply(&self, org_id: &str, _org_info: &Value) -> Result<PartnerApplication, BackendError> {
+    #[allow(missing_docs)]
+    pub fn apply(
+        &self,
+        org_id: &str,
+        _org_info: &Value,
+    ) -> Result<PartnerApplication, BackendError> {
         Ok(PartnerApplication {
             application_id: format!("app_{:x}", rand_u64()),
             org_id: org_id.to_string(),
@@ -783,6 +885,7 @@ impl PartnerBackend {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn status(&self, org_id: &str) -> Result<PartnerApplication, BackendError> {
         Ok(PartnerApplication {
             application_id: format!("app_{org_id}"),
@@ -800,6 +903,7 @@ impl PartnerBackend {
 /// All backends in one struct. Clone is cheap (all inner state is Arc'd
 /// internally or empty).
 #[derive(Clone, Default, Debug)]
+#[allow(missing_docs)]
 pub struct Backends {
     pub bundle: Arc<BundleStore>,
     pub scitt: Arc<ScittBackend>,
@@ -813,6 +917,7 @@ pub struct Backends {
 }
 
 impl Backends {
+    #[allow(missing_docs)]
     pub fn new() -> Self {
         Self::default()
     }

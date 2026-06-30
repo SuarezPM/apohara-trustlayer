@@ -34,12 +34,14 @@ use rand::RngCore;
 /// itself can track flow. The `source` is metadata for the audit
 /// linter; it is NOT rendered into the envelope output.
 #[derive(Debug, Clone)]
+#[allow(missing_docs)]
 pub struct TaintedString {
     pub value: String,
     pub source: String, // e.g. "user_task", "gemini_output", "dpi_metadata"
 }
 
 impl TaintedString {
+    #[allow(missing_docs)]
     pub fn new(value: impl Into<String>, source: impl Into<String>) -> Self {
         Self {
             value: value.into(),
@@ -56,14 +58,16 @@ impl fmt::Display for TaintedString {
 
 /// Build a prompt with trusted instructions + nonce-tagged untrusted
 /// blocks. See module docstring for the threat model.
+#[allow(missing_docs)]
 pub fn build_envelope(
     instructions: &str,
     untrusted_blocks: &HashMap<String, TaintedString>,
 ) -> String {
     // Per-request 16-byte hex nonce (32 chars). Cryptographic
-    // randomness via the OS RNG (defeats sentinel guessing).
+    // randomness via the thread RNG (defeats sentinel guessing;
+    // thread RNG is reseeded from the OS RNG by `rand`).
     let mut nonce_bytes = [0u8; 16];
-    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
     let nonce = hex_lower(&nonce_bytes);
 
     let mut parts: Vec<String> = Vec::new();
@@ -142,10 +146,7 @@ mod tests {
     fn test_envelope_nonce_differs_per_call() {
         // Per-request nonce: a sentinel-guessing attacker can't reuse.
         let mut blocks = HashMap::new();
-        blocks.insert(
-            "x".to_string(),
-            TaintedString::new("payload", "user"),
-        );
+        blocks.insert("x".to_string(), TaintedString::new("payload", "user"));
         let e1 = build_envelope("INS", &blocks);
         let e2 = build_envelope("INS", &blocks);
         assert_ne!(e1, e2, "nonces must differ per call");
@@ -154,10 +155,7 @@ mod tests {
     #[test]
     fn test_envelope_includes_nonce_in_header_and_sentinels() {
         let mut blocks = HashMap::new();
-        blocks.insert(
-            "label".to_string(),
-            TaintedString::new("data", "user"),
-        );
+        blocks.insert("label".to_string(), TaintedString::new("data", "user"));
         let envelope = build_envelope("INS", &blocks);
         // Extract nonce from header
         let header_nonce = envelope

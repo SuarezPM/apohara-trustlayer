@@ -22,8 +22,8 @@
 //! does not fire on Codex `apply_patch` inputs; the Bash gate — the core,
 //! highest-value surface — works identically across both harnesses.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::hook::run;
+use apohara_agentguard::Config;
 use serde_json::Value;
 
 /// A representative Codex PreToolUse + Bash stdin JSON for `cmd`, including the

@@ -55,9 +55,9 @@ use tl_mcp_server::tools_v2;
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use schemars::JsonSchema;
 use tl_evidence::tsa::{self, TsaClient};
 use tl_types::OrgId;
 
@@ -66,6 +66,7 @@ use tl_types::OrgId;
 // =============================================================================
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct GenerateDisclosureInput {
     pub ai_system_id: String,
     pub content: String,
@@ -76,32 +77,38 @@ pub struct GenerateDisclosureInput {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct VerifyProvenanceInput {
     pub cose_sign1_b64: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct SignArtifactInput {
     pub content_hash: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct CreateEvidenceBundleInput {
     pub disclosure_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct EvaluatePolicyInput {
     pub disclosure_id: String,
     pub regulation: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct InspectReceiptInput {
     pub receipt_id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+#[allow(missing_docs)]
 pub struct CheckComplianceInput {
     pub bundle_id: String,
 }
@@ -187,8 +194,8 @@ fn tool_spec<T: JsonSchema>(name: &str, title: &str, description: &str) -> Value
 // =============================================================================
 
 fn handle_generate_disclosure(input: Value) -> Result<Value, String> {
-    let parsed: GenerateDisclosureInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: GenerateDisclosureInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "disclosure_id": uuid::Uuid::new_v4().to_string(),
         "compliance_rollup": "Partial",
@@ -209,8 +216,8 @@ fn handle_generate_disclosure(input: Value) -> Result<Value, String> {
 }
 
 fn handle_verify_provenance(input: Value) -> Result<Value, String> {
-    let parsed: VerifyProvenanceInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: VerifyProvenanceInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "verified": true,
         "cose_sign1_b64": parsed.cose_sign1_b64,
@@ -219,8 +226,8 @@ fn handle_verify_provenance(input: Value) -> Result<Value, String> {
 }
 
 fn handle_sign_artifact(input: Value) -> Result<Value, String> {
-    let parsed: SignArtifactInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: SignArtifactInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "cose_sign1_b64": format!("sig_for_{}", parsed.content_hash),
         "row_hash": parsed.content_hash,
@@ -229,8 +236,8 @@ fn handle_sign_artifact(input: Value) -> Result<Value, String> {
 }
 
 fn handle_create_evidence_bundle(input: Value) -> Result<Value, String> {
-    let parsed: CreateEvidenceBundleInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: CreateEvidenceBundleInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "bundle_id": uuid::Uuid::new_v4().to_string(),
         "disclosure_ids": parsed.disclosure_ids,
@@ -238,8 +245,8 @@ fn handle_create_evidence_bundle(input: Value) -> Result<Value, String> {
 }
 
 fn handle_evaluate_policy(input: Value) -> Result<Value, String> {
-    let parsed: EvaluatePolicyInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: EvaluatePolicyInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "disclosure_id": parsed.disclosure_id,
         "regulation": parsed.regulation,
@@ -249,8 +256,8 @@ fn handle_evaluate_policy(input: Value) -> Result<Value, String> {
 }
 
 fn handle_inspect_receipt(input: Value) -> Result<Value, String> {
-    let parsed: InspectReceiptInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: InspectReceiptInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "receipt_id": parsed.receipt_id,
         "status": "Active",
@@ -258,8 +265,8 @@ fn handle_inspect_receipt(input: Value) -> Result<Value, String> {
 }
 
 fn handle_check_compliance(input: Value) -> Result<Value, String> {
-    let parsed: CheckComplianceInput = serde_json::from_value(input)
-        .map_err(|e| format!("invalid input: {e}"))?;
+    let parsed: CheckComplianceInput =
+        serde_json::from_value(input).map_err(|e| format!("invalid input: {e}"))?;
     Ok(json!({
         "bundle_id": parsed.bundle_id,
         "rollup": "Partial",
@@ -330,9 +337,7 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
         })),
         "tools/list" => Ok(build_tools_list()),
         "tools/call" => {
-            let params = req.params.ok_or_else(|| {
-                ERR_INVALID_PARAMS
-            });
+            let params = req.params.ok_or(ERR_INVALID_PARAMS);
             let params = match params {
                 Ok(p) => p,
                 Err(code) => {
@@ -348,9 +353,10 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     };
                 }
             };
-            let name = params.get("name").and_then(|v| v.as_str()).ok_or(
-                ERR_INVALID_PARAMS,
-            );
+            let name = params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or(ERR_INVALID_PARAMS);
             let name = match name {
                 Ok(n) => n,
                 Err(code) => {
@@ -366,10 +372,7 @@ fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     };
                 }
             };
-            let arguments = params
-                .get("arguments")
-                .cloned()
-                .unwrap_or(json!({}));
+            let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
             let dispatch = build_tool_dispatch();
             let handler = match dispatch.get(name) {
                 Some(h) => *h,

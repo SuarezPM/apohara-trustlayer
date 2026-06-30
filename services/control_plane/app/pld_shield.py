@@ -59,7 +59,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -104,7 +103,7 @@ class PLDDisclosureOrder(BaseModel):
     court: str = Field(description="Issuing court (e.g., 'Landgericht Berlin')")
     issued_at: datetime = Field(description="Order issuance date")
     deadline: datetime = Field(description="Compliance deadline")
-    plaintiff: Optional[str] = Field(default=None, description="Plaintiff identifier (anonymized)")
+    plaintiff: str | None = Field(default=None, description="Plaintiff identifier (anonymized)")
     defendant: str = Field(description="Defendant identifier (the AI provider)")
     product_id: str = Field(description="Specific AI product at issue")
     scope: list[str] = Field(
@@ -133,12 +132,12 @@ class PLDDisclosureResponse(BaseModel):
                    "responsive evidence within the scope of the order"
     )
     signed_by: str = Field(description="Officer signing the response")
-    cose_sign1_b64: Optional[str] = Field(
+    cose_sign1_b64: str | None = Field(
         default=None,
         description="COSE_Sign1 of the entire response payload "
                    "(Ed25519 per RFC 9052). Signs the response for tamper-evidence."
     )
-    scitt_entry_id: Optional[str] = Field(
+    scitt_entry_id: str | None = Field(
         default=None,
         description="SCITT entry ID after submission to SCITT TS. "
                    "Anchors the response in a public append-only log."
@@ -173,8 +172,8 @@ class PLDDefectRebuttalPack(BaseModel):
         description="bundle_ids of relevant TrustLayer evidence bundles"
     )
     signed_by: str
-    cose_sign1_b64: Optional[str] = None
-    scitt_entry_id: Optional[str] = None
+    cose_sign1_b64: str | None = None
+    scitt_entry_id: str | None = None
 
 
 class ISO42001AnnexAControl(BaseModel):
@@ -190,7 +189,7 @@ class ISO42001AnnexAControl(BaseModel):
         default_factory=list,
         description="Paths to code/docs/audit logs that evidence this control"
     )
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class ISO42001StatementOfApplicability(BaseModel):

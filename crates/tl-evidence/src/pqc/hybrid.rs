@@ -13,7 +13,9 @@ use crate::pqc::ml_dsa_65::{
 };
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use ed25519_dalek::{Signature as Ed25519Signature, Signer as Ed25519Signer, Verifier as Ed25519Verifier};
+use ed25519_dalek::{
+    Signature as Ed25519Signature, Signer as Ed25519Signer, Verifier as Ed25519Verifier,
+};
 use thiserror::Error;
 
 /// Cryptosuite identifier for hybrid Ed25519 + ML-DSA-65 signatures.
@@ -59,7 +61,9 @@ pub fn hybrid_sign(
     jcs_bytes: &[u8],
 ) -> String {
     let ed_sig = ed25519_private.sign(jcs_bytes);
-    let pq_sig = mldsa65.sign(jcs_bytes, TRUSTLAYER_HYBRID_CONTEXT).expect("ML-DSA-65 sign");
+    let pq_sig = mldsa65
+        .sign(jcs_bytes, TRUSTLAYER_HYBRID_CONTEXT)
+        .expect("ML-DSA-65 sign");
     let ed_b64 = URL_SAFE_NO_PAD.encode(ed_sig.to_bytes());
     let pq_b64 = URL_SAFE_NO_PAD.encode(pq_sig.to_bytes());
     format!("{ed_b64}{sep}{pq_b64}", sep = HYBRID_SEP)
@@ -105,10 +109,9 @@ pub fn hybrid_verify(
             actual: pq_bytes.len(),
         });
     }
-    let pq_sig = MlDsa65Signature::from_bytes(&pq_bytes)
-        .map_err(|e: MlDsa65VerifyError| {
-            HybridSignatureError::MlDsa65Base64Error(format!("{e:?}"))
-        })?;
+    let pq_sig = MlDsa65Signature::from_bytes(&pq_bytes).map_err(|e: MlDsa65VerifyError| {
+        HybridSignatureError::MlDsa65Base64Error(format!("{e:?}"))
+    })?;
 
     ed25519_public
         .verify(jcs_bytes, &ed_sig)
@@ -122,7 +125,9 @@ pub fn hybrid_verify(
 
 /// Sign a payload with ML-DSA-65 standalone (no Ed25519 fallback).
 pub fn mldsa65_sign(mldsa65: &MlDsa65KeyPair, jcs_bytes: &[u8]) -> MlDsa65Signature {
-    mldsa65.sign(jcs_bytes, TRUSTLAYER_MLDSA65_CONTEXT).expect("ML-DSA-65 sign")
+    mldsa65
+        .sign(jcs_bytes, TRUSTLAYER_MLDSA65_CONTEXT)
+        .expect("ML-DSA-65 sign")
 }
 
 /// Verify an ML-DSA-65 standalone signature.
@@ -140,10 +145,9 @@ mod tests {
     use crate::pqc::ml_dsa_65::MlDsa65KeyPair;
 
     const TEST_SEED: [u8; 32] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+        0x1f, 0x20,
     ];
 
     fn ed25519_keypair(seed_byte: u8) -> (ed25519_dalek::SigningKey, ed25519_dalek::VerifyingKey) {

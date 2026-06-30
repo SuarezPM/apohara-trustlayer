@@ -16,12 +16,9 @@ custom session/lookup override, exercise the route via TestClient
 
 from __future__ import annotations
 
-import asyncio
 import sys
-import time
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTROL_PLANE = REPO_ROOT / "services" / "control_plane"
@@ -30,7 +27,6 @@ sys.path.insert(0, str(CONTROL_PLANE))
 # Import after sys.path adjustment so the control_plane package is importable.
 from app.api.evidence import (  # noqa: E402
     InMemoryBundleLookup,
-    _select_content_type,
 )
 
 
@@ -50,7 +46,7 @@ def _build_app_with_inmemory(lookup: InMemoryBundleLookup, org_id: str = "acme")
     WHERE clause's org_id filter to enforce tenant isolation.
     """
     from fastapi import FastAPI
-    from tests.test_org_id_helpers import OrgIdTestClient
+    from test_org_id_helpers import OrgIdTestClient
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,
@@ -177,7 +173,7 @@ def test_default_lookup_returns_404_when_not_initialized() -> None:
     provide a session that returns a null result (no records found).
     """
     from fastapi import FastAPI
-    from tests.test_org_id_helpers import OrgIdTestClient
+    from test_org_id_helpers import OrgIdTestClient
     from app.api.evidence import (
         get_async_session_dep,
         router as evidence_router,

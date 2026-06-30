@@ -19,14 +19,14 @@ from __future__ import annotations
 
 from typing import Optional
 
+from app.compliance.cross_jurisdiction import CROSS_JURISDICTION_PROFILES
+from app.compliance.dora import DORA_EVIDENCE_CHECKS
+from app.compliance.federated_scitt import federate_scitt_evidence
 from app.compliance.iso_42001 import ISO_42001_ANNEX_A_CONTROLS
 from app.compliance.nist_ai_rmf import (
     NIST_AI_600_1_RISKS,
     NIST_AI_RMF_FUNCTIONS,
 )
-from app.compliance.dora import DORA_EVIDENCE_CHECKS
-from app.compliance.cross_jurisdiction import CROSS_JURISDICTION_PROFILES
-from app.compliance.federated_scitt import federate_scitt_evidence
 
 __all__ = [
     "ISO_42001_ANNEX_A_CONTROLS",
@@ -115,7 +115,7 @@ def assess_dora_evidence_pack(org_id: str = "apohara") -> dict:
     }
 
 
-def assess_cross_jurisdiction(jurisdiction: Optional[str] = None) -> dict:
+def assess_cross_jurisdiction(jurisdiction: str | None = None) -> dict:
     """Return cross-jurisdiction compliance profile (W10).
 
     Args:

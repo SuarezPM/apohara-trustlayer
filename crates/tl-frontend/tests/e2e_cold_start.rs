@@ -15,10 +15,10 @@ use std::time::{Duration, Instant};
 use axum::routing::get;
 use axum::Router;
 use tempfile::tempdir;
-use tokio::net::TcpListener;
 use tl_frontend::cost_calculator::RateTable;
 use tl_frontend::evidence_cache::EvidenceCache;
 use tl_frontend::sse::{evidence_download, sse_handler, AppState};
+use tokio::net::TcpListener;
 
 /// Spawn the demo server exactly as `main.rs` does. Returned
 /// `SocketAddr` is the ephemeral port the OS assigned.

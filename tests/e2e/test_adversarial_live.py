@@ -21,7 +21,6 @@ corresponding TrustLayer control is missing or malformed.
 from __future__ import annotations
 
 import warnings
-from typing import Any
 
 import pytest
 

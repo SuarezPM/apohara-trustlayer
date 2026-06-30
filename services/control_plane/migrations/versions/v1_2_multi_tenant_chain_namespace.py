@@ -22,16 +22,16 @@ Create Date: 2026-06-26
 """
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "v1_2_multi_tenant_chain_namespace"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -108,7 +108,7 @@ def downgrade() -> None:
         # drop_index is order-sensitive; only call if it exists.
         try:
             op.drop_index(idx_name, table_name=table_name)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
         existing_cols = {c["name"] for c in inspector.get_columns(table_name)}

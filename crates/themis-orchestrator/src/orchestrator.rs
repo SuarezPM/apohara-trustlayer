@@ -325,10 +325,9 @@ impl Orchestrator {
     ) {
         let next = next_agent_mention(agent_name);
         if let Some(bus) = self.event_bus.as_ref() {
-            let next_name = next.iter().next().cloned().unwrap_or_default();
+            let next_name = next.first().cloned().unwrap_or_default();
             if !next_name.is_empty() {
-                let context_summary =
-                    decision.reasoning.chars().take(200).collect::<String>();
+                let context_summary = decision.reasoning.chars().take(200).collect::<String>();
                 bus.publish(crate::events::Event::AgentHandoff {
                     run_id: uuid::Uuid::new_v4(),
                     from: agent_name.to_string(),
@@ -683,12 +682,7 @@ impl Orchestrator {
             .unwrap_or(false);
 
         let packet = self.assemble(tenant_id, invoice_id, &decisions, bbaaar_outcome);
-        let signed = if {
-            #[cfg(feature = "defense")]
-            { !destructive_blocked }
-            #[cfg(not(feature = "defense"))]
-            { true }
-        } {
+        let signed = if self.should_sign(destructive_blocked) {
             self.sign(packet, tenant_id)?
         } else {
             // human_guard Suspended: return packet WITHOUT signing
@@ -701,12 +695,7 @@ impl Orchestrator {
         };
         // Anchor the BLAKE3 hash in Rekor (if a client is configured).
         // Closes the demo data → evidence → Rekor chain end-to-end.
-        let signed = if {
-            #[cfg(feature = "defense")]
-            { !destructive_blocked }
-            #[cfg(not(feature = "defense"))]
-            { true }
-        } {
+        let signed = if self.should_sign(destructive_blocked) {
             self.anchor_in_rekor(signed, tenant_id).await
         } else {
             signed
@@ -743,6 +732,20 @@ impl Orchestrator {
         EvidencePacket::new(tenant_id, invoice_id, decisions.to_vec(), outcome)
     }
 
+    /// Whether the human_guard is suspended (destructive_blocked) under
+    /// the `defense` feature. Without `defense`, always returns `true`
+    /// (sign + anchor everything).
+    fn should_sign(&self, destructive_blocked: bool) -> bool {
+        #[cfg(feature = "defense")]
+        {
+            !destructive_blocked
+        }
+        #[cfg(not(feature = "defense"))]
+        {
+            true
+        }
+    }
+
     /// Wrap the packet with a real Ed25519 signature from
     /// `themis_evidence::signer::SignerService::for_tenant(tenant_id)`.
     /// The signature is over the canonical JSON of the packet; the
@@ -772,9 +775,9 @@ impl Orchestrator {
                 });
             }
         };
-        let canonical_payload = packet
-            .to_canonical_json()
-            .map_err(|e| OrchestratorError::Evidence(format!("canonical JSON serialization: {e}")))?;
+        let canonical_payload = packet.to_canonical_json().map_err(|e| {
+            OrchestratorError::Evidence(format!("canonical JSON serialization: {e}"))
+        })?;
         let signature_hex = signer.sign_hex(&canonical_payload);
         Ok(SignedPacket::wrap(packet, signature_hex, public_key_hex))
     }

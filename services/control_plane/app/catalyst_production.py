@@ -17,7 +17,6 @@ request validation.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -56,13 +55,13 @@ class StepReceiptRequest(BaseModel):
     run_id: str
     step_id: int = Field(..., ge=0)
     agent_id: str
-    tool_calls: List[ToolCall] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list)
     input_prompt_hash: str
     output_response_hash: str
     decision: dict = Field(default_factory=dict)
     latency_ms: int = Field(0, ge=0)
     context_root_hash: str
-    prev_step_hash: Optional[str] = None
+    prev_step_hash: str | None = None
 
 
 class StepReceiptResponse(BaseModel):
@@ -72,14 +71,14 @@ class StepReceiptResponse(BaseModel):
     payload: dict
     payload_hash: str
     cose_sign1_b64: str
-    disclaimers: List[str] = Field(default_factory=list)
+    disclaimers: list[str] = Field(default_factory=list)
 
 
 class ManifestRequest(BaseModel):
     """Body for POST /v1/catalyst/manifest."""
 
     run_id: str
-    step_receipts: List[dict] = Field(
+    step_receipts: list[dict] = Field(
         ..., min_length=1, description="Step receipts in DAG order"
     )
 
@@ -91,8 +90,8 @@ class ManifestResponse(BaseModel):
     step_count: int
     root_hash: str
     issued_at: int
-    steps: List[int]
-    disclaimers: List[str] = Field(default_factory=list)
+    steps: list[int]
+    disclaimers: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +126,7 @@ def post_step_receipt(req: StepReceiptRequest) -> StepReceiptResponse:
             context_root_hash=req.context_root_hash,
             prev_step_hash=req.prev_step_hash,
         )
-    except Exception as exc:  # noqa: BLE001 — agent_step_receipt; broad catch prevents 500 from varied validation errors
+    except Exception as exc:
         logger.error(f"agent_step_receipt failed: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -165,7 +164,7 @@ def post_manifest(req: ManifestRequest) -> ManifestResponse:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(ve),
         ) from ve
-    except Exception as exc:  # noqa: BLE001 — orchestration_manifest; broad catch prevents 500 from varied validation errors
+    except Exception as exc:
         logger.error(f"orchestration_manifest failed: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

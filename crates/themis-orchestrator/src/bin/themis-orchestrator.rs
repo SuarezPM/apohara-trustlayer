@@ -43,7 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Tenant registry: 2 baked-in tenants (stark, wayne) from
     // TenantRegistry::with_default_tenants(). The Ed25519 pubkeys
     // come from the compile-time baked seeds in themis-evidence.
-    let tenants = Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
+    let tenants =
+        Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
 
     // P3.3: load the per-agent model routing config from
     // `$VOUCH_ROUTING_CONFIG` or `<crate_dir>/routing.toml`.

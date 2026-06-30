@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["verify"])
 
 # Module-level DB reference (set at startup)
-_db: Optional[NotaryDB] = None
+_db: NotaryDB | None = None
 
 
 def init_verification_routes(db: NotaryDB) -> None:
@@ -52,11 +51,11 @@ class VerifyResponse(BaseModel):
     notarized_at: str
     cwt_claims: dict
     primary_key_fingerprint: str
-    tsa_url: Optional[str] = None
-    tsa_token_b64: Optional[str] = None
-    rekor_entry_id: Optional[str] = None
-    pdf_path: Optional[str] = None
-    qr_payload: Optional[str] = None
+    tsa_url: str | None = None
+    tsa_token_b64: str | None = None
+    rekor_entry_id: str | None = None
+    pdf_path: str | None = None
+    qr_payload: str | None = None
     verification_steps: list[str] = Field(default_factory=list)
 
 
@@ -127,11 +126,7 @@ def compute_verification_steps(cert_id: str, cert: dict) -> list[str]:
 
     # Step 2: content hash format check
     content_hash = cert.get("content_hash") or ""
-    if content_hash.startswith("sha256:") and len(content_hash) == 7 + 64:
-        steps.append(
-            f"[STRUCTURE_OK] Content hash present and well-formed: {content_hash}"
-        )
-    elif content_hash.startswith("blake3:") and len(content_hash) == 7 + 64:
+    if content_hash.startswith("sha256:") and len(content_hash) == 7 + 64 or content_hash.startswith("blake3:") and len(content_hash) == 7 + 64:
         steps.append(
             f"[STRUCTURE_OK] Content hash present and well-formed: {content_hash}"
         )

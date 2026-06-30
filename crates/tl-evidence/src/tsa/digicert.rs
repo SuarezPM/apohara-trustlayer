@@ -63,9 +63,9 @@ impl DigiCertTsaClient {
     /// (e.g. `https://timestamp.digicert.com` for production or
     /// the wiremock server URL for tests).
     ///
-    /// `chain_pem` is the PEM-encoded certificate chain (intermediate
-    /// + root) used to verify the TSA signing cert. The chain is
-    /// held in memory; pass the contents of `chain.pem` from
+    /// `chain_pem` is the PEM-encoded certificate chain (intermediate + root)
+    /// used to verify the TSA signing cert. The chain is held in memory;
+    /// pass the contents of `chain.pem` from
     /// `audit_artifacts/test_fixtures/digicert/`.
     pub fn new(endpoint: impl Into<String>, chain_pem: Vec<u8>) -> Self {
         let http = reqwest::Client::builder()
@@ -142,11 +142,7 @@ impl DigiCertTsaClient {
     /// 6. The pinned chain PEM is structurally valid (every cert
     ///    parses as X.509; non-CA certs carry the `id-kp-timeStamping`
     ///    EKU).
-    pub fn verify_token(
-        &self,
-        token_der: &[u8],
-        expected_digest: &[u8],
-    ) -> Result<(), TsaError> {
+    pub fn verify_token(&self, token_der: &[u8], expected_digest: &[u8]) -> Result<(), TsaError> {
         // Delegate to the production-grade CMS verifier (closes
         // CRÍTICO 1 of auditor 3). The verifier does the full
         // cryptographic signature check + messageImprint validation.
@@ -171,7 +167,8 @@ mod tests {
             .parent()
             .unwrap()
             .join("audit_artifacts/test_fixtures/digicert/chain.pem");
-        std::fs::read(&path).expect("chain.pem must exist (run scripts/generate_digicert_fixture.py)")
+        std::fs::read(&path)
+            .expect("chain.pem must exist (run scripts/generate_digicert_fixture.py)")
     }
 
     #[test]
@@ -196,9 +193,9 @@ mod tests {
         let response = std::fs::read(&response_path).expect("sample-response.der must exist");
 
         let digest: [u8; 32] = [
-            0x66, 0x72, 0x3E, 0x37, 0x71, 0xBE, 0x10, 0xDA, 0xFF, 0xAA, 0x3D, 0xFF, 0xE5, 0x6C, 0xEB,
-            0xCF, 0xEF, 0x91, 0x54, 0x2A, 0x37, 0xF8, 0x1A, 0x10, 0x1A, 0x16, 0xE1, 0xE5, 0x0C, 0xF0,
-            0x0A, 0x86,
+            0x66, 0x72, 0x3E, 0x37, 0x71, 0xBE, 0x10, 0xDA, 0xFF, 0xAA, 0x3D, 0xFF, 0xE5, 0x6C,
+            0xEB, 0xCF, 0xEF, 0x91, 0x54, 0x2A, 0x37, 0xF8, 0x1A, 0x10, 0x1A, 0x16, 0xE1, 0xE5,
+            0x0C, 0xF0, 0x0A, 0x86,
         ];
 
         let client = DigiCertTsaClient::new("https://example.invalid", read_test_chain());

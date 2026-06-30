@@ -36,7 +36,15 @@ fn test_v2_tools_cover_all_9_modules() {
         .map(|name| name.split('.').next().unwrap_or(""))
         .collect();
     let expected: std::collections::HashSet<&str> = [
-        "bundle", "scitt", "watermark", "trustlist", "key", "soa", "nist", "pld", "partner",
+        "bundle",
+        "scitt",
+        "watermark",
+        "trustlist",
+        "key",
+        "soa",
+        "nist",
+        "pld",
+        "partner",
     ]
     .iter()
     .copied()
@@ -53,10 +61,8 @@ fn test_v2_tool_names_match_dispatch_keys() {
     let mut map: HashMap<&'static str, tl_mcp_server::ToolHandler> = HashMap::new();
     register_dispatch(&mut map);
     let specs = tools_list();
-    let spec_names: std::collections::HashSet<&str> = specs
-        .iter()
-        .map(|s| s["name"].as_str().unwrap())
-        .collect();
+    let spec_names: std::collections::HashSet<&str> =
+        specs.iter().map(|s| s["name"].as_str().unwrap()).collect();
     let dispatch_names: std::collections::HashSet<&str> = map.keys().copied().collect();
     assert_eq!(
         spec_names, dispatch_names,
@@ -83,7 +89,11 @@ fn test_v2_tools_total_count_with_v1_is_36() {
     }
     // v2 (the 29 new tools)
     register_dispatch(&mut total);
-    assert_eq!(total.len(), 36, "v1 (7) + v2 (29) must equal 36 total tools");
+    assert_eq!(
+        total.len(),
+        36,
+        "v1 (7) + v2 (29) must equal 36 total tools"
+    );
 }
 
 // Dummy handler for counting purposes only.

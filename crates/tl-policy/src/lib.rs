@@ -219,7 +219,10 @@ impl DORAEvidenceStrategy {
         match &ctx.retention_until_iso {
             Some(iso) => CheckResult::pass_with_evidence(
                 format!("OK — retention set to {iso} (5y DORA minimum)"),
-                vec![format!("disclosure_records:{}.retention_until", ctx.disclosure_id)],
+                vec![format!(
+                    "disclosure_records:{}.retention_until",
+                    ctx.disclosure_id
+                )],
             ),
             None => CheckResult::fail("retention_until not set (DORA Art. 19 requires 5y)"),
         }
@@ -252,6 +255,9 @@ impl DORAEvidenceStrategy {
         }
     }
 
+    /// Stub: returns `CheckResult::fail` because per-tenant isolation
+    /// requires Plan v1.2 / Block 3 v1.1.0-US-3 AC-6 wiring (the v1.1.x
+    /// honest-stub path). See `multi_tenant_isolation_stub`.
     pub fn check_multi_tenant_isolation(&self, _ctx: &DORAContext) -> CheckResult {
         // Per Plan v1.2 Block 3 v1.1.0-US-3 AC-6 + Plan v1.2 Block 4
         // v1.1.0.x+1+5: this check explicitly returns pass=false in
@@ -282,9 +288,7 @@ impl DORAEvidenceStrategy {
                 vec!["postgres_role:trustwriter (INSERT only)".to_string()],
             )
         } else {
-            CheckResult::fail(
-                "cannot verify append-only audit: no chain to check against",
-            )
+            CheckResult::fail("cannot verify append-only audit: no chain to check against")
         }
     }
 }
@@ -498,9 +502,13 @@ pub enum Status {
 /// `evidence_refs` points at the underlying strategy output.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComplianceReport {
+    /// Compliance framework the report covers (e.g. `DORA`, `ISO42001`).
     pub framework: Framework,
+    /// Overall pass/fail status.
     pub status: Status,
+    /// Human-readable reason for the status (especially when failing).
     pub reason: String,
+    /// Pointer to the underlying strategy output (e.g. file:line, JSON path).
     pub evidence_refs: Vec<String>,
 }
 
@@ -536,11 +544,15 @@ impl ComplianceStrategy {
             strategies: BTreeMap::new(),
         };
         // Production wiring:
-        s.strategies.insert(Framework::Dora, Box::new(DORAEvidenceStrategy::new()));
-        s.strategies.insert(Framework::EuAiAct, Box::new(EuAiActStrategy));
+        s.strategies
+            .insert(Framework::Dora, Box::new(DORAEvidenceStrategy::new()));
+        s.strategies
+            .insert(Framework::EuAiAct, Box::new(EuAiActStrategy));
         // v1.1.1 / v1.2 stubs (real impls land in v1.2).
-        s.strategies.insert(Framework::Iso42001, Box::new(Iso42001Strategy));
-        s.strategies.insert(Framework::NistAiRmf, Box::new(NistAiRmfStrategy));
+        s.strategies
+            .insert(Framework::Iso42001, Box::new(Iso42001Strategy));
+        s.strategies
+            .insert(Framework::NistAiRmf, Box::new(NistAiRmfStrategy));
         // v1.2 / beyond stubs.
         for framework in [
             Framework::NistSp80053,
@@ -656,7 +668,8 @@ impl Strategy for NotImplementedStrategy {
                 "ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2)",
             ),
             Framework::NistAiRmf => (
-                "NIST AI RMF Govern/Map/Measure/Manage mapper not yet implemented in v1.1.x".to_string(),
+                "NIST AI RMF Govern/Map/Measure/Manage mapper not yet implemented in v1.1.x"
+                    .to_string(),
                 "ships in v1.2 (Plan v1.2 Block 5 v1.2-US-2)",
             ),
             Framework::NistSp80053 => (
@@ -719,7 +732,8 @@ impl Strategy for Iso42001Strategy {
              mapper is in crates/tl-policy/src/iso_42001.rs and is \
              the v1.2 value-prop: ISO 42001 is the only AI governance \
              standard that is independently certifiable by an external \
-             auditor.".to_string(),
+             auditor."
+                .to_string(),
             vec![
                 "crates/tl-policy/src/iso_42001.rs (real mapper)".to_string(),
                 "ISO/IEC 42001:2023 §4-§10".to_string(),
@@ -752,7 +766,8 @@ impl Strategy for NistAiRmfStrategy {
              (Govern/Map/Measure/Manage) with 19 categories of \
              NIST AI 100-1 (January 2023). The real mapper is in \
              crates/tl-policy/src/nist_ai_rmf.rs and integrates with \
-             the TrustLayer evidence pipeline.".to_string(),
+             the TrustLayer evidence pipeline."
+                .to_string(),
             vec![
                 "crates/tl-policy/src/nist_ai_rmf.rs (real mapper)".to_string(),
                 "NIST AI 100-1 (January 2023)".to_string(),

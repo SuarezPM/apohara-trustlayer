@@ -401,7 +401,7 @@ fn parse_tst_info(der: &[u8]) -> Result<TstInfo, TimestampError> {
         .map_err(|e| TimestampError::Asn1(format!("encode ContentInfo: {e}")))?;
     let ci = ContentInfo::from_der(&token_der)
         .map_err(|e| TimestampError::Asn1(format!("inner ContentInfo: {e}")))?;
-    if ci.content_type != const_oid::db::rfc5911::ID_SIGNED_DATA {
+    if ci.content_type.as_bytes() != const_oid::db::rfc5911::ID_SIGNED_DATA.as_bytes() {
         return Err(TimestampError::Cms(format!(
             "expected id-signedData, got {}",
             ci.content_type
@@ -431,7 +431,7 @@ fn parse_signed_data(der: &[u8]) -> Result<SignedData, TimestampError> {
         .map_err(|e| TimestampError::Asn1(format!("encode ContentInfo: {e}")))?;
     let ci = ContentInfo::from_der(&token_der)
         .map_err(|e| TimestampError::Asn1(format!("inner ContentInfo: {e}")))?;
-    if ci.content_type != const_oid::db::rfc5911::ID_SIGNED_DATA {
+    if ci.content_type.as_bytes() != const_oid::db::rfc5911::ID_SIGNED_DATA.as_bytes() {
         return Err(TimestampError::Cms(format!(
             "expected id-signedData, got {}",
             ci.content_type
@@ -632,7 +632,7 @@ fn cert_matches_signer(cert: &Certificate, signer_info: &SignerInfo) -> bool {
             use x509_cert::ext::pkix::SubjectKeyIdentifier;
             let ski_oid = const_oid::db::rfc5280::ID_CE_SUBJECT_KEY_IDENTIFIER;
             for ext in cert.tbs_certificate.extensions.iter().flatten() {
-                if ext.extn_id == ski_oid {
+                if ext.extn_id.as_bytes() == ski_oid.as_bytes() {
                     if let Ok(ski_ext) = SubjectKeyIdentifier::from_der(ext.extn_value.as_bytes()) {
                         if ski_ext.0.as_bytes() == ski.0.as_bytes() {
                             return true;
@@ -682,7 +682,7 @@ fn verify_ess_signing_certificate(
                     let mut hasher = Sha1::new();
                     hasher.update(signer_cert_der);
                     let computed = hasher.finalize();
-                    if computed.as_slice() == hash {
+                    if &computed[..] == hash {
                         return Ok(());
                     }
                     return Err(TimestampError::EssBindingFailed(format!(
@@ -706,7 +706,7 @@ fn verify_ess_signing_certificate(
                     let mut hasher = Sha256::new();
                     hasher.update(signer_cert_der);
                     let computed = hasher.finalize();
-                    if computed.as_slice() == hash {
+                    if &computed[..] == hash {
                         return Ok(());
                     }
                     return Err(TimestampError::EssBindingFailed(format!(
@@ -828,6 +828,7 @@ fn extract_ess_cert_hash_v2(set_value: &[u8]) -> Option<&[u8]> {
 /// `Signature` (the fixed-size 96-byte r‖s form). The
 /// `ecdsa-core` crate (re-exported as `p384::ecdsa`) does not
 /// have a `der` feature, so we walk the DER manually.
+#[allow(deprecated)]
 fn der_to_ecdsa_p384_signature(der: &[u8]) -> Result<p384::ecdsa::Signature, TimestampError> {
     use elliptic_curve::generic_array::GenericArray;
     // SEQUENCE { INTEGER r, INTEGER s }
@@ -881,8 +882,8 @@ fn der_to_ecdsa_p384_signature(der: &[u8]) -> Result<p384::ecdsa::Signature, Tim
     }
     let r48 = normalize(r_bytes, 48);
     let s48 = normalize(s_bytes, 48);
-    let r_ga = GenericArray::clone_from_slice(&r48);
-    let s_ga = GenericArray::clone_from_slice(&s48);
+    let r_ga = *GenericArray::<u8, _>::from_slice(&r48);
+    let s_ga = *GenericArray::<u8, _>::from_slice(&s48);
     p384::ecdsa::Signature::from_scalars(r_ga, s_ga)
         .map_err(|e| TimestampError::SignatureInvalid(format!("from_scalars: {e}")))
 }
@@ -929,7 +930,7 @@ fn verify_cms_signature_p384_sha512(
     let sig_bytes: &[u8] = signer_info.signature.as_bytes();
     let sig = der_to_ecdsa_p384_signature(sig_bytes)?;
     verifying_key
-        .verify_prehash(digest.as_slice(), &sig)
+        .verify_prehash(&digest[..], &sig)
         .map_err(|e| TimestampError::SignatureInvalid(format!("verify: {e}")))
 }
 
@@ -954,11 +955,11 @@ fn verify_chain(signer: &Certificate, trusted_roots: &[Certificate]) -> Result<(
         // The root may have an RSA or ECDSA key. Pick the
         // verifier based on the root's SubjectPublicKeyInfo.
         let root_spki_oid = root.tbs_certificate.subject_public_key_info.algorithm.oid;
-        if root_spki_oid == const_oid::db::rfc5912::RSA_ENCRYPTION
+        if root_spki_oid.as_bytes() == const_oid::db::rfc5912::RSA_ENCRYPTION.as_bytes()
             || root_spki_oid.to_string() == "1.2.840.113549.1.1.1"
         {
             verify_chain_rsa(root, &tbs_der, sig_bytes, &sig_alg_oid)?;
-        } else if root_spki_oid == const_oid::db::rfc5912::ID_EC_PUBLIC_KEY {
+        } else if root_spki_oid.as_bytes() == const_oid::db::rfc5912::ID_EC_PUBLIC_KEY.as_bytes() {
             // P-384 only for the ECDSA case.
             let root_pk_bytes = root
                 .tbs_certificate

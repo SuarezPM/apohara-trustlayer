@@ -244,7 +244,8 @@ impl WatermarkProvider for C2paWatermark {
         let firejail = self.firejail_path.as_ref().ok_or_else(|| {
             WatermarkError::SandboxUnavailable(
                 "c2patool requires firejail sandbox (TL_WATERMARK sandbox = firejail); \
-                 set C2paWatermark::firejail_path or install firejail".to_string(),
+                 set C2paWatermark::firejail_path or install firejail"
+                    .to_string(),
             )
         })?;
         if !firejail.exists() {
@@ -278,7 +279,7 @@ impl WatermarkProvider for C2paWatermark {
                 // Hardening per threat model W1+W2+W3:
                 "--read-only=/",
                 "--tmp=/tmp",
-                "--no-net",  // cert chain validated offline via bundled anchors
+                "--no-net", // cert chain validated offline via bundled anchors
                 // Run c2patool inside the sandbox:
                 "--",
                 self.c2patool_path.to_str().ok_or_else(|| {
@@ -346,7 +347,7 @@ impl WatermarkProvider for C2paWatermark {
         // to avoid the dependency on c2pa-rs native build).
         Ok(DetectionResult {
             detected: true,
-            confidence: 0.5,  // not a real confidence; placeholder
+            confidence: 0.5, // not a real confidence; placeholder
             metadata: serde_json::json!({"stub": true, "note": "v1.1.1 stub; production uses c2patool verify"}),
         })
     }
@@ -445,9 +446,9 @@ impl WatermarkProvider for AudioSealWatermark {
 ///
 /// 1. Seed a PRNG with the watermark key + the prompt hash.
 /// 2. For each token in the LLM output:
-///    a. Get the top-N tokens from the model at that position.
-///    b. Partition into "green-list" (size γ × N) and "red-list".
-///    c. During generation, the LLM is biased to pick green-list
+///    1. Get the top-N tokens from the model at that position.
+///    2. Partition into "green-list" (size γ × N) and "red-list".
+///    3. During generation, the LLM is biased to pick green-list
 ///       tokens. The bias is a constant (δ added to logits).
 /// 3. Detection: count green-list tokens in the suspect text.
 ///    Z-test against null hypothesis (no watermark).
@@ -503,9 +504,7 @@ impl KirchenbauerTextWatermark {
         let green_size = ((self.gamma * vocab_size as f32) as u32).max(1);
         let mut green = Vec::with_capacity(green_size as usize);
         for i in 0..green_size {
-            green.push(
-                (seed.wrapping_add(i.wrapping_mul(0x9E3779B1))) % vocab_size.max(1),
-            );
+            green.push((seed.wrapping_add(i.wrapping_mul(0x9E3779B1))) % vocab_size.max(1));
         }
         green
     }
@@ -541,11 +540,7 @@ impl KirchenbauerTextWatermark {
     /// Returns `(detected, z_score, green_count, total_count)`.
     /// Detection threshold: z > 4.0 (p < 0.00003 one-sided) is the
     /// standard Kirchenbauer et al. (2023) threshold.
-    pub fn detect_tokens(
-        &self,
-        tokens: &[u32],
-        vocab_size: u32,
-    ) -> DetectionStats {
+    pub fn detect_tokens(&self, tokens: &[u32], vocab_size: u32) -> DetectionStats {
         let n = tokens.len();
         if n == 0 {
             return DetectionStats {
@@ -805,7 +800,9 @@ mod tests {
             );
         }
         // Non-green tokens should be unchanged.
-        let non_green_count = biased.iter().enumerate()
+        let non_green_count = biased
+            .iter()
+            .enumerate()
             .filter(|(i, v)| !green.contains(&(*i as u32)) && **v != 0.0)
             .count();
         assert_eq!(non_green_count, 0, "non-green tokens must be unchanged");
@@ -824,8 +821,16 @@ mod tests {
             tokens.push(green[0]); // pick the first green token
         }
         let stats = wm.detect_tokens(&tokens, vocab_size);
-        assert!(stats.detected, "z-test should detect watermarked sequence (z={:.2})", stats.z_score);
-        assert!(stats.z_score > 4.0, "z-score should exceed threshold: got {:.2}", stats.z_score);
+        assert!(
+            stats.detected,
+            "z-test should detect watermarked sequence (z={:.2})",
+            stats.z_score
+        );
+        assert!(
+            stats.z_score > 4.0,
+            "z-score should exceed threshold: got {:.2}",
+            stats.z_score
+        );
         assert_eq!(stats.total_count, n_tokens);
         assert_eq!(stats.green_count, n_tokens); // all tokens are green
     }
@@ -842,14 +847,24 @@ mod tests {
         let mut tokens = Vec::with_capacity(n_tokens);
         let mut state: u64 = 0xDEADBEEF;
         for _ in 0..n_tokens {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             tokens.push((state as u32) % vocab_size);
         }
         let stats = wm.detect_tokens(&tokens, vocab_size);
         // For random tokens, green fraction ≈ γ=0.25, so z ≈ 0.
         // Allow a generous bound (±3) for the small sample.
-        assert!(!stats.detected, "random tokens should not be detected (z={:.2})", stats.z_score);
-        assert!(stats.z_score.abs() < 3.0, "z-score for random should be near 0: got {:.2}", stats.z_score);
+        assert!(
+            !stats.detected,
+            "random tokens should not be detected (z={:.2})",
+            stats.z_score
+        );
+        assert!(
+            stats.z_score.abs() < 3.0,
+            "z-score for random should be near 0: got {:.2}",
+            stats.z_score
+        );
     }
 
     #[test]
@@ -873,9 +888,12 @@ mod tests {
             gamma: 0.25,
         };
         let conf = stats.confidence();
-        assert!(conf > 0.99 && conf <= 1.0, "confidence for z=5 should be ~1.0: got {}", conf);
+        assert!(
+            conf > 0.99 && conf <= 1.0,
+            "confidence for z=5 should be ~1.0: got {}",
+            conf
+        );
     }
-
 
     #[test]
     fn test_passthrough_is_idempotent() {
@@ -891,10 +909,16 @@ mod tests {
         let wm = KirchenbauerTextWatermark::new([0u8; 32]);
         let g1 = wm.green_list_for_position(42, 32_000);
         let g2 = wm.green_list_for_position(42, 32_000);
-        assert_eq!(g1, g2, "green list must be deterministic for the same position");
+        assert_eq!(
+            g1, g2,
+            "green list must be deterministic for the same position"
+        );
         // Different position → different green list
         let g3 = wm.green_list_for_position(43, 32_000);
-        assert_ne!(g1, g3, "different positions must produce different green lists");
+        assert_ne!(
+            g1, g3,
+            "different positions must produce different green lists"
+        );
     }
 
     #[test]

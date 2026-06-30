@@ -23,9 +23,9 @@
 //! a dangerous command that slips is a real false negative. A summary table is
 //! printed to stdout (run with `--nocapture`) for transcription into the README.
 
-use apohara_agentguard::Config;
 use apohara_agentguard::gate::evaluate;
 use apohara_agentguard::verdict::Tier;
+use apohara_agentguard::Config;
 
 mod common;
 use common::naive_fixed_list;

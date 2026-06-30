@@ -15,7 +15,6 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 V105_ARTIFACT = REPO_ROOT / "audit_artifacts" / "smoke_test" / "v1.0.5_output.txt"

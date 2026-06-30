@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +196,7 @@ def verify_federated_receipt(
     leaf_index_b: int,
     sth_b_signature_material: bytes,
     log_b_public_key_pem: bytes,
-) -> tuple[bool, Optional[str], str]:
+) -> tuple[bool, str | None, str]:
     """Verify a federated SCITT receipt (Log A anchors Log B's STH).
 
     Pattern 1 from the W11.1 design doc: Log A signs a SCITT receipt
@@ -271,12 +270,12 @@ def verify_federated_receipt(
             )
 
         return True, reconstructed_a, "federated receipt verified"
-    except Exception as e:  # noqa: BLE001 — federated receipt verification; returns (False, None, error) tuple
+    except Exception as e:
         logger.warning(f"federated receipt verification failed: {e}")
         return False, None, f"verifier error: {e}"
 
 
-def extract_sth_root(sth_bytes: bytes) -> Optional[str]:
+def extract_sth_root(sth_bytes: bytes) -> str | None:
     """Extract the root from a Log B STH (simplified).
 
     For the W11.1 production wire-up, the STH is a CBOR-encoded
@@ -291,7 +290,7 @@ def extract_sth_root(sth_bytes: bytes) -> Optional[str]:
         stmt = parse_signed_statement(sth_bytes)
         # The STH payload is the root hash
         return stmt.payload.hex() if stmt.payload else None
-    except Exception:  # noqa: BLE001 — scitt-cose import/parse failure; fall through to heuristic SHA-256 extraction
+    except Exception:
         # W8.9.1+narrowed: catch is documented in the function docstring.
         # Any failure importing or calling scitt-cose (ImportError, AttributeError,
         # parse errors) falls through to the heuristic 32-byte SHA-256 fallback

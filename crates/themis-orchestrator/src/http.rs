@@ -93,8 +93,7 @@ pub struct AppState {
     /// and serves them as JSON. `None` for tests that don't
     /// exercise the Featherless path (or when `FEATHERLESS_API_KEY`
     /// is unset — the binary never panics on a missing key).
-    featherless_metrics:
-        Option<themis_compliance::featherless_metrics::FeatherlessMetricsHandle>,
+    featherless_metrics: Option<themis_compliance::featherless_metrics::FeatherlessMetricsHandle>,
     /// AI/ML API live-call metrics (Story Ola-B). The
     /// `AIMLAPIBackend` accumulates counters here on every
     /// call; `GET /metrics/aiml` snapshots and serves them as
@@ -135,19 +134,13 @@ impl AppState {
     }
 
     /// Attach a concrete `ScriptedBandRoom` for the HTTP `/rooms/:id/transcript` endpoint.
-    pub fn with_band_room(
-        mut self,
-        room: std::sync::Arc<crate::room::ScriptedBandRoom>,
-    ) -> Self {
+    pub fn with_band_room(mut self, room: std::sync::Arc<crate::room::ScriptedBandRoom>) -> Self {
         self.band_room = Some(room);
         self
     }
 
     /// Attach the Band-live `BandLiveState` for the `/band-live` SSE endpoint.
-    pub fn with_band_live(
-        mut self,
-        live: std::sync::Arc<crate::band_live::BandLiveState>,
-    ) -> Self {
+    pub fn with_band_live(mut self, live: std::sync::Arc<crate::band_live::BandLiveState>) -> Self {
         self.band_live = Some(live);
         self
     }
@@ -215,9 +208,7 @@ impl AppState {
     }
 
     /// The AIML API metrics handle, if wired.
-    pub fn aiml_metrics(
-        &self,
-    ) -> Option<&themis_compliance::aiml_metrics::AimlApiMetricsHandle> {
+    pub fn aiml_metrics(&self) -> Option<&themis_compliance::aiml_metrics::AimlApiMetricsHandle> {
         self.aiml_metrics.as_ref()
     }
 
@@ -318,8 +309,7 @@ pub fn build_default_state_with_featherless(
     model_id: String,
     featherless_metrics: themis_compliance::featherless_metrics::FeatherlessMetricsHandle,
 ) -> AppState {
-    build_default_state(orch, room_concrete, model_id)
-        .with_featherless_metrics(featherless_metrics)
+    build_default_state(orch, room_concrete, model_id).with_featherless_metrics(featherless_metrics)
 }
 
 /// Build the axum Router with all routes.
@@ -775,7 +765,8 @@ async fn get_packet_pdf(
     })?;
     let disposition = format!(
         "attachment; filename=\"themis-{}-{}.pdf\"",
-        packet.packet().tenant_id(), packet.packet().invoice_id()
+        packet.packet().tenant_id(),
+        packet.packet().invoice_id()
     );
     build_attachment_response(
         StatusCode::OK,
@@ -814,7 +805,8 @@ async fn get_packet_json(
     ))?;
     let sealed = state.sealed().get(&packet_id);
 
-    let wire = crate::wire_format::FlattenedPacketWireFormat::from_signed(&packet, sealed.as_deref());
+    let wire =
+        crate::wire_format::FlattenedPacketWireFormat::from_signed(&packet, sealed.as_deref());
     let bytes = serde_json::to_vec_pretty(&wire).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -823,7 +815,8 @@ async fn get_packet_json(
     })?;
     let disposition = format!(
         "attachment; filename=\"vouch-{}-{}.json\"",
-        packet.packet().tenant_id(), packet.packet().invoice_id()
+        packet.packet().tenant_id(),
+        packet.packet().invoice_id()
     );
     build_attachment_response(
         StatusCode::OK,
@@ -950,7 +943,8 @@ mod tests {
 
     fn build_state() -> AppState {
         let rooms: Arc<dyn crate::room::BandRoom> = MockBandRoom::new().into_arc();
-        let tenants = Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
+        let tenants =
+            Arc::new(TenantRegistry::with_default_tenants().expect("startup: tenant keys missing"));
         let mut agents: HashMap<String, Arc<dyn Agent>> = HashMap::new();
         for (n, dt) in [
             (

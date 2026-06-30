@@ -11,13 +11,12 @@ pub mod hybrid;
 pub mod ml_dsa_65;
 
 pub use did_key::{
-    did_key_to_mldsa65_public_key, ml_dsa_65_keypair_to_did_key,
-    mldsa65_public_key_to_did_key, DidKeyError, ML_DSA_65_MULTICODEC_PREFIX,
+    did_key_to_mldsa65_public_key, ml_dsa_65_keypair_to_did_key, mldsa65_public_key_to_did_key,
+    DidKeyError, ML_DSA_65_MULTICODEC_PREFIX,
 };
 pub use hybrid::{
-    hybrid_sign, hybrid_verify, mldsa65_sign, mldsa65_verify, HybridSignatureError,
+    hybrid_sign, hybrid_verify, mldsa65_sign, mldsa65_verify, HybridSignatureError, HYBRID_SEP,
     SUITE_HYBRID, SUITE_MLDSA65, TRUSTLAYER_HYBRID_CONTEXT, TRUSTLAYER_MLDSA65_CONTEXT,
-    HYBRID_SEP,
 };
 pub use ml_dsa_65::{
     MlDsa65KeyPair, MlDsa65Signature, MlDsa65VerifyError, ML_DSA_65_PUBLIC_KEY_LEN,

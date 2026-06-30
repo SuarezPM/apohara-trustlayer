@@ -43,12 +43,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use apohara_agentguard::audit;
-use apohara_agentguard::Config as AgentGuardConfig;
 use apohara_agentguard::firewall;
 use apohara_agentguard::hook::contract::HookInput;
-use apohara_agentguard::{PolicyError, PolicySet};
 use apohara_agentguard::sandbox::{PermissionTier, SandboxRequest, SandboxResult, SandboxRunner};
 use apohara_agentguard::verdict::{Thresholds, Verdict};
+use apohara_agentguard::Config as AgentGuardConfig;
+use apohara_agentguard::{PolicyError, PolicySet};
 use thiserror::Error;
 
 /// Project-default severity thresholds used by [`scan_incoming_text`]

@@ -26,12 +26,12 @@
 
 use std::path::PathBuf;
 
-use apohara_agentguard::Config as AgentGuardConfig;
 use apohara_agentguard::firewall;
 use apohara_agentguard::hook::contract::HookInput;
-use apohara_agentguard::PolicySet;
 use apohara_agentguard::sandbox::{PermissionTier, SandboxRequest, SandboxResult, SandboxRunner};
 use apohara_agentguard::verdict::{Thresholds, Tier};
+use apohara_agentguard::Config as AgentGuardConfig;
+use apohara_agentguard::PolicySet;
 
 use themis_orchestrator::sandbox::redact;
 

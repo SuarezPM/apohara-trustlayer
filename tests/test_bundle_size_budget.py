@@ -21,7 +21,6 @@ asserts the budget. If the implementation is not yet wired, the test
 skips with a TODO marker.
 """
 
-import json
 from pathlib import Path
 
 import pytest

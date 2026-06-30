@@ -1,4 +1,4 @@
-from typing import Optional
+
 """W7.2 Catalyst Orchestrator Integration — design doc.
 
 Per Plan v3.0 W7.2, integrate TrustLayer as the attestation substrate
@@ -147,7 +147,7 @@ def agent_step_receipt(
     decision: dict,
     latency_ms: int,
     context_root_hash: str,
-    prev_step_hash: Optional[str] = None,
+    prev_step_hash: str | None = None,
 ) -> dict:
     """Build a per-step receipt (COSE_Sign1 structure).
 

@@ -117,9 +117,7 @@ pub(crate) fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value 
             }
             Value::Object(out)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(canonicalize_json).collect())
-        }
+        Value::Array(arr) => Value::Array(arr.iter().map(canonicalize_json).collect()),
         other => other.clone(),
     }
 }
@@ -129,8 +127,8 @@ pub(crate) fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value 
 ///
 /// Returns `Ok(true)` if hashes match, `Ok(false)` if they differ.
 pub(crate) fn verify_bundle_hash_pure(bundle_json: &str) -> Result<bool, WasmError> {
-    let value: serde_json::Value = serde_json::from_str(bundle_json)
-        .map_err(|e| WasmError::InvalidJson(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(bundle_json).map_err(|e| WasmError::InvalidJson(e.to_string()))?;
     let obj = value
         .as_object()
         .ok_or_else(|| WasmError::InvalidJson("expected JSON object".into()))?;
@@ -141,19 +139,19 @@ pub(crate) fn verify_bundle_hash_pure(bundle_json: &str) -> Result<bool, WasmErr
     let mut without_hash = obj.clone();
     without_hash.remove("row_hash");
     let canonical = canonicalize_json(&serde_json::Value::Object(without_hash));
-    let bytes = serde_json::to_vec(&canonical)
-        .map_err(|e| WasmError::InvalidJson(e.to_string()))?;
+    let bytes =
+        serde_json::to_vec(&canonical).map_err(|e| WasmError::InvalidJson(e.to_string()))?;
     let actual = blake3_hex(&bytes);
     Ok(actual == expected)
 }
 
 /// Pure logic: compute the BLAKE3 hash of a JSON value (canonical form).
 pub(crate) fn compute_canonical_hash_pure(json_str: &str) -> Result<String, WasmError> {
-    let value: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| WasmError::InvalidJson(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|e| WasmError::InvalidJson(e.to_string()))?;
     let canonical = canonicalize_json(&value);
-    let bytes = serde_json::to_vec(&canonical)
-        .map_err(|e| WasmError::InvalidJson(e.to_string()))?;
+    let bytes =
+        serde_json::to_vec(&canonical).map_err(|e| WasmError::InvalidJson(e.to_string()))?;
     Ok(blake3_hex(&bytes))
 }
 
@@ -168,8 +166,8 @@ pub(crate) fn validate_org_id_pure(org_id: &str) -> Result<String, WasmError> {
 pub(crate) fn parse_scitt_receipt_pure(
     receipt_json: &str,
 ) -> Result<ParsedScittReceipt, WasmError> {
-    let value: serde_json::Value = serde_json::from_str(receipt_json)
-        .map_err(|e| WasmError::InvalidJson(e.to_string()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(receipt_json).map_err(|e| WasmError::InvalidJson(e.to_string()))?;
     let obj = value
         .as_object()
         .ok_or_else(|| WasmError::InvalidJson("expected object".into()))?;
@@ -186,10 +184,7 @@ pub(crate) fn parse_scitt_receipt_pure(
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let issued_at = obj
-        .get("issued_at")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
+    let issued_at = obj.get("issued_at").and_then(|v| v.as_u64()).unwrap_or(0);
     let registry_id = obj
         .get("registry_id")
         .and_then(|v| v.as_str())
@@ -199,8 +194,8 @@ pub(crate) fn parse_scitt_receipt_pure(
     let payload_bytes = base64::engine::general_purpose::STANDARD
         .decode(payload_b64)
         .map_err(|e| WasmError::Base64Error(e.to_string()))?;
-    let payload_json = String::from_utf8(payload_bytes)
-        .map_err(|e| WasmError::Utf8Error(e.to_string()))?;
+    let payload_json =
+        String::from_utf8(payload_bytes).map_err(|e| WasmError::Utf8Error(e.to_string()))?;
     Ok(ParsedScittReceipt {
         payload_json,
         issuer_pubkey_fingerprint_hex: issuer_fingerprint.to_string(),
@@ -265,10 +260,16 @@ pub(crate) fn detect_watermark_pure(
     threshold: f64,
 ) -> Result<WatermarkDetection, WasmError> {
     if gamma <= 0.0 || gamma >= 1.0 {
-        return Err(WasmError::InvalidJson(format!("gamma must be in (0,1): got {}", gamma)));
+        return Err(WasmError::InvalidJson(format!(
+            "gamma must be in (0,1): got {}",
+            gamma
+        )));
     }
     if threshold <= 0.0 {
-        return Err(WasmError::InvalidJson(format!("threshold must be > 0: got {}", threshold)));
+        return Err(WasmError::InvalidJson(format!(
+            "threshold must be > 0: got {}",
+            threshold
+        )));
     }
 
     let bytes = text.as_bytes();
@@ -299,9 +300,7 @@ pub(crate) fn detect_watermark_pure(
         ]);
         // Check if `tok` is in the green list for this position.
         for j in 0..green_size {
-            let candidate = seed
-                .wrapping_add(j.wrapping_mul(0x9E3779B1))
-                % BYTE_VOCAB_SIZE;
+            let candidate = seed.wrapping_add(j.wrapping_mul(0x9E3779B1)) % BYTE_VOCAB_SIZE;
             if candidate == tok as u32 {
                 green_count += 1;
                 break;
@@ -335,8 +334,8 @@ pub(crate) fn detect_watermark_pure(
 pub fn detect_watermark_native(text: &str) -> Result<WatermarkDetection, WasmError> {
     // Default key (matches the Go SDK's DefaultWatermarkConfig).
     let mut key = [0u8; 32];
-    for i in 0..32 {
-        key[i] = (i + 1) as u8;
+    for (i, slot) in key.iter_mut().enumerate() {
+        *slot = (i + 1) as u8;
     }
     detect_watermark_pure(text, &key, DEFAULT_GAMMA, DEFAULT_THRESHOLD)
 }
@@ -414,9 +413,7 @@ pub fn validate_org_id_native(org_id: &str) -> Result<String, WasmError> {
 }
 
 /// Native API: parse SCITT receipt.
-pub fn parse_scitt_receipt_native(
-    receipt_json: &str,
-) -> Result<ParsedScittReceipt, WasmError> {
+pub fn parse_scitt_receipt_native(receipt_json: &str) -> Result<ParsedScittReceipt, WasmError> {
     parse_scitt_receipt_pure(receipt_json)
 }
 
@@ -638,7 +635,11 @@ mod tests {
             .collect();
         let text = String::from_utf8(bytes).unwrap();
         let out = detect_watermark_native(&text).unwrap();
-        assert!(!out.detected, "z={} green={}/{}", out.z_score, out.green_count, out.total_count);
+        assert!(
+            !out.detected,
+            "z={} green={}/{}",
+            out.z_score, out.green_count, out.total_count
+        );
         assert_eq!(out.total_count, 5000);
     }
 
