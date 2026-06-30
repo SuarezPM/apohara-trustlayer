@@ -33,6 +33,8 @@ from typing import Any
 
 import pytest
 
+from app.notary.service import _CoseSign1Args
+
 
 # ============================================================================
 # Helpers: minimal HSMSigner fake + COSE_Sign1 decoder
@@ -140,12 +142,14 @@ def test_cose_sign1_protected_header_uses_signer_algorithm(
     svc = _build_notary_service_for_test(signer)
 
     cose, cwt, fp = svc._cose_sign1(
-        cert_id="cert_test_p5_3",
-        content_hash="sha256:" + "a" * 64,
-        content_type="text",
-        ai_system_id="deepseek-v4",
-        submitted_by="acme-corp",
-        notarized_at=datetime.now(timezone.utc),
+        _CoseSign1Args(
+            cert_id="cert_test_p5_3",
+            content_hash="sha256:" + "a" * 64,
+            content_type="text",
+            ai_system_id="deepseek-v4",
+            submitted_by="acme-corp",
+            notarized_at=datetime.now(timezone.utc),
+        )
     )
 
     decoded = _decode_cose_sign1(cose)
@@ -303,12 +307,14 @@ def test_cose_sign1_signature_is_over_canonical_sign_structure() -> None:
     signer = CapturingSigner(algorithm="ML-DSA-65")
     svc = _build_notary_service_for_test(signer)
     svc._cose_sign1(
-        cert_id="cert_sign_struct",
-        content_hash="sha256:" + "b" * 64,
-        content_type="text",
-        ai_system_id="deepseek-v4",
-        submitted_by="acme-corp",
-        notarized_at=datetime.now(timezone.utc),
+        _CoseSign1Args(
+            cert_id="cert_sign_struct",
+            content_hash="sha256:" + "b" * 64,
+            content_type="text",
+            ai_system_id="deepseek-v4",
+            submitted_by="acme-corp",
+            notarized_at=datetime.now(timezone.utc),
+        )
     )
 
     assert len(captured_payloads) == 1

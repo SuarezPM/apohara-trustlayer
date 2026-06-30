@@ -58,13 +58,11 @@ Reference:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

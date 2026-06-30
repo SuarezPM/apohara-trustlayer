@@ -26,13 +26,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field  # noqa: F401  (kept for legacy callers)
 
 from app.constants import HASH_OUTPUT_BYTES
-
-if TYPE_CHECKING:
-    from app.notary.certificate_generator import CertificateArtifactGenerator
-    from app.notary.db import NotaryDB
-    from app.notary.models import NotarizeRequest, NotarizeResponse
-    from app.notary.qtsp import QTSPClient
-    from app.notary.scitt import SCITTClient
+from app.notary.certificate_generator import CertificateArtifactGenerator
+from app.notary.db import NotaryDB
+from app.notary.models import NotarizeRequest, NotarizeResponse
+from app.notary.qtsp import QTSPClient
+from app.notary.scitt import SCITTClient
 
 logger = logging.getLogger(__name__)
 
