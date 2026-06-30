@@ -54,7 +54,7 @@ sha2 = "0.10"
 #   `certHash` (FreeTSA uses the v1 form, SHA-1).
 x509-tsp = "0.1"
 cms = "0.2"
-der = "0.7"
+der = "0.8"
 const-oid = { version = "0.10", features = ["db"] }
 x509-cert = { version = "0.2", features = ["pem"] }
 p384 = { version = "0.13", features = ["ecdsa"] }
