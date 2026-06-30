@@ -129,7 +129,10 @@ class QESValidationResult:
     """List of regulatory references backing the qualification."""
 
     issues: list[str] = field(default_factory=list)
-    """List of validation issues (empty if is_qualified=True and chain_root_in_eu_trust_list=True)."""
+    """List of validation issues.
+
+    Empty iff is_qualified=True and chain_root_in_eu_trust_list=True.
+    """
 
 
 # ============================================================================

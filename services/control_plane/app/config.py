@@ -87,7 +87,9 @@ class Settings(BaseSettings):
     # builds (no demo feature) MUST set TL_ORG_ID or fail startup.
     org_id: str = Field(
         default="apohara",
-        description="TL_ORG_ID env var. Default 'apohara' is demo-only. Production MUST set explicitly.",
+        description=(
+            "TL_ORG_ID env var. Default 'apohara' is demo-only. " "Production MUST set explicitly."
+        ),
     )
 
     # TSA provider (Architect IC-3: fail-fast on unset/invalid)

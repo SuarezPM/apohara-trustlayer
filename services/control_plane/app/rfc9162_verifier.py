@@ -163,7 +163,10 @@ def reconstruct_root_ccf(
     if len(internal_transaction_hash) != HASH_OUTPUT_BYTES:
         raise ValueError("internal_transaction_hash must be 32 bytes")
     if not 1 <= len(internal_evidence) <= MAX_INTERNAL_EVIDENCE_BYTES:
-        raise ValueError(f"internal_evidence must be 1-{MAX_INTERNAL_EVIDENCE_BYTES} bytes, got {len(internal_evidence)}")
+        raise ValueError(
+            f"internal_evidence must be 1-{MAX_INTERNAL_EVIDENCE_BYTES} bytes, "
+            f"got {len(internal_evidence)}"
+        )
     if len(data_hash) != HASH_OUTPUT_BYTES:
         raise ValueError("data_hash must be 32 bytes")
 

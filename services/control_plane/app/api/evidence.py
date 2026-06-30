@@ -443,7 +443,10 @@ async def get_stix_bundle(
                 "id": f"course-of-action--{bundle_id}",
                 "created": now_iso,
                 "modified": now_iso,
-                "name": f"Retain evidence for {bundle_id} per EU AI Act Art. 12 (3y) / DORA Art. 19 (5y)",
+                "name": (
+                    f"Retain evidence for {bundle_id} per EU AI Act Art. 12 (3y) "
+                    "/ DORA Art. 19 (5y)"
+                ),
                 "description": (
                     "Operator action: store the evidence bundle, the SCITT receipt, "
                     "and the COSE_Sign1 envelope for the configured retention window. "
@@ -463,7 +466,8 @@ async def get_stix_bundle(
                     f"This STIX 2.1 bundle is the export envelope for disclosure {bundle_id} "
                     f"({record.compliance_rollup or 'Partial'}). Per EU AI Act Art. 50 and "
                     "DORA Art. 19, the operator retains this bundle for 3-5 years. "
-                    "Verifiable offline via the COSE_Sign1 public key + the SCITT countersignature. "
+                    "Verifiable offline via the COSE_Sign1 public key + the SCITT "
+                    "countersignature. "
                     "See audit_artifacts/spec_facts_audit.md for the v1.1.1 spec reconciliation."
                 ),
             },

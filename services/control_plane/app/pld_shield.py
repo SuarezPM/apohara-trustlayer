@@ -292,7 +292,10 @@ ISO_42001_CONTROLS: list[ISO42001AnnexAControl] = [
             "crates/tl-mcp-server/src/envelope.rs",
             "services/control_plane/app/middleware/__init__.py",
         ],
-        notes="seccomp+Landlock sandbox, prompt envelope (Spotlighting), OrgResolverASGIMiddleware.",
+        notes=(
+            "seccomp+Landlock sandbox, prompt envelope (Spotlighting), "
+            "OrgResolverASGIMiddleware."
+        ),
     ),
     ISO42001AnnexAControl(
         control_id="A.9.4",

@@ -72,14 +72,18 @@ HTML_L1_TEMPLATE = """
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrustLayer Verify - {cert_id}</title>
 <style>
-body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; color: #222; }}
+body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 800px;
+       margin: 2em auto; padding: 0 1em; color: #222; }}
 h1 {{ color: #0a4; }}
-.status-valid {{ color: #0a4; font-weight: bold; padding: 0.5em; background: #e0f5e0; border-radius: 4px; }}
-.status-invalid {{ color: #a00; font-weight: bold; padding: 0.5em; background: #fee; border-radius: 4px; }}
+.status-valid {{ color: #0a4; font-weight: bold; padding: 0.5em;
+                 background: #e0f5e0; border-radius: 4px; }}
+.status-invalid {{ color: #a00; font-weight: bold; padding: 0.5em;
+                   background: #fee; border-radius: 4px; }}
 table {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}
 th, td {{ text-align: left; padding: 0.5em; border: 1px solid #ccc; }}
 th {{ background: #f0f0f0; }}
-code {{ font-family: 'SF Mono', Menlo, monospace; font-size: 0.9em; background: #f5f5f5; padding: 0.1em 0.3em; border-radius: 3px; }}
+code {{ font-family: 'SF Mono', Menlo, monospace; font-size: 0.9em;
+        background: #f5f5f5; padding: 0.1em 0.3em; border-radius: 3px; }}
 .details {{ margin-top: 1em; padding: 1em; background: #f9f9f9; border-radius: 4px; }}
 </style>
 </head>
@@ -156,9 +160,7 @@ def _step_tsa_token(cert: dict) -> str:
         return f"[ABSENT] TSA token base64 decode failed: {e}"
     if raw and raw[0] == ASN1_SEQUENCE_TAG:
         return f"[STRUCTURE_OK] TSA token parsed ({len(raw)} bytes CMS ContentInfo)"
-    return (
-        f"[ABSENT] TSA token decoded ({len(raw)} bytes) but missing CMS envelope tag"
-    )
+    return f"[ABSENT] TSA token decoded ({len(raw)} bytes) but missing CMS envelope tag"
 
 
 def _step_scitt_rekor(cert: dict) -> str:

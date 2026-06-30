@@ -343,7 +343,10 @@ class CordonEnforcerMapping:
                 cordon_controls=s.trustlayer_mitigations,
                 verdict_synthesizer_visibility="fingerprints_only",
                 audit_log_evidence=[
-                    f"BLAKE3 hash of scenario fingerprint: {hashlib.blake2b(s.code.encode(), digest_size=32).hexdigest()[:16]}...",
+                    (
+                        f"BLAKE3 hash of scenario fingerprint: "
+                        f"{hashlib.blake2b(s.code.encode(), digest_size=32).hexdigest()[:16]}..."
+                    ),
                     "apohara-argus AuditEvent 16-field log (BLAKE3 chain)",
                 ],
             )
@@ -499,7 +502,8 @@ def _run_live_fixture(scenario: AdversarialScenario) -> tuple[bool, list[str]]:
         # for the scaffold so the path is ready when the operator
         # wires their own model endpoint.
         audit.append(
-            f"agentdojo attack loaded: {attack.name if hasattr(attack, 'name') else type(attack).__name__}"
+            f"agentdojo attack loaded: "
+            f"{attack.name if hasattr(attack, 'name') else type(attack).__name__}"
         )
         # Default to static control check when no model is configured.
         return True, audit

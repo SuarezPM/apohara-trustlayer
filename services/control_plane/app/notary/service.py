@@ -210,9 +210,7 @@ class NotaryServiceProduction:
         metadata = args.metadata or {}
 
         # Idempotency check
-        existing = await self.db.list_certificates(
-            submitted_by=args.submitted_by, limit=100
-        )
+        existing = await self.db.list_certificates(submitted_by=args.submitted_by, limit=100)
         for cert in existing:
             if cert.get("content_hash") == args.content_hash:
                 return await self.db.get_certificate(cert["cert_id"]) or cert
@@ -250,7 +248,11 @@ class NotaryServiceProduction:
 
                 # Detection key: TL_TEXT_WATERMARK_KEY env or all-zero dev
                 wm_key_env = os.environ.get("TL_TEXT_WATERMARK_KEY", "")
-                wm_key = wm_key_env.encode("utf-8")[:HASH_OUTPUT_BYTES] if wm_key_env else b"\x00" * HASH_OUTPUT_BYTES
+                wm_key = (
+                    wm_key_env.encode("utf-8")[:HASH_OUTPUT_BYTES]
+                    if wm_key_env
+                    else b"\x00" * HASH_OUTPUT_BYTES
+                )
                 if len(wm_key) < HASH_OUTPUT_BYTES:
                     wm_key = wm_key + b"\x00" * (HASH_OUTPUT_BYTES - len(wm_key))
 
@@ -410,7 +412,8 @@ def _make_router(_service_getter):
             rekor_log_id=cert.get("rekor_log_id"),
             watermark=wm_summary,
             disclaimers=[
-                "W9.0: production notary + watermark stamp. RFC 3161 + SCITT + reportlab + Kirchenbauer.",
+                "W9.0: production notary + watermark stamp. RFC 3161 + SCITT + reportlab + "
+                "Kirchenbauer.",
                 "W9.0: degraded TSA/SCITT → degraded mode (logged in metadata).",
             ],
         )

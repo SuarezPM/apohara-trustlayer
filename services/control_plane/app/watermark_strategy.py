@@ -90,7 +90,11 @@ def kirchenbauer_detect(
     if not (0.0 < gamma < 1.0):
         raise ValueError(f"gamma must be in (0, 1), got {gamma}")
 
-    key32 = (key + b"\x00" * HASH_OUTPUT_BYTES)[:32] if len(key) < HASH_OUTPUT_BYTES else key[:HASH_OUTPUT_BYTES]
+    key32 = (
+        (key + b"\x00" * HASH_OUTPUT_BYTES)[:HASH_OUTPUT_BYTES]
+        if len(key) < HASH_OUTPUT_BYTES
+        else key[:HASH_OUTPUT_BYTES]
+    )
 
     green_count = 0
     for pos, tok in enumerate(tokens):
@@ -270,7 +274,11 @@ def kirchenbauer_embed_tokens(
         vocab_size = max(tokens) + 1
     if not (0.0 < gamma < 1.0):
         raise ValueError(f"gamma must be in (0, 1), got {gamma}")
-    key32 = (key + b"\x00" * HASH_OUTPUT_BYTES)[:32] if len(key) < HASH_OUTPUT_BYTES else key[:HASH_OUTPUT_BYTES]
+    key32 = (
+        (key + b"\x00" * HASH_OUTPUT_BYTES)[:HASH_OUTPUT_BYTES]
+        if len(key) < HASH_OUTPUT_BYTES
+        else key[:HASH_OUTPUT_BYTES]
+    )
     out: list[int] = []
     for pos, tok in enumerate(tokens):
         green = _green_list_for_position(key32, pos, vocab_size, gamma)
