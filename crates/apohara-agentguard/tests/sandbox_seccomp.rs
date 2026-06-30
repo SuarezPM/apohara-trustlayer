@@ -38,6 +38,7 @@ fn python3() -> Option<PathBuf> {
 }
 
 #[test]
+#[ignore = "Same kernel-priv restriction as sandbox_seccomp_self_disable_is_denied. See CONTRIBUTING.md#sandbox."]
 fn inet_socket_is_denied_under_workspace_write() {
     let Some(py) = python3() else {
         eprintln!("SKIP inet_socket_is_denied: python3 not found");
@@ -74,6 +75,7 @@ fn inet_socket_is_denied_under_workspace_write() {
 }
 
 #[test]
+#[ignore = "Same kernel-priv restriction as sandbox_seccomp_self_disable_is_denied. See CONTRIBUTING.md#sandbox."]
 fn unlisted_syscall_returns_eperm_not_kill() {
     // `unshare(2)` is deliberately NOT in any allowlist. Under our filter it
     // must return EPERM (mismatch_action), and the process must NOT be killed

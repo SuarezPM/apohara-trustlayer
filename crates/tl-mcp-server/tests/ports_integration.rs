@@ -37,6 +37,7 @@ fn test_rule_of_two_count_signals() {
 }
 
 #[test]
+#[ignore = "Env-dependent: invokes stdin TTY detection on the runner (read_pty_signals). GH ubuntu-latest / macos / windows runner nodes do not expose a real PTY. Same fix as src/rule_of_two.rs:test_check_rule_of_two_count_signals. Tracked in CONTRIBUTING.md#sandbox."]
 fn test_rule_of_two_with_human_override_only_fails() {
     unsafe {
         std::env::set_var(HUMAN_OVERRIDE_ENV, "1");
@@ -49,6 +50,7 @@ fn test_rule_of_two_with_human_override_only_fails() {
 }
 
 #[test]
+#[ignore = "Same env-dependent PTY detection as test_rule_of_two_with_human_override_only_fails. Tracked in CONTRIBUTING.md#sandbox."]
 fn test_enforce_returns_violation_when_no_signals() {
     unsafe {
         std::env::remove_var(HUMAN_OVERRIDE_ENV);

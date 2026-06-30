@@ -195,3 +195,25 @@ Unless you explicitly state otherwise, any contribution
 intentionally submitted for inclusion in the work by you, as
 defined in the MIT license, shall be licensed under the MIT
 license, without any additional terms or conditions.
+
+## Sandbox tests (`apohara-agentguard`)
+
+The `danger_warning.rs::danger_invocation_is_audited_when_enabled` test is
+gated with `#[ignore]` on GitHub CI runners. Reason: the test invokes the
+`apohara-agentguard` binary via `Command::new("apohara-agentguard")` and
+expects it on `$PATH`. GH ubuntu-latest does **not** install workspace
+binaries before running `cargo test`.
+
+### To run the ignored test locally
+
+```bash
+cargo install --path crates/apohara-agentguard --locked
+cargo test -p apohara-agentguard --tests -- --ignored danger_invocation_is_audited
+```
+
+### To re-enable on CI (planned v1.1.x)
+
+Add a `cargo install --path crates/apohara-agentguard --locked` step to the
+`rust test` jobs in `.github/workflows/ci.yml`, before the
+`cargo test --workspace --locked` invocation.
+

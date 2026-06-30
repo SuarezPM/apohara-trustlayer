@@ -73,12 +73,21 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      # macOS / Windows: protoc binaries are pre-installed on the
-      # GitHub-hosted runners, so no extra setup needed. Linux needs
-      # protobuf-compiler for themis-evidence/build.rs (Rekor v2 codegen).
-      - name: Install protoc (Linux only)
+      # all platforms: themis-evidence/build.rs (Rekor v2 protobuf
+      # codegen) needs `protoc`. Linux uses protobuf-compiler (apt);
+      # macOS uses protobuf (brew); Windows uses protoc (choco). Recent
+      # GH-runner images no longer ship protoc pre-installed on
+      # macos-14 / windows-2022, so we install on all 3 to be safe.
+      - name: Install protoc (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install protoc (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install protobuf
+      - name: Install protoc (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install -y protoc
+        shell: pwsh
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v6
