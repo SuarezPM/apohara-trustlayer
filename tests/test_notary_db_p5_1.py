@@ -56,10 +56,29 @@ def fresh_aio_sqlite_url(monkeypatch) -> str:
 
     # Override the cached Settings instance so `_get_engine()` builds
     # against our aio_sqlite URL instead of the default Postgres.
+    # The mock `S` must expose every attribute the production `Settings`
+    # has that `_get_engine()` reads (database_ssl_mode,
+    # database_ssl_root_cert_path, the four pool_* fields) — the production
+    # class declares them with sensible defaults, so the test mock mirrors
+    # those defaults here. Bare-bones mocks missing any of these trigger
+    # `AttributeError: 'S' object has no attribute 'database_ssl_mode'`
+    # (and friends) the first time the engine is materialised.
     get_settings.cache_clear()
     monkeypatch.setattr(
         "app.db.session.get_settings",
-        lambda: type("S", (), {"database_url": url})(),
+        lambda: type(
+            "S",
+            (),
+            {
+                "database_url": url,
+                "database_ssl_mode": "disable",
+                "database_ssl_root_cert_path": None,
+                "database_pool_size": 1,
+                "database_pool_max_overflow": 0,
+                "database_pool_timeout_seconds": 30,
+                "database_pool_pre_ping": False,
+            },
+        )(),
     )
     _sess.reset_engine_for_tests()
     yield url
@@ -247,7 +266,13 @@ async def test_migrate_is_idempotent_when_destination_already_populated(
     from app.config import get_settings
     get_settings.cache_clear()
     from unittest.mock import patch
-    with patch("app.config.get_settings") as m:
+    # NOTE: patch the *imported* reference in the migrate module, not
+    # `app.config.get_settings` (the latter is a no-op because the
+    # migrate module does `from app.config import get_settings` and
+    # binds the symbol locally at import time). Without this, migrate()
+    # reads from the real repo-root `./notary.db` and produces 61
+    # inserts — which is exactly the regression we saw before.
+    with patch("scripts.migrate_notary_sqlite_to_pg.get_settings") as m:
         m.return_value = type(
             "S",
             (),
@@ -331,7 +356,10 @@ async def test_migrate_copies_legacy_sqlite_rows_into_destination(
     from app.config import get_settings
     get_settings.cache_clear()
     from unittest.mock import patch
-    with patch("app.config.get_settings") as m:
+    # Patch the imported symbol in the migrate module (see the matching
+    # note in test_migrate_is_idempotent_when_destination_already_populated
+    # for the rationale).
+    with patch("scripts.migrate_notary_sqlite_to_pg.get_settings") as m:
         m.return_value = type(
             "S",
             (),
@@ -353,7 +381,7 @@ async def test_migrate_copies_legacy_sqlite_rows_into_destination(
         assert loaded["content_hash"] == f"sha256:legacy_{i}"
 
     # 4. Re-run migration — must be a no-op (idempotent).
-    with patch("app.config.get_settings") as m:
+    with patch("scripts.migrate_notary_sqlite_to_pg.get_settings") as m:
         m.return_value = type(
             "S",
             (),
