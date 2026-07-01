@@ -247,7 +247,7 @@ jobs:
           mkdir -p release
           find artifacts -type f -name 'tl-verify-*' -exec cp {} release/ \;
       - name: Install cosign (keyless Sigstore OIDC)
-        uses: sigstore/cosign-installer@0cd9bb97286c20c3bb8535fde5d182e00cef1f9f2 # v3.5.0
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
       - name: Sign SHA256SUMS keyless (Sigstore OIDC)
         working-directory: release
         env:
