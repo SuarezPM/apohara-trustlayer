@@ -191,18 +191,23 @@ jobs:
       actions: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            ext: ""
-          - target: aarch64-unknown-linux-gnu
-            ext: ""
-          - target: x86_64-apple-darwin
-            ext: ""
-          - target: aarch64-apple-darwin
-            ext: ""
-          - target: x86_64-pc-windows-msvc
-            ext: ".exe"
+    matrix:
+      include:
+        - target: x86_64-unknown-linux-gnu
+          ext: ""
+        # F9: aarch64-unknown-linux-gnu excluded from the attest
+        # matrix to match the build matrix (see F9 comment in the
+        # `build` job above). Without this, the attest job tries to
+        # download the tl-verify-aarch64-unknown-linux-gnu artifact
+        # which the build job no longer produces → "Artifact not
+        # found for name: tl-verify-aarch64-unknown-linux-gnu"
+        # and all 4 remaining attest jobs fail.
+        - target: x86_64-apple-darwin
+          ext: ""
+        - target: aarch64-apple-darwin
+          ext: ""
+        - target: x86_64-pc-windows-msvc
+          ext: ".exe"
     uses: ./.github/workflows/_attest.yml
     with:
       artifact-name: tl-verify-${{ matrix.target }}
