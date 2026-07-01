@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Apohara TrustLayer Python SDK — full wheel with PyO3 in-process bindings for offline COSE_Sign1 + RFC 3161 verification"
 readme = "README.md"
 requires-python = ">=3.10"
-license-file = ["LICENSE"\]
 license = { text = "Apache-2.0" }
 license-files = ["LICENSE"]
 authors = [
