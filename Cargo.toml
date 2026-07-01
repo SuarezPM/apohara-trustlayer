@@ -64,7 +64,15 @@ authors = ["Pablo M. Suarez <suarezpm@csnat.unt.edu.ar>"]
 coset = "=0.4.2"          # AC-20: pinned due to "under construction" status
 
 # Hashing (from themis)
-sha2 = "0.11"
+# Downgraded 0.11 → 0.10 (F9): hmac 0.12 (used by themis-orchestrator +
+# tl-evidence) requires digest 0.10 types; sha2 0.11 ships with
+# digest 0.11 types → CoreProxy trait bounds fail. sha2 0.10's
+# SHA-256/384/512 implementations carry the AssociatedOid impl that
+# rsa 0.9 + hmac 0.12 need. The themis-evidence fix in commit 1316fae
+# works the same with sha2 0.10 (sha2::Sha256/384/512 API unchanged
+# between 0.10 and 0.11 — the version split is in transitively-pulled
+# `digest`/`crypto-common` only).
+sha2 = "0.10"
 blake3 = "1.5"
 
 # Ed25519 + x509 for TSA + signing
