@@ -128,3 +128,7 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: ${{ needs.stage.outputs.subject }}
+      # Private repos must opt in to suppress the privacy-check halt
+      # (otherwise the SLSA generator refuses to publish the repo name
+      # in the public Rekor transparency log).
+      private-repository: true
