@@ -137,10 +137,18 @@ jobs:
       # their `if:` condition. Without this grant, validation fails.
       # `write` subsumes `read`, so no separate `contents: read` needed.
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: ${{ needs.stage.outputs.subject }}
       # Private repos must opt in to suppress the privacy-check halt
       # (otherwise the SLSA generator refuses to publish the repo name
       # in the public Rekor transparency log).
       private-repository: true
+      # F16 (Pinned-Dependencies 9→10): compile-from-source path bypasses
+      # the tag-format check in builder-fetch.sh (line 27) which requires
+      # `refs/tags/vX.Y.Z` and rejects SHA refs. With compile-generator: true
+      # the slsa-generator action runs `git checkout <sha> && go mod vendor
+      # && go build` (generate-builder.sh line 11-19) — no ref-format check.
+      # Trade-off: ~2 min extra CI time per tag release (Go build from
+      # source vs. downloading the prebuilt 67MB linux-amd64 binary).
+      compile-generator: true
