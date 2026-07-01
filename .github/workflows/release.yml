@@ -55,10 +55,19 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             ext: ""
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            ext: ""
-            cross: true
+          # F9: aarch64-unknown-linux-gnu temporarily excluded from the
+          # release matrix. The cross-rs Docker build for this target
+          # requires installing protobuf-compiler inside the buildx-
+          # sandboxed custom image, but the GH Actions runner cannot
+          # access external apt repos at the pre-build step (the v0.1.2
+          # release runs 28535667969 / 28536653903 hit
+          # "could not run container" on every attempt). The 4 remaining
+          # targets (x86_64-linux, x86_64-windows, x86_64-macos,
+          # aarch64-macos) are sufficient for a valid GitHub Release with
+          # signed artifacts; the aarch64-linux binary can be re-added
+          # to the matrix once the cross-rs Docker build access issue
+          # is resolved (e.g., a pre-built custom image or GH-hosted
+          # aarch64 runner).
           - target: x86_64-apple-darwin
             os: macos-latest
             ext: ""
