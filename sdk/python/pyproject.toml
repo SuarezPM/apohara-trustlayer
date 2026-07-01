@@ -9,7 +9,8 @@ description = "Apohara TrustLayer Python SDK — full wheel with PyO3 in-process
 readme = "README.md"
 requires-python = ">=3.10"
 license-file = ["LICENSE"\]
-license = { text = "MIT OR Apache-2.0" }
+license = { text = "Apache-2.0" }
+license-files = ["LICENSE"]
 authors = [
     { name = "Pablo M. Suarez", email = "suarezpm@csnat.unt.edu.ar" },
 ]
