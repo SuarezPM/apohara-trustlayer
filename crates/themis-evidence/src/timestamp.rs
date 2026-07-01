@@ -26,8 +26,19 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use der::asn1::ObjectIdentifier;
-use der::{Decode, Encode};
+// ObjectIdentifier must match the version `x509-cert 0.2.5 / cms 0.2.3`
+// pull in transitively (const-oid 0.9, non-generic). Our direct
+// `const-oid = "0.10"` dep is generic `ObjectIdentifier<MAX_SIZE>`, so it
+// would mismatch `attr.oid`, `signer_info.signature_algorithm.oid`, etc.
+// `x509-cert 0.2.5` enables the `oid` feature on its `der` dep, so the
+// re-exported `der::asn1::ObjectIdentifier` exists and resolves to the
+// 0.9 type used by x509-cert internally.
+use x509_cert::der::asn1::ObjectIdentifier;
+// Route Decode/Encode through x509_cert's re-exported `der 0.7`
+// (cms 0.2 / x509-tsp 0.1 / x509-cert 0.2.5 are all built on that version,
+// not the directly-declared der 0.8). x509-cert lib.rs does
+// `pub use der;` to expose its internal version.
+use x509_cert::der::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha512};
 use thiserror::Error;
@@ -628,7 +639,10 @@ fn cert_matches_signer(cert: &Certificate, signer_info: &SignerInfo) -> bool {
         cms::signed_data::SignerIdentifier::SubjectKeyIdentifier(ski) => {
             // SubjectKeyIdentifier (CMS choice [0]) — match against
             // the cert's subjectKeyIdentifier extension if present.
-            use der::Decode;
+            // Route through x509_cert's re-exported `der 0.7` so the
+            // Decode trait matches the version `SubjectKeyIdentifier`
+            // (an x509-cert type built on der 0.7) actually implements.
+            use x509_cert::der::Decode;
             use x509_cert::ext::pkix::SubjectKeyIdentifier;
             let ski_oid = const_oid::db::rfc5280::ID_CE_SUBJECT_KEY_IDENTIFIER;
             for ext in cert.tbs_certificate.extensions.iter().flatten() {
@@ -991,63 +1005,101 @@ fn verify_chain(signer: &Certificate, trusted_roots: &[Certificate]) -> Result<(
 /// RSA chain verification: root is RSA (e.g. rsaEncryption or
 /// rsa-pkcs1-sha512); the signature algorithm on the signer's
 /// `signatureAlgorithm` field tells us which hash to use.
+///
+/// Implementation note: rsa 0.9's `pkcs1v15::VerifyingKey::new`
+/// requires the digest type to implement `pkcs8::AssociatedOid` so
+/// it can look up the OID for the PKCS#1 v1.5 DigestInfo prefix.
+/// sha2 0.11 (our direct dep) intentionally removed that impl.
+/// Instead, we use the lower-level `RsaPublicKey::verify` API with
+/// a hand-constructed `Pkcs1v15Sign` (its fields are `pub`, so we
+/// can supply the prefix without `AssociatedOid`). The prefixes
+/// below are the standard DigestInfo headers from RFC 8017 §9.2,
+/// with OID + NULL + OCTET STRING tag + digest-length marker.
+/// They are byte-for-byte the same bytes rsa's
+/// `pkcs1v15_generate_prefix::<ShaN>()` would produce.
 fn verify_chain_rsa(
     root: &Certificate,
     tbs_der: &[u8],
     sig_bytes: &[u8],
     sig_alg_oid: &str,
 ) -> Result<(), TimestampError> {
-    use rsa::pkcs1v15::{Signature as RsaSignature, VerifyingKey as RsaVerifyingKey};
-    use rsa::signature::Verifier as _;
+    use rsa::pkcs1v15::Pkcs1v15Sign;
+    // `SignatureScheme` lives at `rsa::traits` (re-exported from
+    // `rsa::traits::padding`); it is NOT re-exported from
+    // `rsa::pkcs1v15` so we have to take the public path via `rsa::`.
+    // The `use` is local to this function so the trait is in scope
+    // for the `RsaPublicKey::verify` call below (no pub use needed).
+    #[allow(unused_imports)]
+    use rsa::traits::SignatureScheme;
     let pk_der = root
         .tbs_certificate
         .subject_public_key_info
         .subject_public_key
         .as_bytes()
         .ok_or_else(|| TimestampError::X509("root RSA key not BIT STRING".into()))?;
-    // FreeTSA's root signs with rsa-pkcs1-sha512; map OID
-    // 1.2.840.113549.1.1.13 → Sha512. We rebuild the verifying
-    // key for each hash because the `VerifyingKey<D>` is
-    // generic over the digest type.
-    match sig_alg_oid {
+    // Pick the (digest, hash_len, hand-built DigestInfo prefix)
+    // triple that matches the signature algorithm OID.
+    // Prefix layout per RFC 8017 §9.2 (DigestInfo ::= SEQUENCE
+    // { SEQUENCE { OID, NULL }, OCTET STRING ... }):
+    //   SHA-256 OID 2.16.840.1.101.3.4.2.1 (9 bytes), 32-byte digest
+    //   SHA-384 OID 2.16.840.1.101.3.4.2.2 (9 bytes), 48-byte digest
+    //   SHA-512 OID 2.16.840.1.101.3.4.2.3 (9 bytes), 64-byte digest
+    let (hashed, prefix): (Vec<u8>, Vec<u8>) = match sig_alg_oid {
         "1.2.840.113549.1.1.11" => {
             // sha256WithRSAEncryption
-            use sha2::Sha256;
-            let pk = rsa::RsaPublicKey::from_pkcs1_der(pk_der)
-                .map_err(|e| TimestampError::X509(format!("RSA pubkey decode: {e}")))?;
-            let vk = RsaVerifyingKey::<Sha256>::new(pk);
-            let sig = RsaSignature::try_from(sig_bytes)
-                .map_err(|e| TimestampError::ChainInvalid(format!("RSA sig decode: {e}")))?;
-            vk.verify(tbs_der, &sig)
-                .map_err(|e| TimestampError::ChainInvalid(format!("RSA chain: {e}")))
+            let mut h = sha2::Sha256::new();
+            h.update(tbs_der);
+            (
+                h.finalize().to_vec(),
+                vec![
+                    0x30, 0x31, 0x30, 0x0D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03,
+                    0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20,
+                ],
+            )
         }
         "1.2.840.113549.1.1.12" => {
             // sha384WithRSAEncryption
-            use sha2::Sha384;
-            let pk = rsa::RsaPublicKey::from_pkcs1_der(pk_der)
-                .map_err(|e| TimestampError::X509(format!("RSA pubkey decode: {e}")))?;
-            let vk = RsaVerifyingKey::<Sha384>::new(pk);
-            let sig = RsaSignature::try_from(sig_bytes)
-                .map_err(|e| TimestampError::ChainInvalid(format!("RSA sig decode: {e}")))?;
-            vk.verify(tbs_der, &sig)
-                .map_err(|e| TimestampError::ChainInvalid(format!("RSA chain: {e}")))
+            let mut h = sha2::Sha384::new();
+            h.update(tbs_der);
+            (
+                h.finalize().to_vec(),
+                vec![
+                    0x30, 0x41, 0x30, 0x0D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03,
+                    0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30,
+                ],
+            )
         }
         "1.2.840.113549.1.1.13" => {
-            // sha512WithRSAEncryption
-            use sha2::Sha512;
-            let pk = rsa::RsaPublicKey::from_pkcs1_der(pk_der)
-                .map_err(|e| TimestampError::X509(format!("RSA pubkey decode: {e}")))?;
-            let vk = RsaVerifyingKey::<Sha512>::new(pk);
-            let sig = RsaSignature::try_from(sig_bytes)
-                .map_err(|e| TimestampError::ChainInvalid(format!("RSA sig decode: {e}")))?;
-            vk.verify(tbs_der, &sig)
-                .map_err(|e| TimestampError::ChainInvalid(format!("RSA chain: {e}")))
+            // sha512WithRSAEncryption — the FreeTSA root's path.
+            let mut h = sha2::Sha512::new();
+            h.update(tbs_der);
+            (
+                h.finalize().to_vec(),
+                vec![
+                    0x30, 0x51, 0x30, 0x0D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03,
+                    0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40,
+                ],
+            )
         }
-        _ => Err(TimestampError::ChainInvalid(format!(
-            "unsupported RSA sig alg: {}",
-            sig_alg_oid
-        ))),
-    }
+        _ => {
+            return Err(TimestampError::ChainInvalid(format!(
+                "unsupported RSA sig alg: {}",
+                sig_alg_oid
+            )));
+        }
+    };
+    let pk = rsa::RsaPublicKey::from_pkcs1_der(pk_der)
+        .map_err(|e| TimestampError::X509(format!("RSA pubkey decode: {e}")))?;
+    // Pkcs1v15Sign fields are `pub` — see rsa-0.9.10/src/pkcs1v15.rs:80.
+    // We avoid `VerifyingKey::<Sha256>::new(pk)` because that requires
+    // `Sha256: AssociatedOid`, which sha2 0.11 intentionally does not
+    // implement (sha2 0.10 does; we cannot pin to 0.10 per Cargo.toml).
+    let scheme = Pkcs1v15Sign {
+        hash_len: Some(hashed.len()),
+        prefix: prefix.into_boxed_slice(),
+    };
+    pk.verify(scheme, &hashed, sig_bytes)
+        .map_err(|e| TimestampError::ChainInvalid(format!("RSA chain: {e}")))
 }
 
 /// ECDSA-P-384 chain verification: the root is P-384 and the
