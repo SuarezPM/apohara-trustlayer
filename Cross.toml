@@ -8,9 +8,10 @@
 #
 # `pre-build` runs INSIDE the cross container before cargo build.
 # See https://github.com/cross-rs/cross#pre-build for syntax.
+#
+# NOTE: must be a single line (no newlines). cross-rs passes the value as
+# `--build-arg CROSS_SCRIPT=...` to `docker build`; newlines in the value
+# produce "header key 'followpaths' contains value with non-printable ASCII
+# characters" errors at the buildx frontend.
 [target.aarch64-unknown-linux-gnu]
-pre-build = """
-apt-get update && \
-apt-get install -y --no-install-recommends protobuf-compiler && \
-rm -rf /var/lib/apt/lists/*
-"""
+pre-build = "apt-get update && apt-get install -y --no-install-recommends protobuf-compiler && rm -rf /var/lib/apt/lists/*"
