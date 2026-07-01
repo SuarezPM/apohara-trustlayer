@@ -230,6 +230,7 @@ jobs:
     # `contents: read` from the workflow top level.
     permissions:
       contents: write
+      id-token: write  # cosign keyless via Sigstore OIDC
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -237,10 +238,27 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tl-verify-release-manifest
+          path: release
       - name: Assemble release files
         run: |
           mkdir -p release
           find artifacts -type f -name 'tl-verify-*' -exec cp {} release/ \;
+      - name: Install cosign (keyless Sigstore OIDC)
+        uses: sigstore/cosign-installer@0cd9bb97286c20c3bb8535fde5d182e00cef1f9f2 # v3.5.0
+      - name: Sign SHA256SUMS keyless (Sigstore OIDC)
+        working-directory: release
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --output-signature SHA256SUMS.sig \
+            --output-certificate SHA256SUMS.pem \
+            SHA256SUMS
+          echo "::notice title=cosign-signed::Signed SHA256SUMS with cosign keyless (OIDC)"
       - name: Create draft GitHub Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
@@ -249,4 +267,7 @@ jobs:
           generate_release_notes: true
           files: |
             release/tl-verify-*
+            release/SHA256SUMS
+            release/SHA256SUMS.sig
+            release/SHA256SUMS.pem
             release/SHA256SUMS
