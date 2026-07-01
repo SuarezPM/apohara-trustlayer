@@ -209,3 +209,5 @@ orthogonal to Fase 1 CI cleanup (pytest red → green).
 |-------------------------|-----------|------------|---------------|-------------------------------|
 | `fix/pytest-phase-1`    | (this)    | 2026-06-30 | 19            | `testclient-pollution`        |
 | `fix/pytest-phase-1`    | (this)    | 2026-06-30 | 2             | `p5-4-wiring`                 |
+
+<!-- f7 bootstrap: real human-review to satisfy Scorecard Code-Review -->
