@@ -135,3 +135,5 @@ debug = true
 [profile.bench]
 opt-level = 3
 debug = false
+
+license-file = "LICENSE"
