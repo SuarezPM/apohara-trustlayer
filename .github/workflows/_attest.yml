@@ -125,10 +125,15 @@ jobs:
       # their `if:` condition. Without this grant, validation fails.
       # `write` subsumes `read`, so no separate `contents: read` needed.
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.stage.outputs.subject }}
       # Private repos must opt in to suppress the privacy-check halt
       # (otherwise the SLSA generator refuses to publish the repo name
       # in the public Rekor transparency log).
       private-repository: true
+      # Disable on-demand compilation: use the pre-built slsa-generator
+      # binary shipped in the v2.1.0 release. The compile-generator step
+      # tries to checkout the slsa-framework/slsa-github-generator repo
+      # at a `refs/tags/vX.Y.Z` ref and fails on a SHA pin.
+      compile-generator: false
