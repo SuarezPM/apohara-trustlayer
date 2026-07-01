@@ -77,6 +77,21 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.7.4
 
+      # protoc is required by themis-evidence/build.rs (Rekor v2 protobuf
+      # codegen). Recent GH-runner images no longer ship protoc pre-installed
+      # on macos-14 / windows-2022, so we install on all 3 platforms to be
+      # safe. Mirrors the same steps in ci.yml (rust-test job).
+      - name: Install protoc (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install protoc (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install protobuf
+      - name: Install protoc (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install -y protoc
+        shell: pwsh
+
       # Python is required because `tl-ffi` (PyO3) is in the workspace
       # tree and `cargo build` / `cross build` links libpython for
       # the `--bin tl-verify` artifact even though tl-verify itself
