@@ -28,7 +28,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use rand::RngCore;
+use rand::RngExt;
 
 /// Marker wrapping untrusted content so static analysis + the LLM
 /// itself can track flow. The `source` is metadata for the audit
@@ -67,7 +67,7 @@ pub fn build_envelope(
     // randomness via the thread RNG (defeats sentinel guessing;
     // thread RNG is reseeded from the OS RNG by `rand`).
     let mut nonce_bytes = [0u8; 16];
-    rand::rng().fill_bytes(&mut nonce_bytes);
+    rand::rng().fill(&mut nonce_bytes[..]);
     let nonce = hex_lower(&nonce_bytes);
 
     let mut parts: Vec<String> = Vec::new();

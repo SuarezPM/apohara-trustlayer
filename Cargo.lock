@@ -108,7 +108,7 @@ dependencies = [
  "seccompiler",
  "serde",
  "serde_json",
- "sha2 0.11.0",
+ "sha2",
  "thiserror 2.0.18",
  "toml",
  "ureq",
@@ -419,15 +419,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "block-buffer"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
-dependencies = [
- "hybrid-array",
 ]
 
 [[package]]
@@ -1049,7 +1040,7 @@ version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
- "block-buffer 0.10.4",
+ "block-buffer",
  "const-oid 0.9.6",
  "crypto-common 0.1.6",
  "subtle",
@@ -1061,10 +1052,7 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
- "block-buffer 0.12.1",
- "const-oid 0.10.2",
  "crypto-common 0.2.2",
- "ctutils",
 ]
 
 [[package]]
@@ -1121,7 +1109,7 @@ dependencies = [
  "digest 0.10.7",
  "elliptic-curve",
  "rfc6979",
- "sha2 0.10.9",
+ "sha2",
  "signature 2.2.0",
  "spki 0.7.3",
 ]
@@ -1146,7 +1134,7 @@ dependencies = [
  "ed25519",
  "rand_core 0.6.4",
  "serde",
- "sha2 0.10.9",
+ "sha2",
  "subtle",
  "zeroize",
 ]
@@ -1169,7 +1157,7 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
- "hkdf 0.12.4",
+ "hkdf",
  "pem-rfc7468",
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
@@ -1586,16 +1574,7 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
 dependencies = [
- "hmac 0.12.1",
-]
-
-[[package]]
-name = "hkdf"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4aaa26c720c68b866f2c96ef5c1264b3e6f473fe5d4ce61cd44bbe913e553018"
-dependencies = [
- "hmac 0.13.0",
+ "hmac",
 ]
 
 [[package]]
@@ -1605,15 +1584,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "hmac"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
-dependencies = [
- "digest 0.11.3",
 ]
 
 [[package]]
@@ -2533,7 +2503,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
- "sha2 0.10.9",
+ "sha2",
 ]
 
 [[package]]
@@ -3310,7 +3280,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
- "hmac 0.12.1",
+ "hmac",
  "subtle",
 ]
 
@@ -3371,7 +3341,7 @@ dependencies = [
  "pkcs1",
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
- "sha2 0.10.9",
+ "sha2",
  "signature 2.2.0",
  "spki 0.7.3",
  "subtle",
@@ -3794,17 +3764,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha2"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.3.0",
- "digest 0.11.3",
-]
-
-[[package]]
 name = "shake"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3890,7 +3849,7 @@ dependencies = [
  "digest 0.10.7",
  "pem",
  "rand_core 0.9.5",
- "sha2 0.10.9",
+ "sha2",
  "signature 2.2.0",
  "sigstore-types 0.8.0",
  "spki 0.7.3",
@@ -3912,7 +3871,7 @@ dependencies = [
  "digest 0.10.7",
  "pem",
  "rand_core 0.9.5",
- "sha2 0.10.9",
+ "sha2",
  "signature 2.2.0",
  "sigstore-types 0.10.0",
  "spki 0.7.3",
@@ -4030,7 +3989,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2",
  "sigstore-crypto 0.10.0",
  "sigstore-types 0.10.0",
  "tempfile",
@@ -4354,7 +4313,7 @@ dependencies = [
  "ed25519-dalek",
  "elliptic-curve",
  "hex",
- "hkdf 0.13.0",
+ "hkdf",
  "p384",
  "pkcs1",
  "prost",
@@ -4366,7 +4325,7 @@ dependencies = [
  "serde_json",
  "serde_json_canonicalizer",
  "sha1",
- "sha2 0.11.0",
+ "sha2",
  "signature 2.2.0",
  "sigstore-trust-root 0.10.0",
  "sigstore-types 0.8.0",
@@ -4403,7 +4362,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "hex",
- "hmac 0.12.1",
+ "hmac",
  "hyper",
  "image 0.25.10",
  "parking_lot",
@@ -4414,7 +4373,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "sha2 0.11.0",
+ "sha2",
  "themis-agents",
  "themis-band-client",
  "themis-compliance",
@@ -4621,7 +4580,7 @@ dependencies = [
  "cryptographic-message-syntax",
  "ed25519-dalek",
  "generic-array",
- "hmac 0.12.1",
+ "hmac",
  "ml-dsa",
  "module-lattice",
  "printpdf",
@@ -4629,7 +4588,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "sha2 0.11.0",
+ "sha2",
  "themis-evidence",
  "thiserror 1.0.69",
  "tokio",
@@ -4783,7 +4742,7 @@ dependencies = [
  "serde",
  "serde_cbor_2",
  "serde_json",
- "sha2 0.11.0",
+ "sha2",
  "thiserror 1.0.69",
 ]
 
@@ -4841,7 +4800,7 @@ dependencies = [
  "hex",
  "serde",
  "serde_json",
- "sha2 0.11.0",
+ "sha2",
  "thiserror 1.0.69",
 ]
 

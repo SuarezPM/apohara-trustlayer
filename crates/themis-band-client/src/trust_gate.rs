@@ -85,11 +85,11 @@ mod tests {
     use super::*;
     use crate::signed_message::sign;
     use ed25519_dalek::SigningKey;
-    use rand::RngCore;
+    use rand::RngExt;
 
     fn fresh_key() -> SigningKey {
         let mut bytes = [0u8; 32];
-        rand::rng().fill_bytes(&mut bytes);
+        rand::rng().fill(&mut bytes[..]);
         SigningKey::from_bytes(&bytes)
     }
 

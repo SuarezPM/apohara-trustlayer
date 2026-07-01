@@ -33,7 +33,7 @@ serde_json_canonicalizer = "0.3"
 # Used by sealchain_wrap mock-fallback (SHA-256 fingerprint of the
 # payload bytes for the mock preimage hex). sha2 is already a
 # workspace-level dep, so this just references it directly.
-sha2 = "0.11"
+sha2 = "0.10"
 # RFC 3161 strict verification (FIX-2 → FIX-2b): full chain
 # check. The stack is layered:
 #
@@ -73,7 +73,7 @@ pkcs1 = { version = "0.7", features = ["pem"] }
 # `hkdf` 0.12 is paired with `sha2` 0.10 (already a workspace dep).
 # hkdf 0.13 switched to digest 0.11, which is incompatible with sha2 0.10's
 # digest 0.10 — pin to 0.12 to keep the trait chain working.
-hkdf = "0.13"
+hkdf = "0.12"
 # Rekor v2 gRPC stack (ADR 0010). Pinned to 0.14 for tonic/prost to
 # match the current stable on crates.io as of 2026-06-17. The
 # `transport` feature pulls in HTTP/2 connector + TLS roots;

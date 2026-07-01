@@ -7,7 +7,7 @@
 //! -> Ed25519 signature -> hex-encoded SignedMessage wire format.
 
 use ed25519_dalek::SigningKey;
-use rand::RngCore;
+use rand::RngExt;
 use themis_band_client::signed_message::{sign, Did, SignedMessage};
 use themis_band_client::trust_gate::TrustGate;
 
@@ -15,7 +15,7 @@ const NOW_MS: i64 = 1_700_000_000_000;
 
 fn fresh_key() -> SigningKey {
     let mut bytes = [0u8; 32];
-    rand::rng().fill_bytes(&mut bytes);
+    rand::rng().fill(&mut bytes[..]);
     SigningKey::from_bytes(&bytes)
 }
 
