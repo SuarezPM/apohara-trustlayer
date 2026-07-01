@@ -84,13 +84,25 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          # sha256sum gives a hex digest (64 chars). The slsa-generator
-          # expects `sha256:` followed by the BASE64 of the 32 raw hash
-          # bytes, not the hex string.
+          # The slsa-generator v2.1.0 `attest` command (attest.go) reads
+          # the subjects file and calls parseSubjects (generic.go) which:
+          #   1. base64.StdEncoding.DecodeString() the WHOLE file content
+          #   2. bufio.Scans line by line
+          #   3. Each line must be sha256sum format: `<hex_digest>  <filename>`
+          #      (split by whitespace, max 2 parts)
+          #   4. Returns error "expected subject name for hash" if the
+          #      line has only the hex with no filename.
+          #
+          # So we build a one-line subjects file in sha256sum format
+          # (`<hex>  <filename>`) and base64-encode that. The SLSA template's
+          # create-file step writes our `subject` output directly to the
+          # subjects file, and the attest command base64-decodes it back
+          # to the original `<hex>  <filename>` content.
           hex="$(sha256sum "${{ inputs.subject-name }}" | awk '{print $1}')"
-          b64="$(printf '%s' "$hex" | xxd -r -p | base64 -w0)"
-          echo "subject=sha256:${b64}" >> "$GITHUB_OUTPUT"
-          echo "Staged subject: sha256:${b64}"
+          subjects_line="${hex}  ${{ inputs.subject-name }}"
+          b64="$(printf '%s\n' "${subjects_line}" | base64 -w0)"
+          echo "subject=${b64}" >> "$GITHUB_OUTPUT"
+          echo "Staged subject: sha256:${hex}"
 
   # Stage 2: SLSA L3 provenance generation in a separate, fresh runner.
   # The slsa-framework generator signs the .intoto.jsonl with Sigstore
@@ -125,6 +137,10 @@ jobs:
       # their `if:` condition. Without this grant, validation fails.
       # `write` subsumes `read`, so no separate `contents: read` needed.
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.stage.outputs.subject }}
+      # Private repos must opt in to suppress the privacy-check halt
+      # (otherwise the SLSA generator refuses to publish the repo name
+      # in the public Rekor transparency log).
+      private-repository: true

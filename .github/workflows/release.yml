@@ -211,7 +211,7 @@ jobs:
     uses: ./.github/workflows/_attest.yml
     with:
       artifact-name: tl-verify-${{ matrix.target }}
-      subject-name: tl-verify${{ matrix.ext }}
+      subject-name: tl-verify-${{ matrix.target }}${{ matrix.ext }}
 
   # Assemble a combined SHA256SUMS file over all per-target binaries.
   # The maintainer publishes this alongside the draft release so
