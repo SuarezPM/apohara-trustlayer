@@ -109,7 +109,22 @@ jobs:
     permissions:
       id-token: write
       attestations: write
-      contents: read
+      # `actions: read` is REQUIRED by the slsa-github-generator v2.1.0
+      # `generator` job (see generator_generic_slsa3.yml line 154 — declared
+      # at job-level permissions block, comment "Needed to read workflow info"
+      # for the `Generate builder` step that calls .github/actions/generate-builder@v2.1.0).
+      # Without it, the workflow graph fails validation at parse time with
+      # `startup_failure` (0 jobs, ~2 seconds) — the caller MUST grant ALL
+      # permissions that any reachable job in a reusable workflow declares.
+      actions: read
+      # `contents: write` is REQUIRED by the slsa-generator's `upload-assets`
+      # job (line 266: "Needed to write artifacts to a release"). Although
+      # that job is conditional on `inputs.upload-assets && tag-pushed`
+      # (defaults to skipped for us), GH Actions graph-validates ALL jobs
+      # in the reachable reusable-workflow tree at parse time, regardless of
+      # their `if:` condition. Without this grant, validation fails.
+      # `write` subsumes `read`, so no separate `contents: read` needed.
+      contents: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       base64-subjects: ${{ needs.stage.outputs.subject }}

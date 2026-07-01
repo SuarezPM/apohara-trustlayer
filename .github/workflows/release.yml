@@ -149,10 +149,22 @@ jobs:
     needs: build
     # Caller job must ALSO declare these for the reusable workflow's
     # keyless OIDC signing + attestation write to work.
+    # `actions: read` is REQUIRED because _attest.yml's `provenance` job
+    # calls slsa-framework/slsa-github-generator/generator_generic_slsa3.yml
+    # whose `generator` job declares `actions: read` at job-level
+    # (line 154: "# Needed to read workflow info."). GH Actions restricts
+    # callee permissions to the intersection with the caller's grant;
+    # without this, the slsa-generator cannot read workflow info and the
+    # entire release.yml fails with startup_failure (0 jobs scheduled).
+    # `contents: write` is REQUIRED because the slsa-generator's
+    # `upload-assets` job (line 266) needs it; GH validates ALL jobs in
+    # the reachable reusable-workflow tree at parse time, even conditional
+    # ones, so we must grant it from the caller.
     permissions:
       id-token: write
       attestations: write
-      contents: read
+      contents: write
+      actions: read
     strategy:
       fail-fast: false
       matrix:
