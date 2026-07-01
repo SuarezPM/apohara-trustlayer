@@ -137,3 +137,5 @@ opt-level = 3
 debug = false
 
 license-file = "LICENSE"
+
+license-file = "LICENSE"
