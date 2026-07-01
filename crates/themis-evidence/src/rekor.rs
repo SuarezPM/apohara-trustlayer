@@ -386,7 +386,14 @@ mod tests {
 // the demo does not have). The post-hackathon migration to a
 // real publishing identity is out of scope.
 
-use sigstore_trust_root::{TrustedRoot, SIGSTORE_PRODUCTION_TRUSTED_ROOT};
+// Pull `TrustedRoot` from sigstore_verify's re-export (which
+// pins sigstore-trust-root 0.8) rather than from the direct
+// `sigstore_trust_root = "0.10"` dep. `sigstore_verify::verify`
+// is wired to the 0.8 type, so the direct 0.10 import would
+// type-mismatch even though it is the same struct name.
+use sigstore_verify::trust_root::{
+    SIGSTORE_PRODUCTION_TRUSTED_ROOT, TrustedRoot,
+};
 use sigstore_types::Bundle;
 
 /// Pure-Rust sigstore-verify client. The trusted root is the

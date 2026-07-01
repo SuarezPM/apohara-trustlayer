@@ -21,7 +21,11 @@
 use std::path::Path;
 
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use rand::RngCore;
+// rand 0.10: `Rng` (re-exported from rand_core) still has
+// `fill_bytes`, but the new high-level `fill<T: Fill>(&mut [T])`
+// lives on the `RngExt` trait. ThreadRng implements `RngExt`, so
+// `RngExt` is what makes `csprng.fill(&mut bytes[..])` resolve.
+use rand::RngExt;
 use thiserror::Error;
 
 /// Stark's baked-in Ed25519 seed (32 bytes, hex sha256 of
@@ -67,7 +71,7 @@ impl KeyPair {
     pub fn generate() -> Self {
         let mut csprng = rand::rng();
         let mut bytes = [0u8; 32];
-        csprng.fill_bytes(&mut bytes);
+        csprng.fill(&mut bytes[..]);
         let signing = SigningKey::from_bytes(&bytes);
         let verifying = signing.verifying_key();
         Self { signing, verifying }
