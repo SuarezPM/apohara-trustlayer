@@ -2,6 +2,14 @@
 //!
 //! Synthex-style dark, lime-green accent, monospace for hashes. One
 //! A4 page. The minimum a judge needs to trust the seal.
+//!
+//! ## printpdf 0.9.1 migration notes
+//!
+//! The 0.7 API was layer-mutating (`page.layer.use_text(...)` etc.)
+//! — the 0.9.1 API is op-based: pages are sequences of `Op`
+//! instructions that are appended to `Page.ops` and rendered when
+//! the document is saved. `Page` no longer holds a `PdfLayerReference`;
+//! it holds `Vec<Op>`. See `ctx.rs` for the helper API.
 #![allow(missing_docs)]
 
 use thiserror::Error;
@@ -13,7 +21,6 @@ use themis_agents::decision::AgentDecision;
 mod baaar;
 mod ctx;
 
-// Suppress unused warning on AgentDecision import (kept for future use).
 #[allow(dead_code)]
 fn _typed(_d: &AgentDecision) {}
 
@@ -31,42 +38,19 @@ pub enum PdfError {
 
 /// Render a `SignedPacket` to PDF bytes (1-page A4, dark theme).
 pub fn render_packet_pdf(packet: &SignedPacket) -> Result<Vec<u8>, PdfError> {
-    use printpdf::PdfDocument;
-
-    // `PdfDocument::empty` doesn't auto-create a page, so we can
-    // add exactly one with our own dark background.
-    let doc = PdfDocument::empty("Apohara VOUCH Evidence Receipt");
-
-    let font_regular = doc
-        .add_builtin_font(printpdf::BuiltinFont::Helvetica)
-        .map_err(|e| PdfError::Font(format!("{e:?}")))?;
-    let font_bold = doc
-        .add_builtin_font(printpdf::BuiltinFont::HelveticaBold)
-        .map_err(|e| PdfError::Font(format!("{e:?}")))?;
-    let ctx = Ctx {
-        doc: &doc,
-        font_regular: &font_regular,
-        font_bold: &font_bold,
-    };
+    let mut ctx = Ctx::new("Apohara VOUCH Evidence Receipt");
     let seal_id = format!("VOUCH-{}", &packet.blake3_hash_hex()[..8]);
 
-    // `add_a4_page` creates the page with the white-paper
-    // background + content layer, in the correct order.
     let mut page = ctx.add_a4_page("Content");
+    render_receipt(&mut ctx, packet, &mut page, &seal_id)?;
 
-    render_receipt(&ctx, packet, &mut page, &seal_id)?;
-
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = std::io::BufWriter::new(&mut buf);
-        doc.save(&mut writer)
-            .map_err(|e| PdfError::Save(format!("{e:?}")))?;
-    }
-    Ok(buf)
+    ctx.add_page(page);
+    let bytes = ctx.into_bytes();
+    Ok(bytes)
 }
 
 fn render_receipt(
-    ctx: &Ctx,
+    ctx: &mut Ctx,
     packet: &SignedPacket,
     page: &mut Page,
     seal_id: &str,
@@ -408,7 +392,11 @@ fn render_receipt(
 }
 
 /// Render the QR code in the top-right corner of the body.
-fn render_qr(ctx: &Ctx, packet: &SignedPacket, page: &Page) {
+fn render_qr(ctx: &mut Ctx, packet: &SignedPacket, page: &mut Page) {
+    use printpdf::{
+        Op, Pt, RawImage, RawImageData, RawImageFormat, XObjectRotation, XObjectTransform,
+    };
+
     let verify_url = format!(
         "https://vouch.apohara.dev/verify?packet={}&tenant={}",
         packet.packet().packet_id(),
@@ -436,19 +424,21 @@ fn render_qr(ctx: &Ctx, packet: &SignedPacket, page: &Page) {
     );
     let dyn_img = image::DynamicImage::ImageLuma8(scaled);
     let (w_px, h_px) = (dyn_img.width() as usize, dyn_img.height() as usize);
-    let pixels: Vec<u8> = dyn_img.to_luma8().pixels().map(|p| p.0[0]).collect();
-    let xobject = printpdf::ImageXObject {
-        width: printpdf::Px(w_px),
-        height: printpdf::Px(h_px),
-        color_space: printpdf::ColorSpace::Greyscale,
-        bits_per_component: printpdf::ColorBits::Bit8,
-        interpolate: true,
-        image_data: pixels,
-        image_filter: None,
-        clipping_bbox: None,
-        smask: None,
-    };
-    let pdf_image: printpdf::Image = xobject.into();
+    let pixels: Vec<u8> = dyn_img.to_luma8().into_raw();
+
+    // Convert the DynamicImage into a printpdf `RawImage`. 0.9.1
+    // exposes `RawImage::from_dynamic_image` (no intermediate
+    // `Image` newtype). Requires the `images` feature (already on
+    // via `png`).
+    let raw = RawImage::from_dynamic_image(dyn_img).expect("from_dynamic_image");
+    // Sanity: 8-bit grayscale with the same w/h we computed.
+    debug_assert_eq!(raw.width, w_px);
+    debug_assert_eq!(raw.height, h_px);
+    debug_assert!(matches!(raw.data_format, RawImageFormat::R8));
+    debug_assert!(matches!(raw.pixels, RawImageData::U8(ref p) if p.len() == pixels.len()));
+
+    let xobject_id = ctx.doc.add_image(&raw);
+
     // 48mm QR — the sweet spot for a 1-page receipt: large enough
     // to scan from 30cm (a phone held at desk height), small
     // enough to leave room for the body content. Positioned at
@@ -456,23 +446,28 @@ fn render_qr(ctx: &Ctx, packet: &SignedPacket, page: &Page) {
     // numerator and seal-id header line. The verdict block and
     // body content sit BELOW the QR (cursor_y = 240mm), so the
     // QR doesn't overlap.
-    let qr_mm = 48.0;
-    let qr_pt = qr_mm * 2.834_645_7_f32;
-    let pdf_w_pt = w_px as f32;
-    let scale = qr_pt / pdf_w_pt;
-    // Page right margin = 210mm. QR top-right corner: x=192..240
-    // would overflow, so x=152..200 (48mm wide, 10mm right
-    // margin). translate_y in PDF is bottom-up, so 240mm puts
-    // the bottom of the QR at y=240 (top at y=288, below the
-    // header line).
-    let transform = printpdf::ImageTransform {
-        translate_x: Some(printpdf::Mm(152.0)),
-        translate_y: Some(printpdf::Mm(240.0)),
+    let qr_mm = 48.0_f32;
+    // Convert mm to PDF user units (pt): 1mm = 2.8346457pt.
+    let mm_to_pt = 2.834_645_7_f32;
+    let qr_pt = qr_mm * mm_to_pt;
+    // Native image size in pt at the chosen DPI (default 300):
+    // 1pt = 25.4/dpi mm => 1px = 25.4/dpi mm = (25.4/dpi) * 2.8346457 pt.
+    let dpi = 300.0_f32;
+    let native_pt_per_px = 25.4_f32 / dpi * mm_to_pt;
+    let image_native_pt = (w_px as f32) * native_pt_per_px;
+    let scale = qr_pt / image_native_pt;
+    let transform = XObjectTransform {
+        translate_x: Some(Pt(152.0 * mm_to_pt)),
+        translate_y: Some(Pt(240.0 * mm_to_pt)),
+        rotate: Some(XObjectRotation::default()),
         scale_x: Some(scale),
         scale_y: Some(scale),
-        ..Default::default()
+        dpi: Some(dpi),
     };
-    pdf_image.add_to_layer(page.layer.clone(), transform);
+    page.ops.push(Op::UseXobject {
+        id: xobject_id,
+        transform,
+    });
 
     // QR caption — dark-green (print-friendly), centered under QR.
     page.set_fill(brand::LIME_DARK);
