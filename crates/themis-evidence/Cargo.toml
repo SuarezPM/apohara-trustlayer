@@ -66,8 +66,8 @@ elliptic-curve = "0.13"
 # cert (P-384) is signed by the root with rsa-pkcs1-sha512.
 # `pkcs1` provides the `RsaPublicKey::from_pkcs1_der` constructor
 # (and the PKCS#1 v1.5 signature format).
-rsa = { version = "0.9", features = ["sha2"] }
 pkcs1 = { version = "0.7", features = ["pem"] }
+num-bigint = "0.4"
 # SaaS multi-tenant key derivation (FIX-6): HKDF-SHA256 derives a
 # deterministic 32-byte Ed25519 seed from MASTER_SEED + tenant_id.
 # `hkdf` 0.12 is paired with `sha2` 0.10 (already a workspace dep).

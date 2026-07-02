@@ -56,7 +56,6 @@ use signature::hazmat::PrehashVerifier;
 
 // RSA chain verification (FreeTSA's root cert is RSA-4096
 // signing the P-384 signer cert with rsa-pkcs1-sha512).
-use rsa::pkcs1::DecodeRsaPublicKey;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Timestamp {
@@ -1023,30 +1022,21 @@ fn verify_chain_rsa(
     sig_bytes: &[u8],
     sig_alg_oid: &str,
 ) -> Result<(), TimestampError> {
-    use rsa::pkcs1v15::Pkcs1v15Sign;
-    // `SignatureScheme` lives at `rsa::traits` (re-exported from
-    // `rsa::traits::padding`); it is NOT re-exported from
-    // `rsa::pkcs1v15` so we have to take the public path via `rsa::`.
-    // The `use` is local to this function so the trait is in scope
-    // for the `RsaPublicKey::verify` call below (no pub use needed).
-    #[allow(unused_imports)]
-    use rsa::traits::SignatureScheme;
+    use num_bigint::BigUint;
     let pk_der = root
         .tbs_certificate
         .subject_public_key_info
         .subject_public_key
         .as_bytes()
         .ok_or_else(|| TimestampError::X509("root RSA key not BIT STRING".into()))?;
-    // Pick the (digest, hash_len, hand-built DigestInfo prefix)
-    // triple that matches the signature algorithm OID.
-    // Prefix layout per RFC 8017 §9.2 (DigestInfo ::= SEQUENCE
-    // { SEQUENCE { OID, NULL }, OCTET STRING ... }):
+    // RFC 8017 §9.2: DigestInfo ::= SEQUENCE {
+    //   SEQUENCE { digestAlgorithm OID, NULL }, OCTET STRING digest
+    // }.
     //   SHA-256 OID 2.16.840.1.101.3.4.2.1 (9 bytes), 32-byte digest
     //   SHA-384 OID 2.16.840.1.101.3.4.2.2 (9 bytes), 48-byte digest
     //   SHA-512 OID 2.16.840.1.101.3.4.2.3 (9 bytes), 64-byte digest
-    let (hashed, prefix): (Vec<u8>, Vec<u8>) = match sig_alg_oid {
+    let (hashed, digest_info_prefix): (Vec<u8>, Vec<u8>) = match sig_alg_oid {
         "1.2.840.113549.1.1.11" => {
-            // sha256WithRSAEncryption
             let mut h = sha2::Sha256::new();
             h.update(tbs_der);
             (
@@ -1058,7 +1048,6 @@ fn verify_chain_rsa(
             )
         }
         "1.2.840.113549.1.1.12" => {
-            // sha384WithRSAEncryption
             let mut h = sha2::Sha384::new();
             h.update(tbs_der);
             (
@@ -1070,7 +1059,6 @@ fn verify_chain_rsa(
             )
         }
         "1.2.840.113549.1.1.13" => {
-            // sha512WithRSAEncryption — the FreeTSA root's path.
             let mut h = sha2::Sha512::new();
             h.update(tbs_der);
             (
@@ -1088,18 +1076,104 @@ fn verify_chain_rsa(
             )));
         }
     };
-    let pk = rsa::RsaPublicKey::from_pkcs1_der(pk_der)
+    // Parse the PKCS#1 RSAPublicKey ::= SEQUENCE { n INTEGER, e INTEGER }
+    // directly from DER. Avoids the rsa crate (RUSTSEC-2023-0071
+    // Marvin Attack) and the pkcs1 0.7 trait-method API drift.
+    let (n_bytes, e_bytes) = parse_pkcs1_rsa_pubkey(pk_der)
         .map_err(|e| TimestampError::X509(format!("RSA pubkey decode: {e}")))?;
-    // Pkcs1v15Sign fields are `pub` — see rsa-0.9.10/src/pkcs1v15.rs:80.
-    // We avoid `VerifyingKey::<Sha256>::new(pk)` because that requires
-    // `Sha256: AssociatedOid`, which sha2 0.11 intentionally does not
-    // implement (sha2 0.10 does; we cannot pin to 0.10 per Cargo.toml).
-    let scheme = Pkcs1v15Sign {
-        hash_len: Some(hashed.len()),
-        prefix: prefix.into_boxed_slice(),
-    };
-    pk.verify(scheme, &hashed, sig_bytes)
-        .map_err(|e| TimestampError::ChainInvalid(format!("RSA chain: {e}")))
+    // RFC 8017 §8.2.2 RSASSA-PKCS1-v1_5-VERIFY: m = sig^e mod n
+    // must equal the expected DigestInfo || OCTET STRING(digest).
+    let n = BigUint::from_bytes_be(&n_bytes);
+    let e = BigUint::from_bytes_be(&e_bytes);
+    let sig = BigUint::from_bytes_be(sig_bytes);
+    let m = sig.modpow(&e, &n);
+    // PKCS#1 expects m to be exactly n.len() bytes, left-padded with
+    // zeros; BigUint::to_bytes_be strips leading zeros.
+    let mut m_bytes = m.to_bytes_be();
+    if m_bytes.len() < n_bytes.len() {
+        let pad = n_bytes.len() - m_bytes.len();
+        m_bytes = std::iter::repeat(0u8).take(pad).chain(m_bytes).collect();
+    }
+    let mut expected = digest_info_prefix;
+    expected.extend_from_slice(&hashed);
+    if m_bytes != expected {
+        return Err(TimestampError::ChainInvalid(
+            "RSA chain: signature does not match expected DigestInfo".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Minimal DER parser for PKCS#1 RSAPublicKey. Returns (n, e) as
+/// big-endian byte vectors. Avoids the rsa crate (RUSTSEC-2023-0071)
+/// and the pkcs1 0.7 trait-method API by parsing the 3 ASN.1 TLVs
+/// (outer SEQUENCE, modulus INTEGER, exponent INTEGER) directly.
+fn parse_pkcs1_rsa_pubkey(
+    der: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>), String> {
+    // SEQUENCE { INTEGER n, INTEGER e }
+    // Format: [0x30 LL] [0x02 LL_n n_bytes] [0x02 LL_e e_bytes]
+    if der.len() < 2 || der[0] != 0x30 {
+        return Err("expected SEQUENCE tag 0x30".into());
+    }
+    let seq_len = read_der_length(&der[1..])?;
+    let mut p = 1 + seq_len.0;
+    if p > der.len() {
+        return Err("SEQUENCE length exceeds buffer".into());
+    }
+    // Read modulus INTEGER
+    if der[p] != 0x02 {
+        return Err("expected INTEGER tag 0x02 for modulus".into());
+    }
+    let (modulus_len, ll) = read_der_length(&der[p + 1..])?;
+    p += 1 + ll;
+    if p + modulus_len > der.len() {
+        return Err("modulus length exceeds buffer".into());
+    }
+    let n_bytes = strip_asn1_integer_sign(&der[p..p + modulus_len]);
+    p += modulus_len;
+    // Read exponent INTEGER
+    if p >= der.len() || der[p] != 0x02 {
+        return Err("expected INTEGER tag 0x02 for exponent".into());
+    }
+    let (exp_len, ll) = read_der_length(&der[p + 1..])?;
+    p += 1 + ll;
+    if p + exp_len > der.len() {
+        return Err("exponent length exceeds buffer".into());
+    }
+    let e_bytes = strip_asn1_integer_sign(&der[p..p + exp_len]);
+    Ok((n_bytes, e_bytes))
+}
+
+/// Read a DER length field. Returns (length, bytes_consumed).
+fn read_der_length(buf: &[u8]) -> Result<(usize, usize), String> {
+    if buf.is_empty() {
+        return Err("empty length".into());
+    }
+    let first = buf[0];
+    if first < 0x80 {
+        Ok((first as usize, 1))
+    } else {
+        let n = (first & 0x7F) as usize;
+        if n == 0 || n > 8 || buf.len() < 1 + n {
+            return Err("invalid long-form length".into());
+        }
+        let mut len = 0usize;
+        for i in 0..n {
+            len = (len << 8) | (buf[1 + i] as usize);
+        }
+        Ok((len, 1 + n))
+    }
+}
+
+/// ASN.1 INTEGERs with leading 0x00 are positive (high bit set).
+/// Drop the leading 0x00 for BigUint consumption.
+fn strip_asn1_integer_sign(bytes: &[u8]) -> Vec<u8> {
+    if bytes.len() > 1 && bytes[0] == 0 && bytes[1] & 0x80 != 0 {
+        bytes[1..].to_vec()
+    } else {
+        bytes.to_vec()
+    }
 }
 
 /// ECDSA-P-384 chain verification: the root is P-384 and the
