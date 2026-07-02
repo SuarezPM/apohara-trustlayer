@@ -43,6 +43,10 @@ members = [
     "crates/tl-types",
     # "crates/tl-errors",
     "bin/tl-verify",
+    # F23: hand-rolled PDF 1.4 emitter — replaces printpdf 0.9.1 to
+    # eliminate 9 transitive RUSTSECs (lopdf, ttf-parser, bincode,
+    # fxhash, kuchiki, allsorts, azul-layout, ouroboros, proc-macro-error).
+    "crates/tl-pdf-core",
 ]
 exclude = [
     # Out-of-scope themis crates NOT absorbed (per plan v3.1):
