@@ -7,10 +7,18 @@
 //! Design language: dark background, lime/green accent (Apahara brand
 //! from the pitch deck), monospace for hashes and code, no hairlines
 //! (use lime rule or 1.4mm black bar), generous whitespace.
+//!
+//! ## printpdf 0.9.1 migration notes
+//!
+//! In printpdf 0.9 the API is Op-based. `Page` now owns a `Vec<Op>`
+//! that the `Ctx` helpers append to. The `Ctx` itself owns the
+//! `PdfDocument` (it must be `&mut` to add images / finalize pages).
+//! `BuiltinFont` is referenced inline as a `PdfFontHandle::Builtin(...)`
+//! and is *not* registered on the document.
 
 use printpdf::{
-    path::{PaintMode, WindingOrder},
-    Color, IndirectFontRef, Mm, PdfDocumentReference, PdfLayerReference, Point, Polygon, Rgb,
+    text::TextItem, BuiltinFont, Color, LinePoint, Mm, Op, PaintMode, PdfDocument, PdfFontHandle,
+    PdfPage, Point, Polygon, PolygonRing, Pt, Rgb, WindingOrder,
 };
 
 /// Synthex-style dark palette (default) + a print-friendly light
@@ -44,134 +52,200 @@ pub mod brand {
     }
 }
 
+/// A single page being assembled. Holds the cursor position (used
+/// by the render helpers) and the accumulated `Op` stream. The
+/// `Page` is consumed by `Ctx::add_page` which moves the ops into
+/// a `PdfPage` and attaches it to the document.
 pub struct Page {
-    pub layer: PdfLayerReference,
+    /// PDF op stream for this page.
+    pub ops: Vec<Op>,
+    /// Cursor y position in mm (from the bottom). The render
+    /// helpers update this as they emit text.
     pub cursor_y: f32,
+    /// Line height (mm). Reserved for future use; not consumed
+    /// in the printpdf 0.9.1 Op-based text model.
     pub line_h: f32,
 }
 
 impl Page {
-    pub fn set_fill(&self, t: (f64, f64, f64)) {
-        self.layer.set_fill_color(Color::Rgb(brand::rgb(t)));
+    /// Set the fill color for subsequent ops.
+    pub fn set_fill(&mut self, t: (f64, f64, f64)) {
+        self.ops
+            .push(Op::SetFillColor { col: Color::Rgb(brand::rgb(t)) });
     }
 
-    pub fn reset_color(&self) {
+    /// Reset the fill color to the default INK (light theme).
+    pub fn reset_color(&mut self) {
         self.set_fill(brand::INK);
     }
 }
 
-pub struct Ctx<'a> {
-    pub doc: &'a PdfDocumentReference,
-    pub font_regular: &'a IndirectFontRef,
-    pub font_bold: &'a IndirectFontRef,
+/// Drawing context. Owns the mutable `PdfDocument` (which the
+/// render functions push images into) and exposes the shared
+/// drawing helpers that append to a `Page`'s op stream.
+pub struct Ctx {
+    /// The PDF document being built. Mutable so we can register
+    /// images via `add_image` before the page ops reference them.
+    pub doc: PdfDocument,
 }
 
-impl<'a> Ctx<'a> {
+impl Ctx {
+    /// Build a new context around an empty `PdfDocument` with the
+    /// given title.
+    pub fn new(title: &str) -> Self {
+        Self {
+            doc: PdfDocument::new(title),
+        }
+    }
+
     /// Build a single A4 portrait page that is **printable**:
     /// white paper background (so it prints on any printer), ink-
-    /// black text, dark-green/lime accent for the verdict. The
-    /// previous dark version didn't print well on standard
-    /// printers (they render near-black as muddy gray and the
-    /// lime as washed-out green) — this is the same content, in
-    /// a printer-friendly palette.
-    pub fn add_a4_page(&self, layer_name: &str) -> Page {
-        let (page_idx, _layer_idx) = self.doc.add_page(Mm(210.0), Mm(297.0), layer_name);
+    /// black text, dark-green/lime accent for the verdict.
+    pub fn add_a4_page(&self, _layer_name: &str) -> Page {
+        let mut ops = Vec::new();
 
         // Layer 1: white paper background.
-        let bg_layer = self.doc.get_page(page_idx).add_layer("Background");
-        bg_layer.set_fill_color(Color::Rgb(brand::rgb(brand::PAPER)));
-        let ring = vec![
-            (Point::new(Mm(0.0), Mm(0.0)), false),
-            (Point::new(Mm(210.0), Mm(0.0)), false),
-            (Point::new(Mm(210.0), Mm(297.0)), false),
-            (Point::new(Mm(0.0), Mm(297.0)), false),
-        ];
-        let poly = Polygon {
-            rings: vec![ring],
-            mode: PaintMode::Fill,
-            winding_order: WindingOrder::NonZero,
-        };
-        bg_layer.add_polygon(poly);
+        ops.push(Op::SetFillColor {
+            col: Color::Rgb(brand::rgb(brand::PAPER)),
+        });
+        ops.push(Op::DrawPolygon {
+            polygon: Polygon {
+                rings: vec![PolygonRing {
+                    points: (0..4)
+                        .map(|i| {
+                            let (x, y) = match i {
+                                0 => (0.0_f32, 0.0_f32),
+                                1 => (210.0_f32, 0.0_f32),
+                                2 => (210.0_f32, 297.0_f32),
+                                _ => (0.0_f32, 297.0_f32),
+                            };
+                            LinePoint {
+                                p: Point::new(Mm(x), Mm(y)),
+                                bezier: false,
+                            }
+                        })
+                        .collect(),
+                }],
+                mode: PaintMode::Fill,
+                winding_order: WindingOrder::NonZero,
+            },
+        });
 
-        // Layer 2: content layer.
-        let content_layer = self.doc.get_page(page_idx).add_layer("Content");
-        content_layer.set_fill_color(Color::Rgb(brand::rgb(brand::INK_LIGHT)));
+        // Reset to ink color for content.
+        ops.push(Op::SetFillColor {
+            col: Color::Rgb(brand::rgb(brand::INK_LIGHT)),
+        });
+
         Page {
-            layer: content_layer,
+            ops,
             cursor_y: 280.0,
             line_h: 7.0,
         }
     }
 
-    /// Build a single A4 portrait page for print. White paper
-    /// background (so it prints on any printer), ink-black text,
-    /// navy/lime accent for the verdict. No dark theme.
+    /// Build a single A4 portrait page for print. The 0.7 helper
+    /// existed alongside `add_a4_page`; the two are now identical
+    /// (single light theme), but we keep the symbol for API
+    /// compatibility with the 0.7 callers.
     pub fn add_a4_page_print(&self, layer_name: &str) -> Page {
-        let (page_idx, _layer_idx) = self.doc.add_page(Mm(210.0), Mm(297.0), layer_name);
-
-        // Background layer: white paper.
-        let bg_layer = self.doc.get_page(page_idx).add_layer("Background");
-        bg_layer.set_fill_color(Color::Rgb(brand::rgb(brand::PAPER)));
-        let ring = vec![
-            (Point::new(Mm(0.0), Mm(0.0)), false),
-            (Point::new(Mm(210.0), Mm(0.0)), false),
-            (Point::new(Mm(210.0), Mm(297.0)), false),
-            (Point::new(Mm(0.0), Mm(297.0)), false),
-        ];
-        let poly = Polygon {
-            rings: vec![ring],
-            mode: PaintMode::Fill,
-            winding_order: WindingOrder::NonZero,
-        };
-        bg_layer.add_polygon(poly);
-
-        // Content layer.
-        let content_layer = self.doc.get_page(page_idx).add_layer("Content");
-        content_layer.set_fill_color(Color::Rgb(brand::rgb(brand::INK_LIGHT)));
-        Page {
-            layer: content_layer,
-            cursor_y: 280.0,
-            line_h: 7.0,
-        }
+        self.add_a4_page(layer_name)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn write(&self, page: &Page, text: &str, x: f32, y: f32, size: f32, bold: bool) {
+    /// Consume a `Page` and attach it to the underlying
+    /// `PdfDocument`. Called by the render top-level function
+    /// (`render_packet_pdf` / `render_bundle_pdf`) after the
+    /// `Page`'s op stream is fully populated.
+    pub fn add_page(&mut self, page: Page) {
+        let pdf_page = PdfPage::new(Mm(210.0), Mm(297.0), page.ops);
+        self.doc.with_pages(vec![pdf_page]);
+    }
+
+    /// Write text at `(x, y)` (mm from bottom-left) using
+    /// Helvetica or Helvetica-Bold.
+    pub fn write(
+        &self,
+        page: &mut Page,
+        text: &str,
+        x: f32,
+        y: f32,
+        size: f32,
+        bold: bool,
+    ) {
         let font = if bold {
-            self.font_bold
+            BuiltinFont::HelveticaBold
         } else {
-            self.font_regular
+            BuiltinFont::Helvetica
         };
-        page.layer.use_text(text, size, Mm(x), Mm(y), font);
+        page.ops.push(Op::StartTextSection);
+        page.ops.push(Op::SetTextCursor {
+            pos: Point::new(Mm(x), Mm(y)),
+        });
+        page.ops.push(Op::SetFont {
+            font: PdfFontHandle::Builtin(font),
+            size: Pt(size),
+        });
+        page.ops.push(Op::SetLineHeight { lh: Pt(size) });
+        page.ops.push(Op::ShowText {
+            items: vec![TextItem::Text(text.to_string())],
+        });
+        page.ops.push(Op::EndTextSection);
     }
 
     /// Filled rectangle in mm coordinates.
-    pub fn rect(&self, page: &Page, x: f32, y: f32, w: f32, h: f32, color: (f64, f64, f64)) {
+    pub fn rect(
+        &self,
+        page: &mut Page,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        color: (f64, f64, f64),
+    ) {
         page.set_fill(color);
-        let ring = vec![
-            (Point::new(Mm(x), Mm(y)), false),
-            (Point::new(Mm(x + w), Mm(y)), false),
-            (Point::new(Mm(x + w), Mm(y + h)), false),
-            (Point::new(Mm(x), Mm(y + h)), false),
-        ];
-        let poly = Polygon {
-            rings: vec![ring],
-            mode: PaintMode::Fill,
-            winding_order: WindingOrder::NonZero,
-        };
-        page.layer.add_polygon(poly);
+        page.ops.push(Op::DrawPolygon {
+            polygon: Polygon {
+                rings: vec![PolygonRing {
+                    points: vec![
+                        LinePoint {
+                            p: Point::new(Mm(x), Mm(y)),
+                            bezier: false,
+                        },
+                        LinePoint {
+                            p: Point::new(Mm(x + w), Mm(y)),
+                            bezier: false,
+                        },
+                        LinePoint {
+                            p: Point::new(Mm(x + w), Mm(y + h)),
+                            bezier: false,
+                        },
+                        LinePoint {
+                            p: Point::new(Mm(x), Mm(y + h)),
+                            bezier: false,
+                        },
+                    ],
+                }],
+                mode: PaintMode::Fill,
+                winding_order: WindingOrder::NonZero,
+            },
+        });
         page.reset_color();
     }
 
-    /// Lime rule (1.4mm) — section divider.
-    pub fn lime_rule(&self, page: &Page, x: f32, y: f32, w: f32) {
+    /// Lime rule (1mm) — section divider.
+    pub fn lime_rule(&self, page: &mut Page, x: f32, y: f32, w: f32) {
         self.rect(page, x, y, w, 1.0, brand::LIME);
     }
 
     /// Card background (BG2 panel) with hairline lime border.
-    pub fn card(&self, page: &Page, x: f32, y: f32, w: f32, h: f32) {
+    pub fn card(&self, page: &mut Page, x: f32, y: f32, w: f32, h: f32) {
         self.rect(page, x, y, w, h, brand::BG2);
         // Top lime accent stripe (1mm).
         self.rect(page, x, y + h - 1.0, w, 1.0, brand::LIME);
+    }
+
+    /// Render the document to bytes (A4 PDF, no font subsetting,
+    /// optimize on). Consumes the Ctx.
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.doc.save(&Default::default(), &mut Vec::new())
     }
 }

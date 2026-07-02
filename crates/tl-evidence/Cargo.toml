@@ -19,7 +19,7 @@ thiserror = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 # v1.1.0-US-10: PDF evidence export. Same printpdf version as
 # themis-orchestrator (pinned to 0.7 for cross-crate consistency).
-printpdf = { version = "0.7", features = ["embedded_images"] }
+printpdf = { version = "0.9.1", features = ["png"] }
 uuid = { version = "1", features = ["v4"] }
 # Pinned per plan v3.1 AC-20 (coset is "under construction" upstream):
 coset = "=0.4.2"

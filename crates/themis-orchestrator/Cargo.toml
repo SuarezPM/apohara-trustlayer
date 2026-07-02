@@ -34,7 +34,7 @@ hyper = "1"
 futures-util = "0.3"
 base64 = "0.22"
 tokio-stream = { version = "0.1", features = ["sync"] }
-printpdf = { version = "0.7", features = ["embedded_images"] }
+printpdf = { version = "0.9.1", features = ["png"] }
 qrcode = "0.14"
 # Image rendering for QR code as PNG in the PDF (premium hero band).
 # Locked at the printpdf-recommended 0.25 series (image::DynamicImage
