@@ -1,0 +1,12 @@
+[package]
+name = "tl-pdf-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Minimal PDF 1.4 emitter (no external PDF deps). Replaces printpdf 0.9.1 to eliminate 9 transitive RUSTSECs (lopdf, ttf-parser, bincode, fxhash, kuchiki, allsorts, azul-layout, ouroboros, proc-macro-error)."
+
+[dependencies]
+thiserror = "1"

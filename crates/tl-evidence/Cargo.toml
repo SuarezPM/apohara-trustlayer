@@ -17,9 +17,11 @@ thiserror = "1"
 # v1.1.0 → v1.1.1: key rotation runtime uses chrono for DateTime<Utc>
 # in KeyRotationEvent and KeyRotationPolicy (NIST SP 800-57 baseline).
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-# v1.1.0-US-10: PDF evidence export. Same printpdf version as
-# themis-orchestrator (pinned to 0.7 for cross-crate consistency).
-printpdf = { version = "0.9.1", features = ["png"] }
+# F23: PDF evidence export rewritten on top of the in-tree
+# `tl-pdf-core` crate (no external PDF deps). Eliminates 9
+# transitive RUSTSECs (lopdf, ttf-parser, bincode, fxhash,
+# kuchiki, allsorts, azul-layout, ouroboros, proc-macro-error).
+tl-pdf-core = { path = "../tl-pdf-core" }
 uuid = { version = "1", features = ["v4"] }
 # Pinned per plan v3.1 AC-20 (coset is "under construction" upstream):
 coset = "=0.4.2"

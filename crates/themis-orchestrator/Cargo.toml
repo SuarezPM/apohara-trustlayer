@@ -34,11 +34,14 @@ hyper = "1"
 futures-util = "0.3"
 base64 = "0.22"
 tokio-stream = { version = "0.1", features = ["sync"] }
-printpdf = { version = "0.9.1", features = ["png"] }
+# F23: hand-rolled PDF 1.4 emitter replaces printpdf 0.9.1
+# (eliminates 9 transitive RUSTSECs: lopdf, ttf-parser, bincode,
+# fxhash, kuchiki, allsorts, azul-layout, ouroboros, proc-macro-error).
+tl-pdf-core = { path = "../tl-pdf-core" }
 qrcode = "0.14"
-# Image rendering for QR code as PNG in the PDF (premium hero band).
-# Locked at the printpdf-recommended 0.25 series (image::DynamicImage
-# is the input type of printpdf::Image::from_dynamic_image).
+# Image rendering for QR code as a grayscale bitmap in the PDF
+# XObject. The `image` crate is only used to build the QR
+# bitmap; tl-pdf-core takes raw Vec<u8> pixels.
 image = { version = "0.25", default-features = false, features = ["png"] }
 parking_lot = "0.12"
 # C-07 / G14 / AC7: redaction patterns for the Dual-LLM split

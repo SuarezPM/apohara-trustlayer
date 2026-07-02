@@ -3,13 +3,13 @@
 //! Synthex-style dark, lime-green accent, monospace for hashes. One
 //! A4 page. The minimum a judge needs to trust the seal.
 //!
-//! ## printpdf 0.9.1 migration notes
+//! ## F23 (PDF writer replacement)
 //!
-//! The 0.7 API was layer-mutating (`page.layer.use_text(...)` etc.)
-//! — the 0.9.1 API is op-based: pages are sequences of `Op`
-//! instructions that are appended to `Page.ops` and rendered when
-//! the document is saved. `Page` no longer holds a `PdfLayerReference`;
-//! it holds `Vec<Op>`. See `ctx.rs` for the helper API.
+//! The previous `printpdf 0.9.1`-backed renderer has been replaced
+//! with the in-tree `tl-pdf-core` crate (a hand-rolled PDF 1.4
+//! emitter). `Page` no longer holds `Vec<Op>`; it holds a
+//! `tl_pdf_core::ContentOps` (the same op-stream interface but
+//! under our control). See `ctx.rs` for the helper API.
 #![allow(missing_docs)]
 
 use thiserror::Error;
@@ -392,11 +392,15 @@ fn render_receipt(
 }
 
 /// Render the QR code in the top-right corner of the body.
+///
+/// F23: rewritten to use `tl_pdf_core` instead of `printpdf`:
+///   1. Build a grayscale bitmap from the QR matrix (same as before).
+///   2. Register the bitmap as an image XObject via
+///      [`Ctx::register_image`] (uncompressed `/DeviceGray`).
+///   3. Emit a `place_image` content-stream op with the right
+///      translate + scale so the 48mm×48mm QR lands at the
+///      top-right of the page.
 fn render_qr(ctx: &mut Ctx, packet: &SignedPacket, page: &mut Page) {
-    use printpdf::{
-        Op, Pt, RawImage, RawImageData, RawImageFormat, XObjectRotation, XObjectTransform,
-    };
-
     let verify_url = format!(
         "https://vouch.apohara.dev/verify?packet={}&tenant={}",
         packet.packet().packet_id(),
@@ -426,48 +430,23 @@ fn render_qr(ctx: &mut Ctx, packet: &SignedPacket, page: &mut Page) {
     let (w_px, h_px) = (dyn_img.width() as usize, dyn_img.height() as usize);
     let pixels: Vec<u8> = dyn_img.to_luma8().into_raw();
 
-    // Convert the DynamicImage into a printpdf `RawImage`. 0.9.1
-    // exposes `RawImage::from_dynamic_image` (no intermediate
-    // `Image` newtype). Requires the `images` feature (already on
-    // via `png`).
-    let raw = RawImage::from_dynamic_image(dyn_img).expect("from_dynamic_image");
-    // Sanity: 8-bit grayscale with the same w/h we computed.
-    debug_assert_eq!(raw.width, w_px);
-    debug_assert_eq!(raw.height, h_px);
-    debug_assert!(matches!(raw.data_format, RawImageFormat::R8));
-    debug_assert!(matches!(raw.pixels, RawImageData::U8(ref p) if p.len() == pixels.len()));
+    // Register the QR as an image XObject. Must happen BEFORE
+    // `add_page` so the xref offsets are stable.
+    let xobject_name = ctx.register_image(pixels, w_px as u32, h_px as u32);
 
-    let xobject_id = ctx.doc.add_image(&raw);
-
-    // 48mm QR — the sweet spot for a 1-page receipt: large enough
-    // to scan from 30cm (a phone held at desk height), small
-    // enough to leave room for the body content. Positioned at
-    // the TOP-RIGHT of the page, sitting beside the "01 / 01"
-    // numerator and seal-id header line. The verdict block and
-    // body content sit BELOW the QR (cursor_y = 240mm), so the
-    // QR doesn't overlap.
-    let qr_mm = 48.0_f32;
-    // Convert mm to PDF user units (pt): 1mm = 2.8346457pt.
-    let mm_to_pt = 2.834_645_7_f32;
-    let qr_pt = qr_mm * mm_to_pt;
-    // Native image size in pt at the chosen DPI (default 300):
-    // 1pt = 25.4/dpi mm => 1px = 25.4/dpi mm = (25.4/dpi) * 2.8346457 pt.
-    let dpi = 300.0_f32;
+    // 48mm QR — the sweet spot for a 1-page receipt. Positioned
+    // at the top-right (x=152mm, y=240mm).
+    let qr_mm: f32 = 48.0;
+    // Native image size in pt at 300 DPI: 1px = (25.4/300)mm
+    // = (25.4/300)*2.8346457 pt.
+    let dpi: f32 = 300.0;
+    let mm_to_pt = tl_pdf_core::MM_TO_PT;
     let native_pt_per_px = 25.4_f32 / dpi * mm_to_pt;
     let image_native_pt = (w_px as f32) * native_pt_per_px;
+    let qr_pt = qr_mm * mm_to_pt;
     let scale = qr_pt / image_native_pt;
-    let transform = XObjectTransform {
-        translate_x: Some(Pt(152.0 * mm_to_pt)),
-        translate_y: Some(Pt(240.0 * mm_to_pt)),
-        rotate: Some(XObjectRotation::default()),
-        scale_x: Some(scale),
-        scale_y: Some(scale),
-        dpi: Some(dpi),
-    };
-    page.ops.push(Op::UseXobject {
-        id: xobject_id,
-        transform,
-    });
+    page.content_ops()
+        .place_image(&xobject_name, 152.0, 240.0, scale, scale);
 
     // QR caption — dark-green (print-friendly), centered under QR.
     page.set_fill(brand::LIME_DARK);
